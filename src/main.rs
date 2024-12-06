@@ -1,6 +1,6 @@
 mod fen;
 mod board;
-mod array_board;
+mod map_board;
 
 fn main() {
     println!("Hello, world!");

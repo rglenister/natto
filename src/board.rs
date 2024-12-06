@@ -14,12 +14,17 @@ pub enum PieceType {
 }
 
 pub struct Piece {
-    piece_color: PieceColor,
-    piece_type: PieceType
+    pub(crate) piece_color: PieceColor,
+    pub(crate) piece_type: PieceType
 }
 pub trait Board {
-    fn get_piece(&self, row: usize, col: usize) -> Piece;
 
-    fn put_piece(&self, piece: Piece, row: usize, col: usize);
+    fn new() -> Self;
+
+    fn get_piece(&mut self, square_index: usize) -> Option<&Piece>;
+
+    fn put_piece(&mut self, square_index: usize, piece: Piece);
+
+    fn remove_piece(&mut self, square_index: usize) -> Option<&Piece>;
 
 }
