@@ -1,7 +1,7 @@
 mod fen;
 mod board;
 mod map_board;
-//mod move;
+mod Move;
 
 fn main() {
     println!("Hello, world!");
