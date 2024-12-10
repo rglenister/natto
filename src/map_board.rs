@@ -1,6 +1,6 @@
 use crate::board::{Board, Piece};
 use std::collections::HashMap;
-struct MapBoard {
+pub struct MapBoard {
     map: HashMap<usize, Piece>
 }
 
@@ -12,19 +12,22 @@ impl Board for MapBoard {
         }
     }
 
-    fn get_piece(&mut self, square_index: usize) -> Option<&Piece> {
-        self.map.get(&square_index)
+    fn get_piece(&mut self, square_index: usize) -> Option<Piece> {
+        self.map.get(&square_index).cloned()
     }
 
     fn put_piece(&mut self, square_index: usize, piece: Piece) {
-        self.map.insert(square_index, piece);
+        self.map.insert(square_index, piece.clone());
     }
 
-    fn remove_piece(&mut self, square_index: usize) -> Option<&Piece> {
-        let option = self.map.get(&square_index);
-        option
+    fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
+        let option = self.map.remove(&square_index);
+        return option;
     }
 
+    fn clear(&mut self) {
+        self.map.clear();
+    }
 }
 
 #[cfg(test)]
@@ -46,7 +49,8 @@ mod tests {
         map_board.put_piece(square_index, piece);
         assert!(map_board.get_piece(square_index).is_some());
         let retrieved_piece = map_board.get_piece(square_index).expect("whatever");
-//        assert_eq!(retrieved_piece.piece_color, PieceColor::White);
+        assert_eq!(retrieved_piece.piece_color, PieceColor::White);
+        assert_eq!(retrieved_piece.piece_type, PieceType::Knight);
     }
 
     #[test]
@@ -55,9 +59,10 @@ mod tests {
         let square_index = 1;
         assert!(map_board.remove_piece(square_index).is_none());
         let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight};
-        map_board.put_piece(square_index, piece);
-        let piece2: &Piece = map_board.remove_piece(square_index).expect("Whatwver");
-//        assert_eq!(piece, piece2);
+        map_board.put_piece(square_index, piece.clone());
+        let piece2: &Piece = &map_board.remove_piece(square_index).expect("Whatwver");
+        assert_eq!(piece, piece2.clone());
+        assert!(map_board.get_piece(0).is_none());
     }
 
 
