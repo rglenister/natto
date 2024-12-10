@@ -88,7 +88,7 @@ impl Move for CastlingMove {
 
 #[cfg(test)]
 mod tests {
-    use crate::Move::EnPassantMove;
+    use crate::moves::EnPassantMove;
     use super::*;
     #[test]
     fn test_basic_move() {
