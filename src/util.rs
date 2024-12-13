@@ -1,14 +1,13 @@
 use crate::board::PieceColor;
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
-use crate::position::Position;
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" { Some(White) } else if initial == "b" { Some(Black) } else { None }
 }
 
 pub fn parse_square(square: &str) -> Option<usize> {
-    if (square == "-") {
+    if square == "-" {
         return None
     } else {
         let row = square.chars().nth(1).expect("Invalid square").to_digit(10).expect("Invalid square");
@@ -21,8 +20,6 @@ pub fn parse_square(square: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::PieceColor;
-    use crate::map_board::MapBoard;
 
     #[test]
     fn test_create_color() {

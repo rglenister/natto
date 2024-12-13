@@ -1,5 +1,9 @@
 //use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
+use crate::board::PieceColor::{Black, White};
+use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+
+pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 
 #[derive(Debug, EnumCountMacro, EnumIter, PartialEq)]
 #[derive(Clone)]
@@ -12,6 +16,7 @@ pub enum PieceColor {
 
 #[derive(Debug, PartialEq)]
 #[derive(Clone)]
+#[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
 #[repr(u8)]
 pub enum PieceType {
@@ -29,6 +34,32 @@ pub struct Piece {
     pub(crate) piece_color: PieceColor,
     pub(crate) piece_type: PieceType
 }
+
+impl Piece {
+    pub fn to_char(&self) -> char {
+        let first_letter: char =
+            if self.piece_type != Knight {
+                self.piece_type.to_string().chars().next().unwrap()
+            } else {
+                'N'
+            };
+        if self.piece_color == White { first_letter } else { first_letter.to_ascii_lowercase() }
+    }
+
+    pub fn from_char(piece: char) -> Result<Piece, String>{
+        let piece_color = if piece.is_ascii_uppercase() { White } else { Black };
+        let piece_type: PieceType = match piece.to_ascii_lowercase() {
+            'p' => Pawn,
+            'n' => Knight,
+            'b' => Bishop,
+            'r' => Rook,
+            'q' => Queen,
+            'k' => King,
+            _ => return Err(format!("Invalid piece: {}", piece)),
+        };
+        Ok(Piece {piece_type, piece_color})
+    }
+}
 pub trait Board {
 
     fn new() -> Self;
@@ -40,4 +71,48 @@ pub trait Board {
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece>;
 
     fn clear(&mut self);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::board::{Piece, PieceType::*};
+    use crate::board::PieceColor::*;
+
+    #[test]
+    fn test_piece_to_char() {
+        assert_eq!(Piece {piece_color: White, piece_type: Pawn}.to_char(), 'P');
+        assert_eq!(Piece {piece_color: White, piece_type: Knight}.to_char(), 'N');
+        assert_eq!(Piece {piece_color: White, piece_type: Bishop}.to_char(), 'B');
+        assert_eq!(Piece {piece_color: White, piece_type: Rook}.to_char(), 'R');
+        assert_eq!(Piece {piece_color: White, piece_type: Queen}.to_char(), 'Q');
+        assert_eq!(Piece {piece_color: White, piece_type: King}.to_char(), 'K');
+
+        assert_eq!(Piece {piece_color: Black, piece_type: Pawn}.to_char(), 'p');
+        assert_eq!(Piece {piece_color: Black, piece_type: Knight}.to_char(), 'n');
+        assert_eq!(Piece {piece_color: Black, piece_type: Bishop}.to_char(), 'b');
+        assert_eq!(Piece {piece_color: Black, piece_type: Rook}.to_char(), 'r');
+        assert_eq!(Piece {piece_color: Black, piece_type: Queen}.to_char(), 'q');
+        assert_eq!(Piece {piece_color: Black, piece_type: King}.to_char(), 'k');
+    }
+
+    #[test]
+    fn test_from_char() {
+        assert_eq!(Piece::from_char('K'), Result::Ok(Piece {piece_color: White, piece_type: King}));
+        assert_eq!(Piece::from_char('Q'), Result::Ok(Piece {piece_color: White, piece_type: Queen}));
+        assert_eq!(Piece::from_char('R'), Result::Ok(Piece {piece_color: White, piece_type: Rook}));
+        assert_eq!(Piece::from_char('B'), Result::Ok(Piece {piece_color: White, piece_type: Bishop}));
+        assert_eq!(Piece::from_char('N'), Result::Ok(Piece {piece_color: White, piece_type: Knight}));
+        assert_eq!(Piece::from_char('P'), Result::Ok(Piece {piece_color: White, piece_type: Pawn}));
+
+        assert_eq!(Piece::from_char('k'), Result::Ok(Piece {piece_color: Black, piece_type: King}));
+        assert_eq!(Piece::from_char('q'), Result::Ok(Piece {piece_color: Black, piece_type: Queen}));
+        assert_eq!(Piece::from_char('r'), Result::Ok(Piece {piece_color: Black, piece_type: Rook}));
+        assert_eq!(Piece::from_char('b'), Result::Ok(Piece {piece_color: Black, piece_type: Bishop}));
+        assert_eq!(Piece::from_char('n'), Result::Ok(Piece {piece_color: Black, piece_type: Knight}));
+        assert_eq!(Piece::from_char('p'), Result::Ok(Piece {piece_color: Black, piece_type: Pawn}));
+
+        assert_eq!(Piece::from_char('x'), Result::Err("Invalid piece: x".to_string()));
+
+    }
+
 }
