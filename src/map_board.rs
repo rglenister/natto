@@ -6,26 +6,6 @@ pub struct MapBoard {
     map: HashMap<usize, Piece>
 }
 
-impl MapBoard {
-    pub(crate) fn print_board(&mut self) -> String {
-        let mut s = String::new();
-        for row in (0..8).rev() {
-            for col in 0..8 {
-                let square_index = row * 8 + col;
-                let piece = &self.get_piece(square_index);
-                match piece {
-                    Some(piece) => {
-                        write!(s, "{}", format_args!("{}", piece.to_char())).expect("");
-                    }
-                    None => {}
-                }
-            }
-            s.write_char('\n').unwrap()
-        }
-        return s;
-    }
-}
-
 impl Board for MapBoard {
 
     fn new() -> Self {

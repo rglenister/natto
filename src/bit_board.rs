@@ -1,9 +1,8 @@
 use crate::board::{Board, Piece, PieceColor, PieceType};
 use strum::{IntoEnumIterator};
-//use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 
 
-struct BitBoard {
+pub struct BitBoard {
     bit_boards: [[u64; 6]; 2],
 }
 

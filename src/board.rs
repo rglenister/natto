@@ -1,3 +1,4 @@
+use std::fmt::Write;
 //use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use crate::board::PieceColor::{Black, White};
@@ -62,7 +63,7 @@ impl Piece {
 }
 pub trait Board {
 
-    fn new() -> Self;
+    fn new() -> Self where Self: Sized;
 
     fn get_piece(&mut self, square_index: usize) -> Option<Piece>;
 
@@ -71,6 +72,24 @@ pub trait Board {
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece>;
 
     fn clear(&mut self);
+
+    fn print_board(&mut self) -> String {
+        let mut s = String::new();
+        for row in (0..8).rev() {
+            for col in 0..8 {
+                let square_index = row * 8 + col;
+                let piece = &self.get_piece(square_index);
+                match piece {
+                    Some(piece) => {
+                        write!(s, "{}", format_args!("{}", piece.to_char())).expect("");
+                    }
+                    None => {}
+                }
+            }
+            s.write_char('\n').unwrap()
+        }
+        return s;
+    }
 }
 
 #[cfg(test)]
