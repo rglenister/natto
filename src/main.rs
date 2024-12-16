@@ -1,3 +1,5 @@
+extern crate core;
+
 mod fen;
 mod board;
 mod map_board;
@@ -5,7 +7,10 @@ mod moves;
 mod bit_board;
 mod position;
 mod util;
+mod engine;
+mod uci;
+mod move_generator;
 
 fn main() {
-    println!("Hello, world!");
+    uci::process_input();
 }

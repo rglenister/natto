@@ -1,6 +1,5 @@
 use crate::board::{Board, Piece};
 use std::collections::HashMap;
-use std::fmt::Write;
 
 pub struct MapBoard {
     map: HashMap<usize, Piece>

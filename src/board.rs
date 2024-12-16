@@ -15,10 +15,11 @@ pub enum PieceColor {
     Black
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 #[derive(Clone)]
 #[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
+#[derive(Eq, Hash, PartialEq)]
 #[repr(u8)]
 pub enum PieceType {
     Pawn,
