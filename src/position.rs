@@ -1,4 +1,7 @@
 use crate::board::{Board, PieceColor};
+use crate::fen;
+
+pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 pub(crate) struct Position<T: Board> {
     board: T,
@@ -7,6 +10,12 @@ pub(crate) struct Position<T: Board> {
     en_passant_target: Option<usize>,
     half_move_clock: usize,
     full_move_number: usize,
+}
+
+impl<T: Board> From<&str> for Position<T> {
+    fn from(fen: &str) -> Self {
+        fen::parse(fen.to_string())
+    }
 }
 
 impl<T: Board> Position<T> {
@@ -26,6 +35,10 @@ impl<T: Board> Position<T> {
             half_move_clock,
             full_move_number,
         }
+    }
+
+    pub fn new_game() -> Position<T> {
+        Position::from(NEW_GAME_FEN)
     }
 
     pub(crate) fn board(&mut self) -> &T {

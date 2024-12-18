@@ -1,5 +1,7 @@
 extern crate core;
 
+use crate::bit_board::BitBoard;
+
 mod fen;
 mod board;
 mod map_board;
@@ -12,5 +14,5 @@ mod uci;
 mod move_generator;
 
 fn main() {
-    uci::process_input();
+    uci::process_input::<BitBoard>();
 }

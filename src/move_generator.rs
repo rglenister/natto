@@ -3,11 +3,11 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
 static MOVE_TABLE: Lazy<HashMap<PieceType, [Vec<i32>; 64]>> = Lazy::new(|| {
-    let mut increments: HashMap<PieceType, Vec<i32>> = HashMap::new();
-    increments.insert(PieceType::Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
-    increments.insert(PieceType::King, vec![1, 7, 8, 9, -1, -7, -8, -9]);
+    let increments = HashMap::from([
+        (PieceType::Knight, [10, 17, 15, 6, -10, -17, -15, -6]),
+        (PieceType::King, [1, 7, 8, 9, -1, -7, -8, -9])]);
 
-    let mut m: HashMap<PieceType, [Vec<i32>; 64]> = HashMap::new();
+    let mut move_table: HashMap<PieceType, [Vec<i32>; 64]> = HashMap::new();
 
     for piece_type in [PieceType::Knight, PieceType::King].iter() {
         let mut squares: [Vec<i32>; 64] = core::array::from_fn(|i| vec![]);
@@ -23,10 +23,10 @@ static MOVE_TABLE: Lazy<HashMap<PieceType, [Vec<i32>; 64]>> = Lazy::new(|| {
             }
             squares[square_index as usize] = move_squares;
         }
-        m.insert(piece_type.clone(), squares);
+        move_table.insert(piece_type.clone(), squares);
     }
 
-    return m;
+    return move_table;
 });
 
 fn distance(square_index_1: i32, square_index_2: i32) -> i32 {
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn test_knight_lookup_table() {
-        let table = MOVE_TABLE.clone();
+        let mut table = &MOVE_TABLE;
         let moves_for_knight = table.get(&PieceType::Knight).unwrap();
         assert_eq!(moves_for_knight[0], vec![10, 17]);
         assert_eq!(moves_for_knight[36], vec![46, 53, 51, 42, 26, 19, 21, 30]);
@@ -66,7 +66,7 @@ mod tests {
     }
     #[test]
     fn test_king_lookup_table() {
-        let table = MOVE_TABLE.clone();
+        let table = &MOVE_TABLE;
         let moves_for_king = table.get(&PieceType::King).unwrap();
         assert_eq!(moves_for_king[0], vec![1, 8, 9]);
         assert_eq!(moves_for_king[7], vec![14, 15, 6]);
