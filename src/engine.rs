@@ -9,12 +9,6 @@ use std::thread::sleep;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::time::Duration;
 
-enum UciCommand {
-    Go,
-    Stop,
-    Quit,
-}
-
 pub(crate) struct Engine<T: board::Board> {
     position: Option<Position<T>>,
 }
@@ -34,12 +28,12 @@ impl<T: board::Board> Engine<T> {
     pub fn go(&mut self) -> Arc<AtomicBool> {
         match &self.position {
             Some(position) => {
-                let (command_sender, command_receiver): (Sender<UciCommand>, Receiver<UciCommand>) = unbounded();
+                let (command_sender, command_receiver): (Sender<String>, Receiver<String>) = unbounded();
                 let stop_flag = Arc::new(AtomicBool::new(false));
                 let stop_flag_clone = Arc::clone(&stop_flag);
 
                 // Spawn the search thread
-                let search_thread = thread::spawn(move || {
+                thread::spawn(move || {
                     Self::search_loop(command_receiver, stop_flag_clone);
                 });
                 stop_flag
@@ -49,7 +43,7 @@ impl<T: board::Board> Engine<T> {
             } => todo!(),
         }
     }
-    fn search_loop(command_receiver: Receiver<UciCommand>, stop_flag: Arc<AtomicBool>) {
+    fn search_loop(command_receiver: Receiver<String>, stop_flag: Arc<AtomicBool>) {
         loop {
             println!("searching...");
             if stop_flag.load(Ordering::Relaxed) {

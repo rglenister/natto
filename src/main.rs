@@ -12,6 +12,7 @@ mod util;
 mod engine;
 mod uci;
 mod move_generator;
+mod magic_bitboard;
 
 fn main() {
     uci::process_input::<BitBoard>();

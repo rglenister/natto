@@ -14,7 +14,6 @@ enum UciCommand {
     Go(Option<String>),
     Stop,
     Quit,
-    Unknown(String),
     None
 }
 
@@ -29,7 +28,6 @@ impl UciCommand {
             Some("go") => UciCommand::Go(parts.next().map(|s| s.to_string())),
             Some("stop") => UciCommand::Stop,
             Some("quit") => UciCommand::Quit,
-            Some(cmd) => UciCommand::Unknown(cmd.to_string()),
             _ => UciCommand::None
         }
 
@@ -73,9 +71,6 @@ pub fn process_input<T: board::Board>() -> () {
             }
             UciCommand::Quit => {
                 println!("info string Quitting");
-            }
-            UciCommand::Unknown(_) => {
-                eprintln!("unknown command");
             }
             UciCommand::None => {
                 eprintln!("info string No input receivedf");

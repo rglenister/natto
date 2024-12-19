@@ -41,10 +41,6 @@ impl<T: Board> Position<T> {
         Position::from(NEW_GAME_FEN)
     }
 
-    pub(crate) fn board(&mut self) -> &T {
-        &self.board
-    }
-
     pub fn side_to_move(&self) -> PieceColor {
         self.side_to_move
     }
