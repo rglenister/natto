@@ -13,7 +13,7 @@ impl Board for BitBoard {
         }
     }
 
-    fn get_piece(&mut self, square_index: usize) -> Option<Piece> {
+    fn get_piece(&self, square_index: usize) -> Option<Piece> {
         let mask: u64 = 1 << square_index;
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
@@ -50,12 +50,12 @@ impl Board for BitBoard {
 
 #[cfg(test)]
 mod tests {
-//    use crate::board::{PieceColor, PieceType};
+    //    use crate::board::{PieceColor, PieceType};
     use super::*;
 
     #[test]
     fn test_get_from_empty_square() {
-        let mut bit_board: crate::bit_board::BitBoard = crate::bit_board::BitBoard::new();
+        let bit_board: crate::bit_board::BitBoard = crate::bit_board::BitBoard::new();
         assert!(bit_board.get_piece(0).is_none());
     }
 
@@ -81,4 +81,16 @@ mod tests {
         let piece2: Piece = bit_board.remove_piece(square_index).expect("Whatever");
         assert_eq!(piece, piece2);
     }
+
+    #[test]
+    fn test_clear() {
+        let mut bit_board: BitBoard = BitBoard::new();
+        let square_index = 16;
+        assert!(bit_board.get_piece(square_index).is_none());
+        bit_board.put_piece(square_index, Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight});
+        assert!(bit_board.get_piece(square_index).is_some());
+        bit_board.clear();
+        assert!(bit_board.get_piece(square_index).is_none());
+    }
+
 }

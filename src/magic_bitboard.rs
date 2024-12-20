@@ -1,6 +1,5 @@
-use crate::board::PieceType;
 use crate::util;
-use crate::util::{distance, on_board};
+use crate::util::{on_board};
 
 fn generate_attack_masks() {
     let bishop_table = generate_attack_masks_for_piece_type([9, 7, -9, -7]);
@@ -17,7 +16,7 @@ fn generate_attack_masks() {
 
 fn generate_attack_masks_for_piece_type(increments: [i32; 4]) -> Vec<u64> {
     let mut result: Vec<u64> = Vec::new();
-    for square in (0..64) {
+    for square in 0..64 {
         let mut result_bitboard: u64 = 0;
         for increment in increments {
             result_bitboard |= generate_attack_mask_for_increment(0, square, increment);
@@ -43,7 +42,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_attest_attack_maskstack_masks() {
+    fn test_generate_attack_masks() {
         generate_attack_masks();
     }
 }

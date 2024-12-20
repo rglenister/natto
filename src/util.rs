@@ -1,4 +1,5 @@
-use crate::board::PieceColor;
+use std::fmt::Write;
+use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
 
@@ -34,14 +35,40 @@ pub fn on_board(square_from: i32, square_to: i32) -> bool {
     square_to >= 0 && square_to < 64 && (square_to % 8 - square_from % 8).abs() <= 1
 }
 
+fn print_board(board: &dyn Board) -> String {
+    let mut s = String::new();
+    for row in (0..8).rev() {
+        for col in 0..8 {
+            let square_index = row * 8 + col;
+            let piece = &board.get_piece(square_index);
+            match piece {
+                Some(piece) => {
+                    write!(s, "{}", format_args!("{}", piece.to_char())).expect("");
+                }
+                None => {
+                    let _ = write!(s, "-");
+                }
+            }
+        }
+        s.write_char('\n').unwrap()
+    }
+    return s;
+}
 pub fn print_bitboard2(bitboard: u64) {
     println!("{:064b}", bitboard);
 }
 pub fn print_bitboard(bitboard: u64) {
-    for rank in (0..8) {
-        let row = (bitboard >> (rank * 8)) & 0xFF;
-        println!("{}", format!("{:08b}", row).replace('0', "-")
-            .chars().fold("".to_string(), |cur, nxt| cur + "  " + nxt.to_string().as_str()));
+    for row in (0..8).rev() {
+        for col in 0..8 {
+            let square_index = row * 8 + col;
+            let bit = (bitboard >> square_index) & 1;
+            if bit == 1 {
+                print!("1");
+            } else {
+                print!("-");
+            }
+        }
+        println!()
     }
     println!();
     print_bitboard2(bitboard);
@@ -50,6 +77,8 @@ pub fn print_bitboard(bitboard: u64) {
 
 #[cfg(test)]
 mod tests {
+    use crate::board::{Piece, PieceType};
+    use crate::map_board::MapBoard;
     use super::*;
 
     #[test]
@@ -76,13 +105,20 @@ mod tests {
         assert_eq!(distance(60, 68), 1);
     }
     #[test]
-    fn test_bitboard_to_string() {
-        let board: u64 = (1 as u64);
+    fn test_print_bitboard() {
+        let board: u64 = 1 as u64;
         print_bitboard(board);
 
         let board: u64 = (1 as u64) << 63;
-        let board: u64 = (1 as u64) << 62;
         print_bitboard(board);
     }
 
+    #[test]
+    fn test_print_board() {
+        let mut map_board = MapBoard::new();
+        map_board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
+        map_board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
+        let string = print_board(&map_board);
+        println!("{}", string);
+    }
 }

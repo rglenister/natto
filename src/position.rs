@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn test_general_usability() {
-        let mut position: Position<MapBoard> =
+        let position: Position<MapBoard> =
             Position::new(
                 MapBoard::new(),
                 PieceColor::Black,

@@ -62,7 +62,7 @@ pub fn process_input<T: board::Board>() -> () {
                 engine.position(Position::from(fen.as_str()));
             }
             UciCommand::Go(go) => {
-                println!("info string Setting up go");
+                println!("info string Setting up go - option = {:?}", go);
                 stop_flag = engine.go();
             }
             UciCommand::Stop => {

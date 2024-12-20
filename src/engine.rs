@@ -27,8 +27,8 @@ impl<T: board::Board> Engine<T> {
 
     pub fn go(&mut self) -> Arc<AtomicBool> {
         match &self.position {
-            Some(position) => {
-                let (command_sender, command_receiver): (Sender<String>, Receiver<String>) = unbounded();
+            Some(_position) => {
+                let (_command_sender, command_receiver): (Sender<String>, Receiver<String>) = unbounded();
                 let stop_flag = Arc::new(AtomicBool::new(false));
                 let stop_flag_clone = Arc::clone(&stop_flag);
 
@@ -43,7 +43,7 @@ impl<T: board::Board> Engine<T> {
             } => todo!(),
         }
     }
-    fn search_loop(command_receiver: Receiver<String>, stop_flag: Arc<AtomicBool>) {
+    fn search_loop(_command_receiver: Receiver<String>, stop_flag: Arc<AtomicBool>) {
         loop {
             println!("searching...");
             if stop_flag.load(Ordering::Relaxed) {

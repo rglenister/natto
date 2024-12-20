@@ -9,19 +9,18 @@ static MOVE_TABLE: Lazy<HashMap<PieceType, [Vec<i32>; 64]>> = Lazy::new(|| {
 
     let mut move_table: HashMap<PieceType, [Vec<i32>; 64]> = HashMap::new();
 
-    generate_move_table(&mut move_table, PieceType::Knight, &knight_increments, false);
-    generate_move_table(&mut move_table, PieceType::King, &king_increments, false);
+    generate_move_table(&mut move_table, PieceType::Knight, &knight_increments);
+    generate_move_table(&mut move_table, PieceType::King, &king_increments);
     fn generate_move_table(
         move_table: &mut HashMap<PieceType, [Vec<i32>; 64]>,
         piece_type: PieceType,
         increments: &[i32],
-        sliding: bool,
     ) {
-        let mut squares: [Vec<i32>; 64] = core::array::from_fn(|i| vec![]);
+        let mut squares: [Vec<i32>; 64] = core::array::from_fn(|_i| vec![]);
         for square_index in 0..64 {
             let mut move_squares: Vec<i32> = vec![];
             for square_increment in increments.iter() {
-                get_moves_for_increment(&mut move_squares, square_index, *square_increment, sliding);
+                get_moves_for_increment(&mut move_squares, square_index, *square_increment);
             }
             squares[square_index as usize] = move_squares;
         }
@@ -29,7 +28,7 @@ static MOVE_TABLE: Lazy<HashMap<PieceType, [Vec<i32>; 64]>> = Lazy::new(|| {
     }
     return move_table;
 
-    fn get_moves_for_increment(move_squares: &mut Vec<i32>, source_square_index: i32, increment: i32, sliding: bool) {
+    fn get_moves_for_increment(move_squares: &mut Vec<i32>, source_square_index: i32, increment: i32) {
         let destination_square = source_square_index + increment;
         if (0..64).contains(&destination_square) && util::distance(source_square_index, destination_square) <= 2 {
             move_squares.push(destination_square);

@@ -13,7 +13,7 @@ impl Board for MapBoard {
         }
     }
 
-    fn get_piece(&mut self, square_index: usize) -> Option<Piece> {
+    fn get_piece(&self, square_index: usize) -> Option<Piece> {
         self.map.get(&square_index).cloned()
     }
 
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_get_from_empty_square() {
-        let mut map_board: MapBoard = MapBoard::new();
+        let map_board: MapBoard = MapBoard::new();
         assert!(map_board.get_piece(0).is_none());
     }
 
@@ -61,10 +61,19 @@ mod tests {
         assert!(map_board.remove_piece(square_index).is_none());
         let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight};
         map_board.put_piece(square_index, piece.clone());
-        let piece2: &Piece = &map_board.remove_piece(square_index).expect("Whatwver");
+        let piece2: &Piece = &map_board.remove_piece(square_index).expect("Whatever");
         assert_eq!(piece, piece2.clone());
         assert!(map_board.get_piece(0).is_none());
     }
 
-
+    #[test]
+    fn test_clear() {
+        let mut map_board: MapBoard = MapBoard::new();
+        let square_index = 16;
+        assert!(map_board.get_piece(square_index).is_none());
+        map_board.put_piece(square_index, Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight});
+        assert!(map_board.get_piece(square_index).is_some());
+        map_board.clear();
+        assert!(map_board.get_piece(square_index).is_none());
+    }
 }
