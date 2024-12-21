@@ -45,4 +45,20 @@ mod tests {
     fn test_generate_attack_masks() {
         generate_attack_masks();
     }
+
+    #[test]
+    fn test_pext() {
+        assert_eq!(supports_pext(), false);
+        fn supports_pext() -> bool {
+            #[cfg(target_arch = "x86_64")]
+            {
+                is_x86_feature_detected!("bmi2")
+            }
+            #[cfg(not(target_arch = "x86_64"))]
+            {
+                false
+            }
+        }
+
+    }
 }

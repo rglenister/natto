@@ -75,6 +75,30 @@ pub fn print_bitboard(bitboard: u64) {
     println!();
 }
 
+fn indices_of_set_bits(mut n: u64) -> Vec<u32> {
+    let mut indices = Vec::new();
+    while n != 0 {
+        let index = n.trailing_zeros(); // Get the index of the least significant set bit
+        indices.push(index);
+        n &= n - 1; // Clear the least significant set bit
+    }
+    indices
+}
+
+fn pdep(selector_mask: u64, packed: u64, unpacked: u64) -> u64 {
+    let indices = indices_of_set_bits(selector_mask);
+    let mut result = unpacked;
+    for index in indices {
+        let bit_selector = 1 << index;
+        if result & bit_selector != 0 {
+            result |= bit_selector
+        } else {
+            result |= bit_selector;
+        }
+    }
+    return result
+}
+
 #[cfg(test)]
 mod tests {
     use crate::board::{Piece, PieceType};
@@ -121,4 +145,32 @@ mod tests {
         let string = print_board(&map_board);
         println!("{}", string);
     }
+
+    #[test]
+    fn test_bit_indices() {
+        let selector_mask: u64 = 0b10100101;
+        let indices = indices_of_set_bits(selector_mask);
+        assert!(indices.len().eq(&4));
+        assert!(indices.contains(&0));
+        assert!(indices.contains(&2));
+        assert!(indices.contains(&5));
+        assert!(indices.contains(&7));
+    }
+
+    #[test]
+    fn test_pdep() {
+        let selector_mask: u64 = 0b10100101;
+        for packed in 0..16 {
+            let result = pdep(selector_mask, packed, 0xffffffffffffffff);
+            println!("{:064b}", result)
+        }
+    }
+
+    #[test]
+    fn test_count_bits() {
+        let number: u64 = 0xff00fff;
+        let count = number.count_ones();
+        assert!(count.eq(&20));
+    }
 }
+
