@@ -85,20 +85,6 @@ fn indices_of_set_bits(mut n: u64) -> Vec<u32> {
     indices
 }
 
-fn pdep(selector_mask: u64, packed: u64, unpacked: u64) -> u64 {
-    let indices = indices_of_set_bits(selector_mask);
-    let mut result = unpacked;
-    for index in indices {
-        let bit_selector = 1 << index;
-        if result & bit_selector != 0 {
-            result |= bit_selector
-        } else {
-            result |= bit_selector;
-        }
-    }
-    return result
-}
-
 #[cfg(test)]
 mod tests {
     use crate::board::{Piece, PieceType};
@@ -157,14 +143,6 @@ mod tests {
         assert!(indices.contains(&7));
     }
 
-    #[test]
-    fn test_pdep() {
-        let selector_mask: u64 = 0b10100101;
-        for packed in 0..16 {
-            let result = pdep(selector_mask, packed, 0xffffffffffffffff);
-            println!("{:064b}", result)
-        }
-    }
 
     #[test]
     fn test_count_bits() {

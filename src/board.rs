@@ -13,8 +13,7 @@ pub enum PieceColor {
     Black
 }
 
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
 #[derive(Eq, Hash, PartialEq)]

@@ -11,9 +11,8 @@ mod position;
 mod util;
 mod engine;
 mod uci;
-mod move_generator;
-mod magic_bitboard;
-mod dpec;
+mod moves_cache;
+
 
 fn main() {
     uci::process_input::<BitBoard>();
