@@ -32,7 +32,7 @@ pub(crate) fn distance(square_index_1: i32, square_index_2: i32) -> i32 {
 }
 
 pub fn on_board(square_from: i32, square_to: i32) -> bool {
-    square_to >= 0 && square_to < 64 && (square_to % 8 - square_from % 8).abs() <= 1
+    square_to >= 0 && square_to < 64 && (square_to % 8 - square_from % 8).abs() <= 2
 }
 
 fn print_board(board: &dyn Board) -> String {
@@ -63,9 +63,9 @@ pub fn print_bitboard(bitboard: u64) {
             let square_index = row * 8 + col;
             let bit = (bitboard >> square_index) & 1;
             if bit == 1 {
-                print!("1");
+                print!("1 ");
             } else {
-                print!("-");
+                print!("- ");
             }
         }
         println!()
@@ -142,7 +142,6 @@ mod tests {
         assert!(indices.contains(&5));
         assert!(indices.contains(&7));
     }
-
 
     #[test]
     fn test_count_bits() {

@@ -1,5 +1,4 @@
 use crate::board::PieceType;
-use crate::util;
 use crate::util::on_board;
 use crate::util::print_bitboard;
 use bitintr::{Pdep, Pext};
@@ -26,15 +25,13 @@ static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, [u64; 64]>> = Lazy:
         let mut squares: [u64; 64] = [0; 64];
         let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
         for square_index in 0..64 {
-            let mut move_squares: u64 = 0;
-            for increment in increments.iter() {
-                let destination_square = square_index + increment;
-                if (0..64).contains(&destination_square)
-                    && util::distance(square_index, destination_square) <= 2
-                {
-                    move_squares |= 1 << destination_square;
-                }
-            }
+            let move_squares: u64 = generate_move_bitboard(
+                square_index,
+                (&increments).to_vec(),
+                0,
+                false,
+                false,
+            );
             squares[square_index as usize] = move_squares;
         }
         squares
@@ -51,23 +48,32 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
     let mut move_table: HashMap<PieceType, Vec<TableEntry>> = HashMap::new();
 
     for piece_type in [PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
-        move_table.insert(piece_type.clone(), generate_move_table(piece_type));
+        let vec = generate_move_table(piece_type.clone());
+        move_table.insert(piece_type.clone(), vec);
     }
 
     fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
         let mut squares: Vec<TableEntry> = Vec::new();
         for square_index in 0..64 {
             let blocking_squares_bitboard: u64 =
-                generate_blocking_squares_bitboard(piece_type.clone(), square_index);
+                generate_move_bitboard(
+                    square_index,
+                    PIECE_INCREMENTS_TABLE[&piece_type].clone(),
+                    0,
+                    true,
+                    true
+                );
             let n_ones = blocking_squares_bitboard.count_ones() as u64;
             let table_size: u64 = 2_i32.pow((n_ones as i32).try_into().unwrap()) as u64;
             let mut moves_bitboard: Vec<u64> = Vec::new();
             for table_index in 0..table_size {
                 let blocking_pieces_bitboard: u64 = table_index.pdep(blocking_squares_bitboard);
-                let sliding_move_bitboard = generate_sliding_piece_move_bitboard(
-                    piece_type.clone(),
+                let sliding_move_bitboard = generate_move_bitboard(
                     square_index,
+                    PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap().clone(),
                     blocking_pieces_bitboard,
+                    false,
+                    true,
                 );
                 moves_bitboard.push(sliding_move_bitboard);
             }
@@ -80,74 +86,6 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
         squares
     }
 
-    fn generate_blocking_squares_bitboard(piece_type: PieceType, square: i32) -> u64 {
-        let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
-        let mut result_bitboard: u64 = 0;
-        for increment in increments {
-            result_bitboard |= generate_blocking_squares_bitboard_for_increment(0, square, *increment);
-        }
-        return result_bitboard;
-    }
-
-    fn generate_blocking_squares_bitboard_for_increment(
-        bitboard: u64,
-        source_square: i32,
-        increment: i32,
-    ) -> u64 {
-        let destination_square: i32 = source_square + increment;
-        if on_board(source_square, destination_square)
-            && on_board(destination_square, destination_square + increment)
-        {
-            generate_blocking_squares_bitboard_for_increment(
-                bitboard | 1 << destination_square,
-                destination_square,
-                increment,
-            )
-        } else {
-            bitboard
-        }
-    }
-
-    fn generate_sliding_piece_move_bitboard(
-        piece_type: PieceType,
-        square: i32,
-        blocking_pieces_bitboard: u64,
-    ) -> u64 {
-        let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
-        let mut result_bitboard: u64 = 0;
-        for increment in increments {
-            result_bitboard |= generate_sliding_piece_move_bitboard_for_increment(
-                0,
-                square,
-                blocking_pieces_bitboard,
-                *increment,
-            );
-        }
-        return result_bitboard;
-    }
-
-    fn generate_sliding_piece_move_bitboard_for_increment(
-        bitboard: u64,
-        source_square: i32,
-        blocking_pieces_bitboard: u64,
-        increment: i32,
-    ) -> u64 {
-        let destination_square: i32 = source_square + increment;
-        if on_board(source_square, destination_square) {
-            if blocking_pieces_bitboard & 1 << destination_square == 0 {
-                generate_sliding_piece_move_bitboard_for_increment(
-                    bitboard | 1 << destination_square,
-                    destination_square,
-                    blocking_pieces_bitboard,
-                    increment,
-                )
-            } else {
-                bitboard | 1 << destination_square
-            }
-        } else {
-            bitboard
-        }
-    }
     return move_table;
 });
 
@@ -175,7 +113,54 @@ pub fn get_sliding_moves_by_piece_type(
     return *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
 }
 
+fn generate_move_bitboard(
+    source_square: i32,
+    increments: Vec<i32>,
+    blocking_pieces_bitboard: u64,
+    generating_blocking_square_mask: bool,
+    sliding: bool,
+) -> u64 {
+    let mut result_bitboard: u64 = 0;
+    for increment in increments {
+        result_bitboard |= generate_move_bitboard_for_increment(
+            result_bitboard,
+            source_square,
+            blocking_pieces_bitboard,
+            increment,
+            generating_blocking_square_mask,
+            sliding,
+        );
+    }
+    return result_bitboard
+}
 
+fn generate_move_bitboard_for_increment(
+    bitboard: u64,
+    source_square: i32,
+    blocking_pieces_bitboard: u64,
+    increment: i32,
+    generating_blocking_square_mask: bool,
+    sliding: bool,
+) -> u64 {
+    let destination_square: i32 = source_square + increment;
+    if on_board(source_square, destination_square) &&
+        (!generating_blocking_square_mask || on_board(destination_square, destination_square + increment)) {
+        if sliding && blocking_pieces_bitboard & 1 << destination_square == 0 {
+            generate_move_bitboard_for_increment(
+                bitboard | 1 << destination_square,
+                destination_square,
+                blocking_pieces_bitboard,
+                increment,
+                generating_blocking_square_mask,
+                sliding,
+            )
+        } else {
+            return bitboard | 1 << destination_square
+        }
+    } else {
+        return bitboard
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -184,10 +169,12 @@ mod tests {
 
     #[test]
     fn test_knight_lookup_table() {
+        print_bitboard(get_moves_by_piece_type(PieceType::Knight, 0));
         assert_eq!(
             get_moves_by_piece_type(PieceType::Knight, 0),
             1 << 10 | 1 << 17
         );
+        print_bitboard(get_moves_by_piece_type(PieceType::Knight, 36));
         assert_eq!(
             get_moves_by_piece_type(PieceType::Knight, 36),
             1 << 46 | 1 << 53 | 1 << 51 | 1 << 42 | 1 << 26 | 1 << 19 | 1 << 21 | 1 << 30
@@ -250,7 +237,7 @@ mod tests {
     fn test_queen_lookup_table1() {
         let a = get_sliding_moves_by_piece_type(PieceType::Queen, 0, 1 << 3 | 1 << 32 | 1 << 18);
         print_bitboard(a);
-//        assert_eq!(a, 1 << 9 | 1 << 18 | 1 << 27 | 1 << 36 | 1 << 45 | 1 << 54);
+        //        assert_eq!(a, 1 << 9 | 1 << 18 | 1 << 27 | 1 << 36 | 1 << 45 | 1 << 54);
     }
 
     #[test]
