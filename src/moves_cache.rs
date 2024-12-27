@@ -112,7 +112,7 @@ fn generate_move_bitboard(
     generating_blocking_square_mask: bool,
     sliding: bool,
 ) -> u64 {
-    let x: Vec<_> = increments.into_iter().map(|increment| {
+    let bitboards: Vec<_> = increments.into_iter().map(|increment| {
         generate_move_bitboard_for_increment(
             source_square,
             blocking_pieces_bitboard,
@@ -120,7 +120,7 @@ fn generate_move_bitboard(
             generating_blocking_square_mask,
             sliding)
     }).collect();
-    x.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard)
+    bitboards.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard)
 }
 
 fn generate_move_bitboard_for_increment(

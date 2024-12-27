@@ -12,7 +12,7 @@ mod util;
 mod engine;
 mod uci;
 mod moves_cache;
-
+mod search;
 
 fn main() {
     uci::process_input::<BitBoard>();
