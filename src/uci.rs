@@ -36,7 +36,7 @@ impl UciCommand {
 }
 
 pub fn process_input<T: board::Board>() -> () {
-    let mut engine: Engine<T> = engine::Engine::new();
+    let mut engine: Engine = engine::Engine::new();
     let stdin = io::stdin();
     let mut stop_flag = Arc::new(AtomicBool::new(false));
     for line in stdin.lock().lines() {

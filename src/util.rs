@@ -87,8 +87,8 @@ fn indices_of_set_bits(mut n: u64) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
+    use crate::bit_board::BitBoard;
     use crate::board::{Piece, PieceType};
-    use crate::map_board::MapBoard;
     use super::*;
 
     #[test]
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_print_board() {
-        let mut map_board = MapBoard::new();
+        let mut map_board = BitBoard::new();
         map_board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
         map_board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
         let string = print_board(&map_board);

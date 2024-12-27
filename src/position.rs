@@ -1,10 +1,11 @@
+use crate::bit_board::BitBoard;
 use crate::board::{Board, PieceColor};
 use crate::fen;
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-pub(crate) struct Position<T: Board> {
-    board: T,
+pub(crate) struct Position {
+    board: BitBoard,
     side_to_move: PieceColor,
     castling_rights: String,
     en_passant_target: Option<usize>,
@@ -12,15 +13,15 @@ pub(crate) struct Position<T: Board> {
     full_move_number: usize,
 }
 
-impl<T: Board> From<&str> for Position<T> {
+impl From<&str> for Position {
     fn from(fen: &str) -> Self {
         fen::parse(fen.to_string())
     }
 }
 
-impl<T: Board> Position<T> {
+impl Position {
     pub(crate) fn new(
-        board: T,
+        board: BitBoard,
         side_to_move: PieceColor,
         castling_rights: String,
         en_passant_target: Option<usize>,
@@ -37,7 +38,7 @@ impl<T: Board> Position<T> {
         }
     }
 
-    pub fn new_game() -> Position<T> {
+    pub fn new_game() -> Position {
         Position::from(NEW_GAME_FEN)
     }
 
@@ -63,15 +64,15 @@ impl<T: Board> Position<T> {
 }
 #[cfg(test)]
 mod tests {
+    use crate::bit_board::BitBoard;
     use super::*;
     use crate::board::PieceColor;
-    use crate::map_board::MapBoard;
 
     #[test]
     fn test_general_usability() {
-        let position: Position<MapBoard> =
+        let position: Position =
             Position::new(
-                MapBoard::new(),
+                BitBoard::new(),
                 PieceColor::Black,
                 "KQkq".to_string(),
                 Some(31),

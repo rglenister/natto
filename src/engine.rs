@@ -1,5 +1,4 @@
 use std::thread;
-use crate::board;
 use crate::position::Position;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -9,11 +8,11 @@ use std::thread::sleep;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::time::Duration;
 
-pub(crate) struct Engine<T: board::Board> {
-    position: Option<Position<T>>,
+pub(crate) struct Engine {
+    position: Option<Position>,
 }
 
-impl<T: board::Board> Engine<T> {
+impl Engine {
 
     pub fn new() -> Self {
         Self {
@@ -21,7 +20,7 @@ impl<T: board::Board> Engine<T> {
         }
     }
 
-    pub fn position(&mut self, position: Position<T>) {
+    pub fn position(&mut self, position: Position) {
         self.position = Some(position);
     }
 

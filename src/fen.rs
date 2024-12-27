@@ -1,5 +1,6 @@
 
 use regex::Regex;
+use crate::bit_board::BitBoard;
 use crate::board;
 use crate::board::{Board, Piece};
 use crate::position::Position;
@@ -7,7 +8,7 @@ use crate::util::create_color;
 use crate::util::parse_square;
 
 
-pub fn parse<T: Board>(fen: String) -> Position<T> {
+pub fn parse(fen: String) -> Position {
     let re =
         Regex::new(r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb]) (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+)").unwrap();
     if let Some(captures) = re.captures(&fen) {
@@ -18,7 +19,7 @@ pub fn parse<T: Board>(fen: String) -> Position<T> {
         let halfmove_clock: usize = captures.name("halfmove_clock").unwrap().as_str().parse().expect("it matched the regular expression");
         let fullmove_number: usize = captures.name("fullmove_number").unwrap().as_str().parse().expect("it matched the regular expression");
 
-        let mut board: T = T::new();
+        let mut board: BitBoard = BitBoard::new();
         for i in 0..board::NUMBER_OF_SQUARES {
             let ch = board_str.chars().nth(i).expect("it's ok");
             if !ch.is_whitespace() {
@@ -62,7 +63,6 @@ fn reverse_rows(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::bit_board::BitBoard;
     use super::*;
     use crate::board::PieceColor::White;
     use crate::position;
@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn test_parse() {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        let position: position::Position<BitBoard> = parse(fen.to_string());
+        let position: position::Position = parse(fen.to_string());
 
         assert_eq!(position.side_to_move(), White);
         assert_eq!(position.castling_rights(), "KQkq");
