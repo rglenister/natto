@@ -16,11 +16,8 @@ static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<i32>>> = Laz
 });
 
 static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, [u64; 64]>> = Lazy::new(|| {
-    let mut move_table: HashMap<PieceType, [u64; 64]> = HashMap::new();
-
-    for piece_type in [PieceType::Knight, PieceType::King] {
-        move_table.insert(piece_type.clone(), generate_move_table(piece_type));
-    }
+    let move_table = [PieceType::Knight, PieceType::King]
+        .into_iter().map(|piece_type| (piece_type.clone(), generate_move_table(piece_type))).collect();
     fn generate_move_table(piece_type: PieceType) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
         let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
@@ -45,13 +42,8 @@ struct TableEntry {
 }
 
 static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Lazy::new(|| {
-    let mut move_table: HashMap<PieceType, Vec<TableEntry>> = HashMap::new();
-
-    for piece_type in [PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
-        let vec = generate_move_table(piece_type.clone());
-        move_table.insert(piece_type.clone(), vec);
-    }
-
+    let move_table = [PieceType::Bishop, PieceType::Rook, PieceType::Queen]
+        .into_iter().map(|piece_type| (piece_type.clone(), generate_move_table(piece_type))).collect();
     fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
         let mut squares: Vec<TableEntry> = Vec::new();
         for square_index in 0..64 {
@@ -110,7 +102,7 @@ pub fn get_sliding_moves_by_piece_type(
 
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
-    return *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
+    *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap()
 }
 
 fn generate_move_bitboard(
@@ -120,22 +112,18 @@ fn generate_move_bitboard(
     generating_blocking_square_mask: bool,
     sliding: bool,
 ) -> u64 {
-    let mut result_bitboard: u64 = 0;
-    for increment in increments {
-        result_bitboard |= generate_move_bitboard_for_increment(
-            result_bitboard,
+    let x: Vec<_> = increments.into_iter().map(|increment| {
+        generate_move_bitboard_for_increment(
             source_square,
             blocking_pieces_bitboard,
             increment,
             generating_blocking_square_mask,
-            sliding,
-        );
-    }
-    return result_bitboard
+            sliding)
+    }).collect();
+    x.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard)
 }
 
 fn generate_move_bitboard_for_increment(
-    bitboard: u64,
     source_square: i32,
     blocking_pieces_bitboard: u64,
     increment: i32,
@@ -145,9 +133,9 @@ fn generate_move_bitboard_for_increment(
     let destination_square: i32 = source_square + increment;
     if on_board(source_square, destination_square) &&
         (!generating_blocking_square_mask || on_board(destination_square, destination_square + increment)) {
+        let result = 1 << destination_square;
         if sliding && blocking_pieces_bitboard & 1 << destination_square == 0 {
-            generate_move_bitboard_for_increment(
-                bitboard | 1 << destination_square,
+            result | generate_move_bitboard_for_increment(
                 destination_square,
                 blocking_pieces_bitboard,
                 increment,
@@ -155,10 +143,10 @@ fn generate_move_bitboard_for_increment(
                 sliding,
             )
         } else {
-            return bitboard | 1 << destination_square
+            result
         }
     } else {
-        return bitboard
+        0
     }
 }
 
