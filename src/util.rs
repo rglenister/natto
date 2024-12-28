@@ -2,6 +2,7 @@ use std::fmt::Write;
 use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
+use crate::position::Position;
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" { Some(White) } else if initial == "b" { Some(Black) } else { None }
@@ -35,7 +36,11 @@ pub fn on_board(square_from: i32, square_to: i32) -> bool {
     square_to >= 0 && square_to < 64 && (square_to % 8 - square_from % 8).abs() <= 2
 }
 
-fn print_board(board: &dyn Board) -> String {
+fn print_position(position: Position) {
+//    println!("{}", position.to_string());
+}
+
+pub(crate) fn print_board(board: &dyn Board) -> String {
     let mut s = String::new();
     for row in (0..8).rev() {
         for col in 0..8 {
@@ -43,10 +48,10 @@ fn print_board(board: &dyn Board) -> String {
             let piece = &board.get_piece(square_index);
             match piece {
                 Some(piece) => {
-                    write!(s, "{}", format_args!("{}", piece.to_char())).expect("");
+                    write!(s, "{}", format_args!("{} ", piece.to_char())).expect("");
                 }
                 None => {
-                    let _ = write!(s, "-");
+                    let _ = write!(s, "- ");
                 }
             }
         }
