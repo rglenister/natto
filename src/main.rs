@@ -4,7 +4,7 @@ use crate::bit_board::BitBoard;
 
 mod fen;
 mod board;
-mod moves;
+mod chess_move;
 mod bit_board;
 mod position;
 mod util;

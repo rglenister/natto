@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
@@ -9,8 +10,8 @@ pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 #[derive(Copy)]
 #[repr(u8)]
 pub enum PieceColor {
-    White,
-    Black
+    White = 0,
+    Black = 1,
 }
 
 #[derive(Clone, Debug)]
@@ -25,6 +26,16 @@ pub enum PieceType {
     Rook,
     Queen,
     King
+}
+
+#[derive(Clone, Debug)]
+#[derive(strum_macros::Display)]
+#[derive(EnumCountMacro, EnumIter)]
+#[derive(Eq, Hash, PartialEq)]
+#[repr(u8)]
+pub enum BoardSide {
+    KingSide,
+    QueenSide,
 }
 
 #[derive(Debug, PartialEq)]
@@ -59,6 +70,8 @@ impl Piece {
         Ok(Piece {piece_type, piece_color})
     }
 }
+
+
 pub trait Board {
 
     fn new() -> Self where Self: Sized;
@@ -70,6 +83,26 @@ pub trait Board {
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece>;
 
     fn clear(&mut self);
+
+    fn to_string(&self) -> String {
+        let mut s = String::new();
+        for row in (0..8).rev() {
+            for col in 0..8 {
+                let square_index = row * 8 + col;
+                let piece = &self.get_piece(square_index);
+                match piece {
+                    Some(piece) => {
+                        write!(s, "{}", format_args!("{}  ", piece.to_char())).expect("");
+                    }
+                    None => {
+                        let _ = write!(s, "-  ");
+                    }
+                }
+            }
+            s.write_char('\n').unwrap()
+        }
+        return s;
+    }
 }
 
 #[cfg(test)]

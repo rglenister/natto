@@ -1,7 +1,6 @@
 use crate::bit_board::BitBoard;
 use crate::board::{Board, PieceColor};
 use crate::fen;
-use crate::util::print_board;
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -40,14 +39,22 @@ impl Position {
     }
 
     pub fn to_string(&self) -> String {
-        return format!("{} {:?} {} {} {} {}", print_board(&self.board), self.side_to_move, self.castling_rights, self. en_passant_target.unwrap_or(0), self.half_move_clock, self.full_move_number);
+        format!("{} {:?} {} {} {} {}", self.board.to_string(), self.side_to_move, self.castling_rights, self. en_passant_target.unwrap_or(0), self.half_move_clock, self.full_move_number)
     }
     pub fn new_game() -> Position {
         Position::from(NEW_GAME_FEN)
     }
 
+    pub fn board(&self) -> &BitBoard {
+        &self.board
+    }
+
     pub fn side_to_move(&self) -> PieceColor {
         self.side_to_move
+    }
+
+    pub fn opposing_side(&self) -> PieceColor {
+        if self.side_to_move == PieceColor::White {PieceColor::Black} else {PieceColor::White}
     }
 
     pub fn castling_rights(&self) -> String {

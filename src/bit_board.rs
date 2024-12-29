@@ -6,6 +6,37 @@ pub struct BitBoard {
     bit_boards: [[u64; 6]; 2],
 }
 
+impl BitBoard {
+    pub fn bitboard_by_color_and_piece_type(&self, piece_color: PieceColor, piece_type: PieceType) -> u64 {
+        self.bit_boards[piece_color as usize][piece_type as usize]
+    }
+
+    pub fn bitboard_by_color(&self, piece_color: PieceColor) -> u64 {
+        self.bit_boards[piece_color as usize].iter().fold(0, |acc, x| acc | *x as u64)
+    }
+
+    pub fn row(square_index: i32) -> i32 {
+        square_index / 8
+    }
+
+    pub fn col(square_index: i32) -> i32 {
+        square_index % 8
+    }
+
+    pub fn rank(square_index: i32, piece_color: PieceColor) -> i32 {
+        if piece_color == PieceColor::White {
+            BitBoard::row(square_index)
+        } else {
+            7 - BitBoard::row(square_index)
+        }
+    }
+
+    pub fn is_along_side(square_1: i32, square_2: i32) -> bool {
+        (square_2 - square_1).abs() == 1 && BitBoard::row(square_1) == BitBoard::row(square_2)
+    }
+
+}
+
 impl Board for BitBoard {
     fn new() -> Self {
         Self {

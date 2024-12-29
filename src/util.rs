@@ -1,8 +1,6 @@
-use std::fmt::Write;
 use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
-use crate::position::Position;
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" { Some(White) } else if initial == "b" { Some(Black) } else { None }
@@ -36,32 +34,6 @@ pub fn on_board(square_from: i32, square_to: i32) -> bool {
     square_to >= 0 && square_to < 64 && (square_to % 8 - square_from % 8).abs() <= 2
 }
 
-fn print_position(position: Position) {
-//    println!("{}", position.to_string());
-}
-
-pub(crate) fn print_board(board: &dyn Board) -> String {
-    let mut s = String::new();
-    for row in (0..8).rev() {
-        for col in 0..8 {
-            let square_index = row * 8 + col;
-            let piece = &board.get_piece(square_index);
-            match piece {
-                Some(piece) => {
-                    write!(s, "{}", format_args!("{} ", piece.to_char())).expect("");
-                }
-                None => {
-                    let _ = write!(s, "- ");
-                }
-            }
-        }
-        s.write_char('\n').unwrap()
-    }
-    return s;
-}
-pub fn print_bitboard2(bitboard: u64) {
-    println!("{:064b}", bitboard);
-}
 pub fn print_bitboard(bitboard: u64) {
     for row in (0..8).rev() {
         for col in 0..8 {
@@ -76,7 +48,7 @@ pub fn print_bitboard(bitboard: u64) {
         println!()
     }
     println!();
-    print_bitboard2(bitboard);
+    println!("{:064b}", bitboard);
     println!();
 }
 
@@ -130,10 +102,10 @@ mod tests {
 
     #[test]
     fn test_print_board() {
-        let mut map_board = BitBoard::new();
-        map_board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
-        map_board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
-        let string = print_board(&map_board);
+        let mut board = BitBoard::new();
+        board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
+        board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
+        let string = board.to_string();
         println!("{}", string);
     }
 
