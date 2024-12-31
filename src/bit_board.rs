@@ -7,6 +7,13 @@ pub struct BitBoard {
 }
 
 impl BitBoard {
+    pub fn bitboards_for_color(&self, piece_color: PieceColor) -> [u64; 6] {
+        return self.bit_boards[piece_color as usize];
+    }
+    pub fn bitboard_all_pieces(&self) -> u64 {
+        BitBoard::bitboard_by_color(&self, PieceColor::White) | BitBoard::bitboard_by_color(&self, PieceColor::Black)
+    }
+
     pub fn bitboard_by_color_and_piece_type(&self, piece_color: PieceColor, piece_type: PieceType) -> u64 {
         self.bit_boards[piece_color as usize][piece_type as usize]
     }
@@ -78,6 +85,7 @@ impl Board for BitBoard {
         self.bit_boards = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]
     }
 }
+
 
 #[cfg(test)]
 mod tests {

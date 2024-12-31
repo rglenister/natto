@@ -52,14 +52,21 @@ pub fn print_bitboard(bitboard: u64) {
     println!();
 }
 
-fn indices_of_set_bits(mut n: u64) -> Vec<u32> {
-    let mut indices = Vec::new();
-    while n != 0 {
-        let index = n.trailing_zeros(); // Get the index of the least significant set bit
-        indices.push(index);
-        n &= n - 1; // Clear the least significant set bit
+pub fn process_bits<F>(mut bitmap: u64, mut func: F) -> ()
+where F: FnMut(u64) -> (),
+{
+    while bitmap != 0 {
+        func(bitmap.trailing_zeros() as u64);
+        bitmap &= bitmap - 1;
     }
-    indices
+}
+
+pub fn bit_indexes(bitmap: u64) -> Vec<u64> {
+    let mut indexes: Vec<u64> = Vec::new();
+    process_bits(bitmap, |index: u64| {
+        indexes.push(index)
+    });
+    indexes
 }
 
 #[cfg(test)]
@@ -112,7 +119,7 @@ mod tests {
     #[test]
     fn test_bit_indices() {
         let selector_mask: u64 = 0b10100101;
-        let indices = indices_of_set_bits(selector_mask);
+        let indices = bit_indexes(selector_mask);
         assert!(indices.len().eq(&4));
         assert!(indices.contains(&0));
         assert!(indices.contains(&2));
