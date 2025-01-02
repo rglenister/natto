@@ -1,6 +1,8 @@
 use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
+use crate::chess_move::ChessMove;
+use crate::chess_move::ChessMove::BasicMove;
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" { Some(White) } else if initial == "b" { Some(Black) } else { None }
@@ -67,6 +69,17 @@ pub fn bit_indexes(bitmap: u64) -> Vec<u64> {
         indexes.push(index)
     });
     indexes
+}
+
+pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) -> Vec<ChessMove> {
+    moves.into_iter().filter(|chess_move | {
+        match chess_move {
+            ChessMove::BasicMove { from, .. } => *from == from_square,
+            ChessMove::EnPassantMove { from, .. } => *from == from_square,
+            ChessMove::PromotionMove { from, .. } => *from == from_square,
+            ChessMove::CastlingMove { from, .. } => *from == from_square,
+        }
+    }).collect::<Vec<ChessMove>>()
 }
 
 #[cfg(test)]
