@@ -71,11 +71,18 @@ pub fn bit_indexes(bitmap: u64) -> Vec<u64> {
 
 #[cfg(test)]
 mod tests {
+    use std::result;
     use crate::bit_board::BitBoard;
     use crate::board::{Piece, PieceType};
     use super::*;
 
     #[test]
+    fn test_bit_indexes() {
+        let result = bit_indexes(1 << 0 | 1 << 1 | 1 << 32 | 1 << 63);
+        assert_eq!(result.len(), 4);
+        assert_eq!(result, vec![0, 1, 32, 63]);
+    }
+
     fn test_create_color() {
         assert_eq!(None, create_color("a"));
         assert_eq!(Some(Black), create_color("b"));

@@ -4,13 +4,14 @@ use crate::util::print_bitboard;
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use fen::parse;
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor::White;
 use crate::board::PieceType::{Bishop, King, Knight, Queen, Rook};
 use crate::chess_move::ChessMove;
-use crate::chess_move::ChessMove::{BasicMove, EnPassantMove};
+use crate::chess_move::ChessMove::{BasicMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
-use crate::util;
+use crate::{fen, util};
 
 pub fn generate(position: Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
@@ -20,11 +21,11 @@ pub fn generate(position: Position) -> Vec<ChessMove> {
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
 
     moves.extend(generate_pawn_moves(&position, bitboards[PieceType::Pawn as usize], occupied_squares, friendly_squares));
-    get_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares);
-    get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares);
-    get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares);
-    get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares);
-    generate_king_moves(bitboards[King as usize], occupied_squares, friendly_squares);
+    moves.extend(get_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares));
+//    moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
+//    moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
+//    moves.extend(get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares));
+    moves.extend(generate_king_moves(bitboards[King as usize], occupied_squares, friendly_squares));
     moves
 }
 
@@ -63,7 +64,7 @@ pub fn get_sliding_moves_by_piece_type(
 
         let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
         let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
-        *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
+        let _ = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
         moves.extend(generate_moves(piece_type.clone(), square_index as usize, table_entry.moves_bitboard[0], occupied_squares, friendly_squares));
     });
     moves
@@ -72,7 +73,9 @@ pub fn get_sliding_moves_by_piece_type(
 fn generate_moves(piece_type: PieceType, from: usize, destinations: u64, occupied_squares: u64 , friendly_squares: u64) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
     util::process_bits(destinations, |to: u64| {
-        moves.push(BasicMove { from, to: to as usize, capture: friendly_squares & 1 << to == 0});
+        if friendly_squares & 1 << to == 0 {
+            moves.push(BasicMove { from, to: to as usize, capture: occupied_squares & 1 << to != 0});
+        }
     });
     moves
 }
@@ -154,6 +157,7 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
     return move_table;
 });
 
+/// Pre-calculates the bitmaps
 fn generate_move_bitboard(
     source_square: i32,
     increments: Vec<i32>,
@@ -199,10 +203,11 @@ fn generate_move_bitboard(
     }
 }
 
-fn generate_king_moves(square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> u64 {
+fn generate_king_moves(square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
+    let mut moves: Vec<ChessMove> = vec!();
     get_moves_by_piece_type(King, 1 << square_indexes, occupied_squares, friendly_squares);
     // add castling moves
-    0
+    moves
 }
 
 fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
@@ -214,28 +219,28 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
 
     let mut moves: Vec<ChessMove> = vec!();
     for square_index in indexes {
-        generate_forward_moves(&position, all_pieces_bitboard, square_index.try_into().unwrap(), forward_increment);
-        generate_standard_captures(&moves, &position, square_index, capture_increments, opposition_pieces_bitboard);
-        generate_en_passant(square_index, position.en_passant_target(), forward_increment);
-        fn create_moves(mut moves: Vec<ChessMove>, position: Position, from: i32, to: i32, capture: bool) -> Vec<ChessMove> {
+        moves.extend(generate_forward_moves(&position, all_pieces_bitboard, square_index as i32, forward_increment as i32));
+        moves.extend(generate_standard_captures(&position, square_index, capture_increments, opposition_pieces_bitboard));
+        moves.extend(generate_en_passant(square_index, position.en_passant_target(), forward_increment).into_iter().collect::<Vec<_>>());
+
+        fn create_moves(position: &Position, from: i32, to: i32, capture: bool) -> Vec<ChessMove> {
             if BitBoard::rank(to, position.side_to_move()) != 7 {
-                vec!()
+                vec!(BasicMove { from: from as usize, to: to as usize, capture})
             } else {
-                vec!()
-                // moves
-                // [Knight, Bishop, Rook, Queen].iter().map(|piece_type| { PromotionMove { from, to, capture, promote_to: piece_type}}).collect();
+                [Knight, Bishop, Rook, Queen].map(|piece_type| { PromotionMove { from: from as usize, to: to as usize, capture, promote_to: piece_type } }).to_vec()
             }
         }
 
-        fn generate_forward_moves(position: &Position, all_pieces_bitboard: u64, square_index: i32, forward_increment: i32) {
+        fn generate_forward_moves(position: &Position, all_pieces_bitboard: u64, square_index: i32, forward_increment: i32) -> Vec<ChessMove> {
             let mut moves: Vec<ChessMove> = vec!();
             let one_step_forward = square_index + forward_increment;
             if all_pieces_bitboard & 1 << one_step_forward == 0 {
-                moves.push(BasicMove { from: square_index as usize, to: one_step_forward as usize, capture: false });
-                if BitBoard::rank(square_index, position.side_to_move()) == 2 {
-                    moves.push(BasicMove { from: square_index as usize, to: (one_step_forward + forward_increment) as usize, capture: false });
+                moves.extend(create_moves(position, (square_index as usize).try_into().unwrap(), one_step_forward, false));
+                if BitBoard::rank(square_index, position.side_to_move()) == 1 && all_pieces_bitboard & (1 << one_step_forward + forward_increment) == 0 {
+                    moves.extend(create_moves(position, (square_index as usize).try_into().unwrap(), ((one_step_forward + forward_increment) as usize).try_into().unwrap(), false));
                 }
             }
+            moves
         }
         fn generate_en_passant(square_index: u64, en_passant_capture_square: Option<usize>, forward_increment: i32) -> Option<ChessMove> {
             en_passant_capture_square
@@ -243,16 +248,14 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
                 .map(|ep_square| { EnPassantMove { from: square_index as usize, to: (ep_square as i32 + forward_increment) as usize, capture: true, capture_square: ep_square as usize } })
         }
 
-        fn generate_standard_captures(mut moves: &Vec<ChessMove>, position: &Position, square_index: u64, capture_increments: [i32; 2], opposition_pieces_bitboard: u64) {
-            // capture_increments.map(|increment| {
-            //     (square_index + increment)
-            //         .filter(|&to| is_valid_capture(square_index, to, opposition_pieces_bitboard))
-            //         .flat_map(|to| create_moves((&moves).to_vec(), &position, square_index, to, true))
-            // });
+        fn generate_standard_captures(position: &Position, square_index: u64, capture_increments: [i32; 2], opposition_pieces_bitboard: u64) -> Vec<ChessMove> {
+           capture_increments.map(|increment| square_index as i32 + increment)
+                    .iter().filter(|&to| is_valid_capture(square_index.try_into().unwrap(), *to, opposition_pieces_bitboard))
+                    .flat_map(|&to| create_moves(position, (square_index as usize).try_into().unwrap(), to, true)).collect()
         }
 
         fn is_valid_capture(from: i32, to: i32, opposition_pieces_bitboard: u64) -> bool {
-            util::on_board(from, to) && opposition_pieces_bitboard << to != 0
+            on_board(from, to) && opposition_pieces_bitboard & 1 << to != 0
         }
     }
     moves
@@ -263,46 +266,85 @@ mod tests {
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
 
+    /// Verifies that a knight in a corner square can move to the expected squares
+    //#[test]
+    // fn test_pawn_on_e2() {
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::Pawn, 1 << 12, 0, 0),
+    //         vec!(BasicMove { from: 12, to: 10, capture: false },
+    //              BasicMove { from: 12, to: 17, capture: false })
+    //     );
+    // }
+
+    /// Verifies that a knight in a corner square can move to the expected squares
     #[test]
-    fn test_knight_lookup_table() {
-        // print_bitboard(get_moves_by_piece_type(PieceType::Knight, 0, 0, 0));
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::Knight, 0, 0, 0),
-        //     1 << 10 | 1 << 17
-        // );
-        // print_bitboard(get_moves_by_piece_type(PieceType::Knight, 36, 0, 0));
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::Knight, 36, 0, 0),
-        //     1 << 46 | 1 << 53 | 1 << 51 | 1 << 42 | 1 << 26 | 1 << 19 | 1 << 21 | 1 << 30
-        // );
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::Knight, 63, 0, 0),
-        //     1 << 53 | 1 << 46
-        // );
+    fn test_knight_on_corner_square() {
+        assert_eq!(
+            get_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 0),
+            vec!(BasicMove { from: 0, to: 10, capture: false },
+                 BasicMove { from: 0, to: 17, capture: false })
+        );
     }
+
+    /// Verifies that a knight cannot capture a friendly piece
     #[test]
-    fn test_king_lookup_table() {
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::King, 0, 0, 0),
-        //     1 << 9 | 1 << 1 | 1 << 8
-        // );
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::King, 7, 0, 0),
-        //     1 << 14 | 1 << 15 | 1 << 6
-        // );
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::King, 1, 0, 0),
-        //     1 << 10 | 1 << 8 | 1 << 2 | 1 << 9 | 1 << 0
-        // );
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::King, 2, 0, 0),
-        //     1 << 11 | 1 << 9 | 1 << 3 | 1 << 10 | 1 << 1
-        // );
-        // assert_eq!(
-        //     get_moves_by_piece_type(PieceType::King, 9, 0, 0),
-        //     1 << 18 | 1 << 16 | 1 << 0 | 1 << 2 | 1 << 10 | 1 << 17 | 1 << 8 | 1 << 1
-        // );
+    fn test_knight_attacking_friendly_piece() {
+        assert_eq!(
+            get_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 1 << 10),
+            vec!(BasicMove { from: 0, to: 17, capture: false })
+        );
     }
+
+    /// Verifies that a knight can capture an enemy piece
+    #[test]
+    fn test_knight_attacking_enemy_piece() {
+        assert_eq!(
+            get_moves_by_piece_type(PieceType::Knight, 1 << 0, 1 << 10, 0),
+            vec!(BasicMove { from: 0, to: 10, capture: true },
+                 BasicMove { from: 0, to: 17, capture: false })
+        );
+    }
+
+    // fn test_knight_attacking_enemy_piece() {
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::Knight, 1 << 36, 0, 0),
+    //         vec!(BasicMove { from: 36, to: 19, capture: false },
+    //              BasicMove { from: 36, to: 21, capture: false },
+    //              BasicMove { from: 36, to: 26, capture: false },
+    //              BasicMove { from: 36, to: 30, capture: false },
+    //              BasicMove { from: 36, to: 42, capture: false },
+    //              BasicMove { from: 36, to: 46, capture: false },
+    //              BasicMove { from: 36, to: 51, capture: false },
+    //              BasicMove { from: 36, to: 53, capture: false })
+    //     );
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::Knight, 63, 0, 0),
+    //         1 << 53 | 1 << 46
+    //     );
+    // }
+    // #[test]
+    // fn test_king_lookup_table() {
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::King, 0, 0, 0),
+    //         1 << 9 | 1 << 1 | 1 << 8
+    //     );
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::King, 7, 0, 0),
+    //         1 << 14 | 1 << 15 | 1 << 6
+    //     );
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::King, 1, 0, 0),
+    //         1 << 10 | 1 << 8 | 1 << 2 | 1 << 9 | 1 << 0
+    //     );
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::King, 2, 0, 0),
+    //         1 << 11 | 1 << 9 | 1 << 3 | 1 << 10 | 1 << 1
+    //     );
+    //     assert_eq!(
+    //         get_moves_by_piece_type(PieceType::King, 9, 0, 0),
+    //         1 << 18 | 1 << 16 | 1 << 0 | 1 << 2 | 1 << 10 | 1 << 17 | 1 << 8 | 1 << 1
+    //     );
+    // }
 
     #[test]
     fn test_bishop_lookup_table1() {
@@ -348,5 +390,104 @@ mod tests {
         //let a = get_sliding_moves_by_piece_type(PieceType::Queen, 35, 0, 0);
         //print_bitboard(a);
         //        assert_eq!(a, 1 << 9 | 1 << 18 | 1 << 27 | 1 << 36 | 1 << 45 | 1 << 54);
+    }
+
+    /// 20 moves are generated from the initial position
+    #[test]
+    fn test_20_moves_generated_from_initial_position() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 20);
+    }
+
+    #[test]
+    fn test_white_pawns_on_home_squares() {
+        let fen = "4k3/5p2/8/8/8/8/2P5/4K3 w - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 2);
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 10, to: 18, capture: false });
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 10, to: 26, capture: false });
+    }
+
+    /// Black pawns can make single or double moves from their home squares
+    #[test]
+    fn test_black_pawns_on_home_squares() {
+        let fen = "4k3/5p2/8/8/8/8/2P5/4K3 b - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 2);
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 53, to: 45, capture: false });
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 53, to: 37, capture: false });
+    }
+
+    /// White pawns can be completely blocked
+    #[test]
+    fn test_white_pawns_can_be_completely_blocked() {
+        let fen = "4k3/5p2/5b2/8/8/2b5/2P5/4K3 w - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 0);
+    }
+
+    /// Black pawns can be completely blocked
+    #[test]
+    fn test_black_pawns_can_be_completely_blocked() {
+        let fen = "4k3/5p2/5b2/8/8/2b5/2P5/4K3 b - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 0);
+    }
+
+    /// White pawns can be blocked from making a double move
+    #[test]
+    fn test_white_pawns_can_be_blocked_from_making_a_double_move() {
+        let fen = "4k3/5p2/8/5b2/2b5/8/2P5/4K3 w - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 1);
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 10, to: 18, capture: false });
+    }
+
+    /// Black pawns can be blocked from making a double move
+    #[test]
+    fn test_black_pawns_can_be_blocked_from_making_a_double_move() {
+        let fen = "4k3/5p2/8/5b2/2b5/8/2P5/4K3 b - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 1);
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 53, to: 45, capture: false });
+    }
+
+    #[test]
+    fn test_white_pawns_can_capture() {
+
+    }
+
+    /// White pawns can be promoted
+    #[test]
+    fn test_white_pawns_can_be_promoted() {
+        let fen = "4k3/2P5/8/5b2/2b5/8/6p1/4K3 w - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 4);
+        assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Knight });
+        assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Bishop });
+        assert_eq!(*moves.get(2).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Rook });
+        assert_eq!(*moves.get(3).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Queen });
+    }
+
+    /// Black pawns can be promoted
+    #[test]
+    fn test_black_pawns_can_be_promoted() {
+        let fen = "4k3/2P5/8/5b2/2b5/8/6p1/4K3 b - - 0 1".to_string();
+        let position = parse(fen);
+        let moves = generate(position);
+        assert_eq!(moves.len(), 4);
+        assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Knight });
+        assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Bishop });
+        assert_eq!(*moves.get(2).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Rook });
+        assert_eq!(*moves.get(3).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Queen });
     }
 }
