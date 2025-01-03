@@ -74,7 +74,7 @@ mod tests {
 
         assert_eq!(position.side_to_move(), White);
         assert_eq!(position.castling_rights(), "KQkq");
-        assert_eq!(position.en_passant_target(), None);
+        assert_eq!(position.en_passant_capture_square(), None);
         assert_eq!(position.half_move_clock(), 0);
         assert_eq!(position.full_move_number(), 1);
     }

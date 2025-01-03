@@ -10,7 +10,7 @@ mod position;
 mod util;
 mod engine;
 mod uci;
-mod moves_generator;
+mod move_generator;
 mod search;
 
 fn main() {

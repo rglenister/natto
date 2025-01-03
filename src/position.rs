@@ -8,7 +8,7 @@ pub(crate) struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
     castling_rights: String,
-    en_passant_target: Option<usize>,
+    en_passant_capture_square: Option<usize>,
     half_move_clock: usize,
     full_move_number: usize,
 }
@@ -24,7 +24,7 @@ impl Position {
         board: BitBoard,
         side_to_move: PieceColor,
         castling_rights: String,
-        en_passant_target: Option<usize>,
+        en_passant_capture_square: Option<usize>,
         half_move_clock: usize,
         full_move_number: usize,
     ) -> Self {
@@ -32,14 +32,14 @@ impl Position {
             board,
             side_to_move,
             castling_rights,
-            en_passant_target,
+            en_passant_capture_square: en_passant_capture_square,
             half_move_clock,
             full_move_number,
         }
     }
 
     pub fn to_string(&self) -> String {
-        format!("{} {:?} {} {} {} {}", self.board.to_string(), self.side_to_move, self.castling_rights, self. en_passant_target.unwrap_or(0), self.half_move_clock, self.full_move_number)
+        format!("{} {:?} {} {} {} {}", self.board.to_string(), self.side_to_move, self.castling_rights, self. en_passant_capture_square.unwrap_or(0), self.half_move_clock, self.full_move_number)
     }
     pub fn new_game() -> Position {
         Position::from(NEW_GAME_FEN)
@@ -61,8 +61,8 @@ impl Position {
         self.castling_rights.clone()
     }
 
-    pub fn en_passant_target(&self) -> Option<usize> {
-        self.en_passant_target.clone()
+    pub fn en_passant_capture_square(&self) -> Option<usize> {
+        self.en_passant_capture_square.clone()
     }
 
     pub fn half_move_clock(&self) -> usize {
@@ -93,7 +93,7 @@ mod tests {
         assert!(position.board.get_piece(3).is_none());
         assert_eq!(position.side_to_move(), PieceColor::Black);
         assert_eq!(position.castling_rights(), "KQkq".to_string());
-        assert_eq!(position.en_passant_target(), Some(31));
+        assert_eq!(position.en_passant_capture_square(), Some(31));
         assert_eq!(position.half_move_clock(), 99);
         assert_eq!(position.full_move_number(), 50);
     }
