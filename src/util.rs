@@ -2,7 +2,6 @@ use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
 use crate::chess_move::ChessMove;
-use crate::chess_move::ChessMove::BasicMove;
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" { Some(White) } else if initial == "b" { Some(Black) } else { None }
@@ -84,7 +83,6 @@ pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) ->
 
 #[cfg(test)]
 mod tests {
-    use std::result;
     use crate::bit_board::BitBoard;
     use crate::board::{Piece, PieceType};
     use super::*;

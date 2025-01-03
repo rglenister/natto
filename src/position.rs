@@ -7,7 +7,7 @@ pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKB
 pub(crate) struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
-    castling_rights: String,
+    castling_rights: [[bool; 2]; 2],
     en_passant_capture_square: Option<usize>,
     half_move_clock: usize,
     full_move_number: usize,
@@ -23,7 +23,7 @@ impl Position {
     pub(crate) fn new(
         board: BitBoard,
         side_to_move: PieceColor,
-        castling_rights: String,
+        fen_castling_rights: String,
         en_passant_capture_square: Option<usize>,
         half_move_clock: usize,
         full_move_number: usize,
@@ -31,15 +31,15 @@ impl Position {
         Self {
             board,
             side_to_move,
-            castling_rights,
-            en_passant_capture_square: en_passant_capture_square,
+            castling_rights: Position::create_castling_rights(fen_castling_rights),
+            en_passant_capture_square,
             half_move_clock,
             full_move_number,
         }
     }
 
     pub fn to_string(&self) -> String {
-        format!("{} {:?} {} {} {} {}", self.board.to_string(), self.side_to_move, self.castling_rights, self. en_passant_capture_square.unwrap_or(0), self.half_move_clock, self.full_move_number)
+        format!("{} {:?} {:?} {} {} {}", self.board.to_string(), self.side_to_move, self.castling_rights, self. en_passant_capture_square.unwrap_or(0), self.half_move_clock, self.full_move_number)
     }
     pub fn new_game() -> Position {
         Position::from(NEW_GAME_FEN)
@@ -57,7 +57,7 @@ impl Position {
         if self.side_to_move == PieceColor::White {PieceColor::Black} else {PieceColor::White}
     }
 
-    pub fn castling_rights(&self) -> String {
+    pub fn castling_rights(&self) -> [[bool; 2]; 2] {
         self.castling_rights.clone()
     }
 
@@ -72,12 +72,23 @@ impl Position {
     pub fn full_move_number(&self) -> usize {
         self.full_move_number
     }
+
+    fn create_castling_rights(castling_rights: String) -> [[bool; 2]; 2] {
+        let mut flags = [[false; 2]; 2];
+        if !castling_rights.contains('-') {
+            flags[0][0] = castling_rights.contains('K');
+            flags[0][1] = castling_rights.contains('Q');
+            flags[1][0] = castling_rights.contains('k');
+            flags[1][1] = castling_rights.contains('q');
+        }
+        flags
+    }
 }
 #[cfg(test)]
 mod tests {
     use crate::bit_board::BitBoard;
     use super::*;
-    use crate::board::PieceColor;
+    use crate::board::{BoardSide, PieceColor};
 
     #[test]
     fn test_general_usability() {
@@ -92,9 +103,41 @@ mod tests {
 
         assert!(position.board.get_piece(3).is_none());
         assert_eq!(position.side_to_move(), PieceColor::Black);
-        assert_eq!(position.castling_rights(), "KQkq".to_string());
+        assert_eq!(position.castling_rights(), [[true; 2]; 2]);
         assert_eq!(position.en_passant_capture_square(), Some(31));
         assert_eq!(position.half_move_clock(), 99);
         assert_eq!(position.full_move_number(), 50);
+    }
+
+    #[test]
+    fn test_castling_flags() {
+        let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(position.castling_rights(), [[true; 2]; 2]);
+
+        let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(position.castling_rights(), [[false; 2]; 2]);
+
+        let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize], true);
+        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], true);
+        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], false);
+        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], false);
+
+        let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kq - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize], false);
+        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], false);
+        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], true);
+        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], true);
+
+        let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w Qk - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize], false);
+        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], true);
+        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], true);
+        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], false);
     }
 }

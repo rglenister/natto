@@ -28,7 +28,7 @@ pub enum PieceType {
     King
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 #[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
 #[derive(Eq, Hash, PartialEq)]

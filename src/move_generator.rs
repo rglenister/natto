@@ -1,17 +1,15 @@
 use crate::board::PieceType;
 use crate::util::on_board;
-use crate::util::print_bitboard;
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use fen::parse;
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor::White;
 use crate::board::PieceType::{Bishop, King, Knight, Queen, Rook};
 use crate::chess_move::ChessMove;
 use crate::chess_move::ChessMove::{BasicMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
-use crate::{fen, util};
+use crate::{util};
 
 pub fn generate(position: Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
@@ -263,7 +261,6 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
 
 #[cfg(test)]
 mod tests {
-    use crate::board::PieceType::Pawn;
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
 
