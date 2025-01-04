@@ -1,5 +1,5 @@
 use crate::board::{BoardSide, BoardSideIter, PieceType};
-use crate::util::on_board;
+use crate::util::{on_board, print_bitboard};
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -24,9 +24,9 @@ pub fn generate(position: Position) -> Vec<ChessMove> {
 
     moves.extend(generate_pawn_moves(&position, bitboards[PieceType::Pawn as usize], occupied_squares));
     moves.extend(get_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares));
-    // moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
-    // moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
-    // moves.extend(get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares));
+    moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
+    moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
+    moves.extend(get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares));
     moves.extend(generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares));
     moves
 }
@@ -66,8 +66,9 @@ pub fn get_sliding_moves_by_piece_type(
 
         let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
         let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
-        let _ = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
-        moves.extend(generate_moves(piece_type.clone(), square_index as usize, table_entry.moves_bitboard[0], occupied_squares, friendly_squares));
+        let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
+        print_bitboard(valid_moves);
+        moves.extend(generate_moves(piece_type.clone(), square_index as usize, valid_moves, occupied_squares, friendly_squares));
     });
     moves
 }
