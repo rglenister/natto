@@ -39,9 +39,4 @@ mod tests {
         let test_cases = json5::from_str(file.as_str())?;
         Ok(test_cases)
     }
-
-    #[test]
-    fn test_non_capturing_pawn_moves() {
-
-    }
 }

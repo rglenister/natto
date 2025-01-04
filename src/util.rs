@@ -1,3 +1,6 @@
+mod sq_macro_generator;
+mod generated_macro;
+
 use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;

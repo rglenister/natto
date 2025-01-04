@@ -1,15 +1,19 @@
-use crate::board::PieceType;
+use crate::board::{BoardSide, BoardSideIter, PieceType};
 use crate::util::on_board;
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor::White;
 use crate::board::PieceType::{Bishop, King, Knight, Queen, Rook};
 use crate::chess_move::ChessMove;
-use crate::chess_move::ChessMove::{BasicMove, EnPassantMove, PromotionMove};
+use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
-use crate::{util};
+use crate::{bit_board, util};
+
+include!("util/generated_macro.rs");
+
 
 pub fn generate(position: Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
@@ -18,12 +22,12 @@ pub fn generate(position: Position) -> Vec<ChessMove> {
     let friendly_squares = board.bitboard_by_color(position.side_to_move());
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
 
-    moves.extend(generate_pawn_moves(&position, bitboards[PieceType::Pawn as usize], occupied_squares, friendly_squares));
+    moves.extend(generate_pawn_moves(&position, bitboards[PieceType::Pawn as usize], occupied_squares));
     moves.extend(get_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares));
-//    moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
-//    moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
-//    moves.extend(get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares));
-    moves.extend(generate_king_moves(bitboards[King as usize], occupied_squares, friendly_squares));
+    // moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
+    // moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
+    // moves.extend(get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares));
+    moves.extend(generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares));
     moves
 }
 
@@ -201,66 +205,72 @@ fn generate_move_bitboard(
     }
 }
 
-fn generate_king_moves(square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
-    let moves = get_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
-    // add castling moves
+fn generate_king_moves(position: Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
+    let mut moves = get_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
+    moves.extend(
+        BoardSide::iter()
+            .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
+            .map(|board_side| { &bit_board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
+            .map(|cmd| CastlingMove { from: cmd.king_from_square, to: cmd.king_to_square, capture: false, board_side: cmd.board_side })
+            .collect::<Vec<_>>()
+    );
     moves
 }
 
-fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
-    let all_pieces_bitboard = position.board().bitboard_all_pieces();
+fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_squares: u64) -> Vec<ChessMove> {
     let opposition_pieces_bitboard = position.board().bitboard_by_color(position.opposing_side());
     let forward_increment: i32 = if position.side_to_move() == White { 8 } else { -8 };
-    let capture_increments = [forward_increment + 1, forward_increment - 1];
-    let indexes = util::bit_indexes(square_indexes);
 
     let mut moves: Vec<ChessMove> = vec!();
-    for square_index in indexes {
-        moves.extend(generate_forward_moves(&position, all_pieces_bitboard, square_index as i32, forward_increment as i32));
-        moves.extend(generate_standard_captures(&position, square_index, capture_increments, opposition_pieces_bitboard));
-        moves.extend(generate_en_passant(square_index, position.en_passant_capture_square(), forward_increment).into_iter().collect::<Vec<_>>());
-
-        fn create_moves(position: &Position, from: i32, to: i32, capture: bool) -> Vec<ChessMove> {
+    util::process_bits(square_indexes, |square_index| {
+        let create_moves = |from: i32, to: i32, capture: bool| -> Vec<ChessMove> {
             if BitBoard::rank(to, position.side_to_move()) != 7 {
                 vec!(BasicMove { from: from as usize, to: to as usize, capture})
             } else {
                 [Knight, Bishop, Rook, Queen].map(|piece_type| { PromotionMove { from: from as usize, to: to as usize, capture, promote_to: piece_type } }).to_vec()
             }
-        }
+        };
 
-        fn generate_forward_moves(position: &Position, all_pieces_bitboard: u64, square_index: i32, forward_increment: i32) -> Vec<ChessMove> {
+        let generate_forward_moves = |square_index: i32| -> Vec<ChessMove> {
             let mut moves: Vec<ChessMove> = vec!();
             let one_step_forward = square_index + forward_increment;
-            if all_pieces_bitboard & 1 << one_step_forward == 0 {
-                moves.extend(create_moves(position, (square_index as usize).try_into().unwrap(), one_step_forward, false));
-                if BitBoard::rank(square_index, position.side_to_move()) == 1 && all_pieces_bitboard & (1 << one_step_forward + forward_increment) == 0 {
-                    moves.extend(create_moves(position, (square_index as usize).try_into().unwrap(), ((one_step_forward + forward_increment) as usize).try_into().unwrap(), false));
+            if occupied_squares & 1 << one_step_forward == 0 {
+                moves.extend(create_moves((square_index as usize).try_into().unwrap(), one_step_forward, false));
+                if BitBoard::rank(square_index, position.side_to_move()) == 1 && occupied_squares & (1 << one_step_forward + forward_increment) == 0 {
+                    moves.extend(create_moves((square_index as usize).try_into().unwrap(), ((one_step_forward + forward_increment) as usize).try_into().unwrap(), false));
                 }
             }
             moves
-        }
-        fn generate_en_passant(square_index: u64, en_passant_capture_square: Option<usize>, forward_increment: i32) -> Option<ChessMove> {
-            en_passant_capture_square
+        };
+
+        let generate_en_passant = |square_index: u64| -> Option<ChessMove> {
+            position.en_passant_capture_square()
                 .map(|sq| sq as i32 - forward_increment)
                 .filter(|ep_square| BitBoard::is_along_side(square_index.try_into().unwrap(), *ep_square as i32))
                 .map(|ep_square| { EnPassantMove { from: square_index as usize, to: (ep_square as i32 + forward_increment) as usize, capture: true, capture_square: ep_square as usize } })
-        }
+        };
 
-        fn generate_standard_captures(position: &Position, square_index: u64, capture_increments: [i32; 2], opposition_pieces_bitboard: u64) -> Vec<ChessMove> {
-           capture_increments.map(|increment| square_index as i32 + increment)
-                    .iter().filter(|&to| is_valid_capture(square_index.try_into().unwrap(), *to, opposition_pieces_bitboard))
-                    .flat_map(|&to| create_moves(position, (square_index as usize).try_into().unwrap(), to, true)).collect()
-        }
-
-        fn is_valid_capture(from: i32, to: i32, opposition_pieces_bitboard: u64) -> bool {
+        let is_valid_capture = |from: i32, to: i32| -> bool {
             on_board(from, to) && opposition_pieces_bitboard & 1 << to != 0
-        }
-    }
+        };
+
+        let generate_standard_captures = |square_index: u64| -> Vec<ChessMove> {
+            [forward_increment + 1, forward_increment - 1].map(|increment| square_index as i32 + increment)
+                .iter().filter(|&to| is_valid_capture(square_index.try_into().unwrap(), *to))
+                .flat_map(|&to| create_moves((square_index as usize).try_into().unwrap(), to, true)).collect()
+        };
+
+        moves.extend(generate_forward_moves(square_index as i32));
+        moves.extend(generate_standard_captures(square_index));
+        moves.extend(generate_en_passant(square_index).into_iter().collect::<Vec<_>>());
+
+    });
     moves
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::board::BoardSide::{KingSide, QueenSide};
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
 
@@ -501,6 +511,36 @@ mod tests {
         assert_eq!(*moves.get(9).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Bishop });
         assert_eq!(*moves.get(10).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Rook });
         assert_eq!(*moves.get(11).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Queen });
+    }
+
+    /// Test white king moves
+    #[test]
+    fn test_white_king_moves() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        let position = Position::from(fen);
+        let moves = util::filter_moves_by_from_square(generate(position), sq!("e1"));
+        assert_eq!(moves.len(), 7);
+        let castling_moves: Vec<&ChessMove> =
+            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. }))
+            .collect();
+        assert_eq!(castling_moves.len(), 2);
+        assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { from: sq!("e1"), to: sq!("g1"), capture: false, board_side: KingSide });
+        assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { from: sq!("e1"), to: sq!("c1"), capture: false, board_side: QueenSide });
+    }
+
+    /// Test black king moves
+    #[test]
+    fn test_black_king_moves() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1";
+        let position = Position::from(fen);
+        let moves = util::filter_moves_by_from_square(generate(position), sq!("e8"));
+        assert_eq!(moves.len(), 7);
+        let castling_moves: Vec<&ChessMove> =
+            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. }))
+                .collect();
+        assert_eq!(castling_moves.len(), 2);
+        assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { from: sq!("e8"), to: sq!("g8"), capture: false, board_side: KingSide });
+        assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { from: sq!("e8"), to: sq!("c8"), capture: false, board_side: QueenSide });
     }
 }
 

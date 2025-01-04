@@ -1,5 +1,5 @@
 use crate::bit_board::BitBoard;
-use crate::board::{Board, PieceColor};
+use crate::board::{Board, BoardSide, PieceColor};
 use crate::fen;
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -71,6 +71,11 @@ impl Position {
 
     pub fn full_move_number(&self) -> usize {
         self.full_move_number
+    }
+
+    pub fn can_castle(&self, piece_color: PieceColor, board_side: &BoardSide) -> bool {
+        return self.castling_rights[piece_color as usize][*board_side as usize]
+            && self.board.can_castle(piece_color, board_side);
     }
 
     fn create_castling_rights(castling_rights: String) -> [[bool; 2]; 2] {
