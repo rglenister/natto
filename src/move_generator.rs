@@ -1,12 +1,12 @@
-use crate::board::{BoardSide, BoardSideIter, PieceType};
+use crate::board::{BoardSide, PieceColor, PieceType};
 use crate::util::{on_board, print_bitboard};
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
-use crate::board::PieceColor::White;
-use crate::board::PieceType::{Bishop, King, Knight, Queen, Rook};
+use crate::board::PieceColor::{Black, White};
+use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chess_move::ChessMove;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
@@ -26,7 +26,11 @@ pub fn generate(position: Position) -> Vec<ChessMove> {
     moves.extend(get_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares));
     moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
     moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
-    moves.extend(get_sliding_moves_by_piece_type(Queen, bitboards[Queen as usize], occupied_squares, friendly_squares));
+
+    // combine bishop and rook to derive the queen moves
+    moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Queen as usize], occupied_squares, friendly_squares));
+    moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Queen as usize], occupied_squares, friendly_squares));
+
     moves.extend(generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares));
     moves
 }
@@ -45,7 +49,7 @@ pub fn get_moves_by_piece_type(
             .get(square_index as usize)
             .unwrap();
 
-        moves.extend(generate_moves(piece_type.clone(), square_index as usize, destinations, occupied_squares, friendly_squares));
+        moves.extend(generate_moves(square_index as usize, destinations, occupied_squares, friendly_squares));
     });
     moves
 }
@@ -58,22 +62,27 @@ pub fn get_sliding_moves_by_piece_type(
 ) -> Vec<ChessMove> {
     let mut moves = vec!();
     util::process_bits(square_indexes, |square_index| {
-        let table_entry = SLIDING_PIECE_MOVE_TABLE
-            .get(&piece_type)
-            .unwrap()
-            .get(square_index as usize)
-            .unwrap();
-
-        let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
-        let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
-        let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
-        print_bitboard(valid_moves);
-        moves.extend(generate_moves(piece_type.clone(), square_index as usize, valid_moves, occupied_squares, friendly_squares));
+        let valid_moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index, occupied_squares);
+        moves.extend(generate_moves(square_index as usize, valid_moves, occupied_squares, friendly_squares));
     });
     moves
 }
 
-fn generate_moves(piece_type: PieceType, from: usize, destinations: u64, occupied_squares: u64 , friendly_squares: u64) -> Vec<ChessMove> {
+fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: u64, occupied_squares: u64) -> u64 {
+    let table_entry = SLIDING_PIECE_MOVE_TABLE
+        .get(&piece_type)
+        .unwrap()
+        .get(square_index as usize)
+        .unwrap();
+
+    let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
+    let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
+    let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
+    print_bitboard(valid_moves);
+    valid_moves
+}
+
+fn generate_moves(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
     util::process_bits(destinations, |to: u64| {
         if friendly_squares & 1 << to == 0 {
@@ -83,6 +92,28 @@ fn generate_moves(piece_type: PieceType, from: usize, destinations: u64, occupie
     moves
 }
 
+static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
+    let mut table = HashMap::new();
+    // the white table contains the attacks by white pawns on the black king
+    table.insert(&White, generate_move_table([-7, -9]));
+    // the black table contains the attacks by black pawns on the white king
+    table.insert(&Black, generate_move_table([7, 9]));
+    fn generate_move_table(increments: [i32; 2]) -> [u64; 64] {
+        let mut squares: [u64; 64] = [0; 64];
+        for square_index in 0..64 {
+            let move_squares: u64 = generate_move_bitboard(
+                square_index,
+                (&increments).to_vec(),
+                0,
+                false,
+                false,
+            );
+            squares[square_index as usize] = move_squares;
+        }
+        squares
+    }
+    return table;
+});
 
 static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<i32>>> = Lazy::new(|| {
     let mut table = HashMap::new();
@@ -121,7 +152,7 @@ struct TableEntry {
 }
 
 static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Lazy::new(|| {
-    let move_table = [PieceType::Bishop, PieceType::Rook, PieceType::Queen]
+    let move_table = [PieceType::Bishop, PieceType::Rook]
         .into_iter().map(|piece_type| (piece_type.clone(), generate_move_table(piece_type))).collect();
     fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
         let mut squares: Vec<TableEntry> = Vec::new();
@@ -267,6 +298,39 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
 
     });
     moves
+}
+
+pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: i32) -> u64 {
+    let occupied_squares = position.board().bitboard_all_pieces();
+    let enemy_squares = position.board().bitboard_by_color(attacking_color);
+    let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, Queen);
+    let mut attacking_squares = 0;
+    for piece_type in [Bishop, Rook] {
+        let moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index.try_into().unwrap(), occupied_squares);
+        let possible_attackers = moves & enemy_squares;
+        util::process_bits(possible_attackers, |square_index| {
+            if (enemy_queens | position.board().bitboard_by_color_and_piece_type(attacking_color, piece_type)) & 1 << square_index != 0 {
+                attacking_squares |= 1 << square_index;
+            }
+        })
+    }
+    let knight_moves = NON_SLIDING_PIECE_MOVE_TABLE[&Knight][square_index as usize];
+    let enemy_knights = position.board().bitboard_by_color_and_piece_type(attacking_color, Knight);
+    let attacking_knights = knight_moves & enemy_knights;
+    attacking_squares |= attacking_knights;
+
+    let pawn_attack_squares = PAWN_ATTACKS_TABLE[&attacking_color][square_index as usize];
+    let pawn_attack_square_indexes = util::bit_indexes(pawn_attack_squares);
+    let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, Pawn);
+    let attacking_pawn = pawn_attack_squares & attacking_pawns;
+    attacking_squares |= attacking_pawn;
+
+    attacking_squares
+}
+
+pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
+    square_attacks_finder(
+        position, if king_color == White {Black} else {White}, position.board().king_square(king_color))
 }
 
 #[cfg(test)]
@@ -542,6 +606,71 @@ mod tests {
         assert_eq!(castling_moves.len(), 2);
         assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { from: sq!("e8"), to: sq!("g8"), capture: false, board_side: KingSide });
         assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { from: sq!("e8"), to: sq!("c8"), capture: false, board_side: QueenSide });
+    }
+
+    /// Test square attacks finder
+    #[test]
+    fn test_king_attacks_finder_using_white_rook_and_bishop() {
+        let fen = "4k2R/8/8/8/B7/8/8/4K3 b - - 0 1";
+        let position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&position, Black);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 2);
+        assert_eq!(attacking_squares[0], 24);
+        assert_eq!(attacking_squares[1], 63);
+    }
+
+    #[test]
+    fn test_king_attacks_finder_using_black_rook_and_bishop() {
+        let fen = "4k3/8/8/b7/8/8/8/1r2K3 w - - 0 1";
+        let position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&position, White);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 2);
+        assert_eq!(attacking_squares[0], 1);
+        assert_eq!(attacking_squares[1], 32);
+    }
+
+    #[test]
+    fn test_king_attacks_finder_using_white_queen() {
+        let fen = "4k3/8/2Q5/8/8/8/8/4K3 b - - 0 1";
+        let position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&position, Black);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 1);
+        assert_eq!(attacking_squares[0], 42);
+    }
+
+    #[test]
+    fn test_king_attacks_finder_using_black_knight() {
+        let fen = "4k3/8/8/8/8/3n4/2N5/4K3 w - - 0 1";
+        let position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&position, White);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 1);
+        assert_eq!(attacking_squares[0], 19);
+    }
+
+    #[test]
+    fn test_king_attacks_finder_using_white_pawn() {
+        let fen = "8/8/8/1K3k2/4P3/8/8/8 b - - 0 1";
+        let position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&position, Black);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 1);
+        assert_eq!(attacking_squares[0], 28);
+    }
+
+    #[test]
+    fn test_pawn_attacks_table() {
+        assert_eq!(PAWN_ATTACKS_TABLE[&Black][0], 1 << 9);
+        assert_eq!(PAWN_ATTACKS_TABLE[&Black][1], 1 << 8 | 1 << 10);
+
+        assert_eq!(PAWN_ATTACKS_TABLE[&White][63], 1 << 54);
+        assert_eq!(PAWN_ATTACKS_TABLE[&White][62], 1 << 53 | 1 << 55);
+
+        assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 22);
+        assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 38);
     }
 }
 

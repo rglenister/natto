@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
 use strum::{IntoEnumIterator};
+use crate::board::PieceType::{King, Pawn};
 
 include!("util/generated_macro.rs");
 
@@ -65,6 +65,24 @@ impl BitBoard {
         self.bit_boards[piece_color as usize].iter().fold(0, |acc, x| acc | *x as u64)
     }
 
+    pub fn king_square(&self, piece_color: PieceColor) -> i32 {
+        self.bitboard_by_color_and_piece_type(piece_color, King).trailing_zeros() as i32
+    }
+
+    pub fn white_pawn_attacks(&self) -> u64 {
+        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::White, Pawn);
+        let left_attacks = (bitboard & !0x0101010101010101) << 7;
+        let right_attacks = (bitboard & !0x8080808080808080) << 9;
+        left_attacks | right_attacks
+    }
+
+    pub fn black_pawn_attacks(&self) -> u64 {
+        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::Black, Pawn);
+        let left_attacks = (bitboard & !0x0101010101010101) >> 9;
+        let right_attacks = (bitboard & !0x8080808080808080) >> 7;
+        left_attacks | right_attacks
+    }
+
     pub fn can_castle(&self, side_to_move: PieceColor, board_side: &BoardSide) -> bool {
         let king_home_square_mask = KING_HOME_SQUARE_MASKS[side_to_move as usize];
         let king_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::King);
@@ -104,7 +122,7 @@ impl BitBoard {
 impl Board for BitBoard {
     fn new() -> Self {
         Self {
-            bit_boards: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]
+            bit_boards: [[0; 6]; 2]
         }
     }
 
@@ -139,7 +157,7 @@ impl Board for BitBoard {
     }
 
     fn clear(&mut self) {
-        self.bit_boards = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]
+        self.bit_boards = [[0; 6]; 2]
     }
 }
 

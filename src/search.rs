@@ -12,7 +12,7 @@ mod tests {
     use serde_derive::Deserialize;
 
     use std::error::Error;
-    use crate::fen;
+    use crate::{fen, move_generator};
 
     use std::fs;
 
@@ -30,7 +30,9 @@ mod tests {
         assert_eq!(test_cases.len(), 7);
         for test in test_cases {
             let position = fen::parse(test.fen);
-//            generate_move_list(position);
+            let moves = move_generator::generate(position);
+            assert_eq!(moves.len(), test.nodes);
+            break
         }
     }
 

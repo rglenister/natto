@@ -1,9 +1,7 @@
-use crate::fen::parse;
 
 fn generate_macros() {
     println!("{}", "macro_rules! sq {");
 
-    let cols = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     for row in 0..8 {
         for col in 0..8 {
             let square = row * 8 + col;

@@ -97,6 +97,7 @@ mod tests {
         assert_eq!(result, vec![0, 1, 32, 63]);
     }
 
+    #[test]
     fn test_create_color() {
         assert_eq!(None, create_color("a"));
         assert_eq!(Some(Black), create_color("b"));

@@ -5,16 +5,17 @@ use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 
-#[derive(Debug, EnumCountMacro, EnumIter, PartialEq)]
+#[derive(Debug, EnumCountMacro, EnumIter)]
 #[derive(Clone)]
 #[derive(Copy)]
 #[repr(u8)]
+#[derive(Eq, Hash, PartialEq)]
 pub enum PieceColor {
     White = 0,
     Black = 1,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
 #[derive(Eq, Hash, PartialEq)]
