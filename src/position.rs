@@ -1,6 +1,8 @@
-use crate::bit_board::BitBoard;
-use crate::board::{Board, BoardSide, PieceColor};
-use crate::fen;
+use crate::bit_board::{BitBoard, CASTLING_METADATA};
+use crate::board::{Board, BoardSide, Piece, PieceColor};
+use crate::chess_move::ChessMove;
+use crate::{fen};
+use crate::move_generator::king_attacks_finder;
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -18,6 +20,13 @@ impl From<&str> for Position {
         fen::parse(fen.to_string())
     }
 }
+
+impl From<&Position> for Position {
+    fn from(position: &Position) -> Self {
+        position.into()
+    }
+}
+
 
 impl Position {
     pub(crate) fn new(
@@ -71,6 +80,37 @@ impl Position {
 
     pub fn full_move_number(&self) -> usize {
         self.full_move_number
+    }
+
+    pub fn make_move(&self, chess_move: &ChessMove) -> Option<Self> {
+        let mut new_position = self.clone();
+        match chess_move {
+            ChessMove::BasicMove { from, to , capture} => {
+                do_basic_move(&new_position.board, *from, *to);
+            }
+            ChessMove::EnPassantMove { from, to, capture, capture_square } => {
+                do_basic_move(&new_position.board, *from, *to);
+                new_position.board.remove_piece(self.en_passant_capture_square?);
+            }
+            ChessMove::CastlingMove { from, to, capture, board_side } => {
+                do_basic_move(&new_position.board, *from, *to);
+                let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
+                let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();
+                new_position.board.put_piece(castling_meta_data.rook_to_square, rook);
+            }
+            ChessMove::PromotionMove { from, to, capture, promote_to } => {
+                new_position.board.remove_piece(*from);
+                new_position.board.put_piece(*to, Piece { piece_color: new_position.side_to_move(), piece_type: *promote_to });
+            }
+        }
+        fn do_basic_move(mut board: &BitBoard, from: usize, to: usize) {
+            let piece = board.remove_piece(from).unwrap();
+            let captured_piece = board.remove_piece(to);
+            board.put_piece(to, piece)
+        }
+
+        let is_valid_move = king_attacks_finder(new_position, new_position.opposing_side()) == 0;
+        is_valid_move.then(|| Self::from(new_position))
     }
 
     pub fn can_castle(&self, piece_color: PieceColor, board_side: &BoardSide) -> bool {

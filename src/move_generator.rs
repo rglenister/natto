@@ -15,7 +15,7 @@ use crate::{bit_board, util};
 include!("util/generated_macro.rs");
 
 
-pub fn generate(position: Position) -> Vec<ChessMove> {
+pub fn generate(position: &Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
     let board: &BitBoard = position.board();
     let occupied_squares = board.bitboard_all_pieces();
@@ -31,7 +31,7 @@ pub fn generate(position: Position) -> Vec<ChessMove> {
     moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Queen as usize], occupied_squares, friendly_squares));
     moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Queen as usize], occupied_squares, friendly_squares));
 
-    moves.extend(generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares));
+    moves.extend(generate_king_moves(&position, bitboards[King as usize], occupied_squares, friendly_squares));
     moves
 }
 
@@ -237,7 +237,7 @@ fn generate_move_bitboard(
     }
 }
 
-fn generate_king_moves(position: Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
+fn generate_king_moves(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
     let mut moves = get_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
     moves.extend(
         BoardSide::iter()
@@ -384,7 +384,7 @@ mod tests {
     fn test_move_count_from_initial_position() {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let position = Position::from(fen);
-        let moves = generate(position);
+        let moves = generate(&position);
         assert_eq!(moves.len(), 20);
     }
 
@@ -392,7 +392,7 @@ mod tests {
     fn test_white_pawns_on_home_squares() {
         let fen = "4k3/5p2/8/8/8/8/2P5/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 10);
+        let moves = util::filter_moves_by_from_square(generate(&position), 10);
         assert_eq!(moves.len(), 2);
         assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 10, to: 18, capture: false });
         assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 10, to: 26, capture: false });
@@ -403,7 +403,7 @@ mod tests {
     fn test_black_pawns_on_home_squares() {
         let fen = "4k3/5p2/8/8/8/8/2P5/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 53);
+        let moves = util::filter_moves_by_from_square(generate(&position), 53);
         assert_eq!(moves.len(), 2);
         assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 53, to: 45, capture: false });
         assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 53, to: 37, capture: false });
@@ -414,7 +414,7 @@ mod tests {
     fn test_white_pawns_can_be_completely_blocked() {
         let fen = "4k3/5p2/5b2/8/8/2b5/2P5/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 50);
+        let moves = util::filter_moves_by_from_square(generate(&position), 50);
         assert_eq!(moves.len(), 0);
     }
 
@@ -423,7 +423,7 @@ mod tests {
     fn test_black_pawns_can_be_completely_blocked() {
         let fen = "4k3/5p2/5b2/8/8/2b5/2P5/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 50);
+        let moves = util::filter_moves_by_from_square(generate(&position), 50);
         assert_eq!(moves.len(), 0);
     }
 
@@ -432,7 +432,7 @@ mod tests {
     fn test_white_pawns_can_be_blocked_from_making_a_double_move() {
         let fen = "4k3/5p2/8/5b2/2b5/8/2P5/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 10);
+        let moves = util::filter_moves_by_from_square(generate(&position), 10);
         assert_eq!(moves.len(), 1);
         assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 10, to: 18, capture: false });
     }
@@ -442,7 +442,7 @@ mod tests {
     fn test_black_pawns_can_be_blocked_from_making_a_double_move() {
         let fen = "4k3/5p2/8/5b2/2b5/8/2P5/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 53);
+        let moves = util::filter_moves_by_from_square(generate(&position), 53);
         assert_eq!(moves.len(), 1);
         assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 53, to: 45, capture: false });
     }
@@ -452,7 +452,7 @@ mod tests {
     fn test_white_pawns_can_capture() {
         let fen = "3k4/8/4P1r1/p4P2/2p1n1b1/3P3P/8/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(position);
+        let all_moves = generate(&position);
         assert_eq!(all_moves.len(), 13);
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 19);
@@ -481,7 +481,7 @@ mod tests {
     fn test_black_pawns_can_capture() {
         let fen = "3k4/8/4P1r1/p4P2/2p1n1b1/3P3P/8/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(position);
+        let all_moves = generate(&position);
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 32);
         assert_eq!(moves.len(), 1);
@@ -498,7 +498,7 @@ mod tests {
     fn test_white_pawns_can_capture_en_passant() {
         let fen = "4k3/8/8/4PpP1/8/8/8/4K3 w - f6 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(position);
+        let all_moves = generate(&position);
 
         assert_eq!(all_moves.len(), 9);
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 36);
@@ -517,7 +517,7 @@ mod tests {
     fn test_black_pawns_can_capture_en_passant() {
         let fen = "4k3/8/8/8/4pPp1/8/8/4K3 b - f3 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(position);
+        let all_moves = generate(&position);
 
         assert_eq!(all_moves.len(), 9);
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 28);
@@ -536,7 +536,7 @@ mod tests {
     fn test_white_pawns_can_be_promoted() {
         let fen = "4k3/2P5/8/5b2/2b5/8/6p1/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 50);
+        let moves = util::filter_moves_by_from_square(generate(&position), 50);
         assert_eq!(moves.len(), 4);
         assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Knight });
         assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Bishop });
@@ -549,7 +549,7 @@ mod tests {
     fn test_black_pawns_can_be_promoted() {
         let fen = "4k3/2P5/8/5b2/2b5/8/6p1/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 14);
+        let moves = util::filter_moves_by_from_square(generate(&position), 14);
         assert_eq!(moves.len(), 4);
         assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Knight });
         assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Bishop });
@@ -562,7 +562,7 @@ mod tests {
     fn test_pawns_can_be_promoted_by_capturing() {
         let fen = "4k3/2P5/8/5b2/8/8/6p1/4KB1N b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), 14);
+        let moves = util::filter_moves_by_from_square(generate(&position), 14);
         assert_eq!(moves.len(), 12);
         assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Knight });
         assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Bishop });
@@ -583,7 +583,7 @@ mod tests {
     fn test_white_king_moves() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), sq!("e1"));
+        let moves = util::filter_moves_by_from_square(generate(&position), sq!("e1"));
         assert_eq!(moves.len(), 7);
         let castling_moves: Vec<&ChessMove> =
             moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. }))
@@ -598,7 +598,7 @@ mod tests {
     fn test_black_king_moves() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(position), sq!("e8"));
+        let moves = util::filter_moves_by_from_square(generate(&position), sq!("e8"));
         assert_eq!(moves.len(), 7);
         let castling_moves: Vec<&ChessMove> =
             moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. }))

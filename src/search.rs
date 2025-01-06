@@ -1,9 +1,30 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::move_generator;
 use crate::position::Position;
 
+// Define a static atomic counter
+static NODE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
+fn increment_node_counter() {
+    NODE_COUNTER.fetch_add(1, Ordering::SeqCst);
+}
 
+fn get_node_count() -> usize {
+    NODE_COUNTER.load(Ordering::SeqCst)
+}
 
-fn search(position: Position, depth: u32) {
+fn reset_node_counter() {
+    NODE_COUNTER.store(0, Ordering::SeqCst);
+}
+
+fn search(position: Position, depth: u32, max_depth: i32) {
+    reset_node_counter();
+    let moves = move_generator::generate(&position);
+    let w = do_search(moves.iter().map(|chess_move| position.make_move(chess_move)), 0, 1);
+}
+
+fn do_search(position: &Position, depth: u32, max_depth: i32) {
+    increment_node_counter();
 
 }
 
@@ -30,7 +51,7 @@ mod tests {
         assert_eq!(test_cases.len(), 7);
         for test in test_cases {
             let position = fen::parse(test.fen);
-            let moves = move_generator::generate(position);
+            let moves = move_generator::generate(&position);
             assert_eq!(moves.len(), test.nodes);
             break
         }
