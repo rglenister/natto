@@ -4,6 +4,7 @@ use crate::board::PieceType::{King, Pawn};
 
 include!("util/generated_macro.rs");
 
+#[derive(Clone)]
 pub struct BitBoard {
     bit_boards: [[u64; 6]; 2],
 }

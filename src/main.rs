@@ -12,6 +12,7 @@ mod engine;
 mod uci;
 mod move_generator;
 mod search;
+mod node_counter;
 
 fn main() {
     uci::process_input::<BitBoard>();

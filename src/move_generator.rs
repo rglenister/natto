@@ -10,14 +10,14 @@ use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chess_move::ChessMove;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
-use crate::{bit_board, util};
+use crate::{bit_board, position, util};
 
 include!("util/generated_macro.rs");
 
 
 pub fn generate(position: &Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
-    let board: &BitBoard = position.board();
+    let board: &BitBoard = position.board_unmut();
     let occupied_squares = board.bitboard_all_pieces();
     let friendly_squares = board.bitboard_by_color(position.side_to_move());
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
@@ -250,7 +250,7 @@ fn generate_king_moves(position: &Position, square_indexes: u64, occupied_square
 }
 
 fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_squares: u64) -> Vec<ChessMove> {
-    let opposition_pieces_bitboard = position.board().bitboard_by_color(position.opposing_side());
+    let opposition_pieces_bitboard = position.board_unmut().bitboard_by_color(position.opposing_side());
     let forward_increment: i32 = if position.side_to_move() == White { 8 } else { -8 };
 
     let mut moves: Vec<ChessMove> = vec!();
@@ -300,10 +300,10 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
     moves
 }
 
-pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: i32) -> u64 {
-    let occupied_squares = position.board().bitboard_all_pieces();
-    let enemy_squares = position.board().bitboard_by_color(attacking_color);
-    let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, Queen);
+pub fn square_attacks_finder(position: &mut Position, attacking_color: PieceColor, square_index: i32) -> u64 {
+    let occupied_squares = position.board_unmut().bitboard_all_pieces();
+    let enemy_squares = position.board_unmut().bitboard_by_color(attacking_color);
+    let enemy_queens = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Queen);
     let mut attacking_squares = 0;
     for piece_type in [Bishop, Rook] {
         let moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index.try_into().unwrap(), occupied_squares);
@@ -315,22 +315,22 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
         })
     }
     let knight_moves = NON_SLIDING_PIECE_MOVE_TABLE[&Knight][square_index as usize];
-    let enemy_knights = position.board().bitboard_by_color_and_piece_type(attacking_color, Knight);
+    let enemy_knights = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Knight);
     let attacking_knights = knight_moves & enemy_knights;
     attacking_squares |= attacking_knights;
 
     let pawn_attack_squares = PAWN_ATTACKS_TABLE[&attacking_color][square_index as usize];
     let pawn_attack_square_indexes = util::bit_indexes(pawn_attack_squares);
-    let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, Pawn);
+    let attacking_pawns = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Pawn);
     let attacking_pawn = pawn_attack_squares & attacking_pawns;
     attacking_squares |= attacking_pawn;
 
     attacking_squares
 }
 
-pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
+pub fn king_attacks_finder(position: &mut position::Position, king_color: PieceColor) -> u64 {
     square_attacks_finder(
-        position, if king_color == White {Black} else {White}, position.board().king_square(king_color))
+        position, if king_color == White {Black} else {White}, position.board_unmut().king_square(king_color))
 }
 
 #[cfg(test)]
@@ -612,8 +612,8 @@ mod tests {
     #[test]
     fn test_king_attacks_finder_using_white_rook_and_bishop() {
         let fen = "4k2R/8/8/8/B7/8/8/4K3 b - - 0 1";
-        let position = Position::from(fen);
-        let attacking_square_indexes = king_attacks_finder(&position, Black);
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&mut position, Black);
         let attacking_squares = util::bit_indexes(attacking_square_indexes);
         assert_eq!(attacking_squares.len(), 2);
         assert_eq!(attacking_squares[0], 24);
@@ -623,8 +623,8 @@ mod tests {
     #[test]
     fn test_king_attacks_finder_using_black_rook_and_bishop() {
         let fen = "4k3/8/8/b7/8/8/8/1r2K3 w - - 0 1";
-        let position = Position::from(fen);
-        let attacking_square_indexes = king_attacks_finder(&position, White);
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&mut position, White);
         let attacking_squares = util::bit_indexes(attacking_square_indexes);
         assert_eq!(attacking_squares.len(), 2);
         assert_eq!(attacking_squares[0], 1);
@@ -634,8 +634,8 @@ mod tests {
     #[test]
     fn test_king_attacks_finder_using_white_queen() {
         let fen = "4k3/8/2Q5/8/8/8/8/4K3 b - - 0 1";
-        let position = Position::from(fen);
-        let attacking_square_indexes = king_attacks_finder(&position, Black);
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&mut position, Black);
         let attacking_squares = util::bit_indexes(attacking_square_indexes);
         assert_eq!(attacking_squares.len(), 1);
         assert_eq!(attacking_squares[0], 42);
@@ -644,18 +644,28 @@ mod tests {
     #[test]
     fn test_king_attacks_finder_using_black_knight() {
         let fen = "4k3/8/8/8/8/3n4/2N5/4K3 w - - 0 1";
-        let position = Position::from(fen);
-        let attacking_square_indexes = king_attacks_finder(&position, White);
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&mut position, White);
         let attacking_squares = util::bit_indexes(attacking_square_indexes);
         assert_eq!(attacking_squares.len(), 1);
         assert_eq!(attacking_squares[0], 19);
     }
 
     #[test]
+    fn test_king_attacks_finder_using_first_json_example() {
+        let fen = "r6r/1b2k1bq/8/8/7B/8/8/R3K2R b KQ - 3 2";
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&mut position, Black);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 1);
+        assert_eq!(attacking_squares[0], 31);
+    }
+
+    #[test]
     fn test_king_attacks_finder_using_white_pawn() {
         let fen = "8/8/8/1K3k2/4P3/8/8/8 b - - 0 1";
-        let position = Position::from(fen);
-        let attacking_square_indexes = king_attacks_finder(&position, Black);
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder(&mut position, Black);
         let attacking_squares = util::bit_indexes(attacking_square_indexes);
         assert_eq!(attacking_squares.len(), 1);
         assert_eq!(attacking_squares[0], 28);

@@ -1,11 +1,11 @@
 use crate::bit_board::{BitBoard, CASTLING_METADATA};
 use crate::board::{Board, BoardSide, Piece, PieceColor};
 use crate::chess_move::ChessMove;
-use crate::{fen};
+use crate::{fen, position};
 use crate::move_generator::king_attacks_finder;
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
+#[derive(Clone)]
 pub(crate) struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
@@ -54,8 +54,12 @@ impl Position {
         Position::from(NEW_GAME_FEN)
     }
 
-    pub fn board(&self) -> &BitBoard {
+    pub fn board_unmut(&self) -> &BitBoard {
         &self.board
+    }
+
+    pub fn board(&mut self) -> &mut BitBoard {
+        &mut self.board
     }
 
     pub fn side_to_move(&self) -> PieceColor {
@@ -84,38 +88,43 @@ impl Position {
 
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<Self> {
         let mut new_position = self.clone();
+        //let new_board = new_position.board();
         match chess_move {
             ChessMove::BasicMove { from, to , capture} => {
-                do_basic_move(&new_position.board, *from, *to);
+                do_basic_move(&mut new_position.board, *from, *to);
             }
             ChessMove::EnPassantMove { from, to, capture, capture_square } => {
-                do_basic_move(&new_position.board, *from, *to);
-                new_position.board.remove_piece(self.en_passant_capture_square?);
+                do_basic_move(&mut new_position.board, *from, *to);
+                let forward_pawn_increment: i32 = if self.side_to_move == PieceColor::White {-8} else {8};
+                new_position.board.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
             }
             ChessMove::CastlingMove { from, to, capture, board_side } => {
-                do_basic_move(&new_position.board, *from, *to);
-                let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
-                let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();
-                new_position.board.put_piece(castling_meta_data.rook_to_square, rook);
+                let num_checks = king_attacks_finder(&mut new_position, self.side_to_move);
+                if num_checks == 0 {
+                    do_basic_move(&mut new_position.board, *from, *to);
+                    let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
+                    let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();
+                    new_position.board.put_piece(castling_meta_data.rook_to_square, rook);
+                }
             }
             ChessMove::PromotionMove { from, to, capture, promote_to } => {
                 new_position.board.remove_piece(*from);
-                new_position.board.put_piece(*to, Piece { piece_color: new_position.side_to_move(), piece_type: *promote_to });
+                new_position.board.put_piece(*to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
             }
         }
-        fn do_basic_move(mut board: &BitBoard, from: usize, to: usize) {
+        fn do_basic_move(board: &mut BitBoard, from: usize, to: usize) {
             let piece = board.remove_piece(from).unwrap();
             let captured_piece = board.remove_piece(to);
             board.put_piece(to, piece)
         }
 
-        let is_valid_move = king_attacks_finder(new_position, new_position.opposing_side()) == 0;
+        let is_valid_move = king_attacks_finder(&mut new_position, self.side_to_move()) == 0;
         is_valid_move.then(|| Self::from(new_position))
     }
 
     pub fn can_castle(&self, piece_color: PieceColor, board_side: &BoardSide) -> bool {
-        return self.castling_rights[piece_color as usize][*board_side as usize]
-            && self.board.can_castle(piece_color, board_side);
+        self.castling_rights[piece_color as usize][*board_side as usize]
+            && self.board.can_castle(piece_color, board_side)
     }
 
     fn create_castling_rights(castling_rights: String) -> [[bool; 2]; 2] {
