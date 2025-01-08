@@ -2,6 +2,7 @@ use crate::bit_board::{BitBoard, CASTLING_METADATA};
 use crate::board::{Board, BoardSide, Piece, PieceColor};
 use crate::chess_move::ChessMove;
 use crate::{fen, position};
+use crate::board::PieceColor::{Black, White};
 use crate::move_generator::king_attacks_finder;
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -88,7 +89,7 @@ impl Position {
 
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<Self> {
         let mut new_position = self.clone();
-        //let new_board = new_position.board();
+
         match chess_move {
             ChessMove::BasicMove { from, to , capture} => {
                 do_basic_move(&mut new_position.board, *from, *to);
@@ -119,6 +120,7 @@ impl Position {
         }
 
         let is_valid_move = king_attacks_finder(&mut new_position, self.side_to_move()) == 0;
+        new_position.side_to_move = if self.side_to_move == White {Black} else {White};
         is_valid_move.then(|| Self::from(new_position))
     }
 

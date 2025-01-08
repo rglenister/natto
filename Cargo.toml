@@ -13,3 +13,4 @@ bitintr = "0.3.0"
 serde = { version = "1.0.217", features = ["derive"] }
 json5 = "0.4.1"
 serde_derive = "1.0.217"
+serial_test = "2.0"

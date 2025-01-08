@@ -1,5 +1,5 @@
 use crate::board::{BoardSide, PieceColor, PieceType};
-use crate::util::{on_board, print_bitboard};
+use crate::util::{on_board};
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -78,7 +78,7 @@ fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, squa
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
     let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
-    print_bitboard(valid_moves);
+//    print_bitboard(valid_moves);
     valid_moves
 }
 
