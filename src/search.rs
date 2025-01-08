@@ -17,8 +17,8 @@ fn reset_node_counter() {
     NODE_COUNTER.store(0, Ordering::SeqCst);
 }
 
-fn search(position: Position, depth: u32, max_depth: i32) {
-
+fn search(position: &Position, max_depth: i32) {
+    do_search(position, 0, max_depth);
 }
 
 fn do_search(position: &Position, depth: u32, max_depth: i32) {
@@ -31,10 +31,11 @@ mod tests {
     use serde_derive::Deserialize;
 
     use std::error::Error;
-    use crate::{fen, move_generator};
+    use crate::{fen, move_generator, node_counter, search};
 
     use std::fs;
     use crate::position::Position;
+    use crate::search::{get_node_count, increment_node_counter, search};
 
     #[derive(Deserialize, Debug)]
 
@@ -48,26 +49,14 @@ mod tests {
     fn test_fen_1() {
         let position = fen::parse("r6r/1b2k1bq/8/8/7B/8/8/R3K2R b KQ - 3 2".to_string());
         let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
         assert_eq!(count, 8);
     }
     #[test]
     fn test_fen_2() {
         let position = fen::parse("8/8/8/2k5/2pP4/8/B7/4K3 b - d3 0 3".to_string());
         let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
         assert_eq!(count, 8);
     }
 
@@ -75,13 +64,7 @@ mod tests {
     fn test_fen_3() {
         let position = fen::parse("r1bqkbnr/pppppppp/n7/8/8/P7/1PPPPPPP/RNBQKBNR w KQkq - 2 2".to_string());
         let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
         assert_eq!(count, 19);
     }
 
@@ -89,13 +72,7 @@ mod tests {
     fn test_fen_4() {
         let position = fen::parse("r3k2r/p1pp1pb1/bn2Qnp1/2qPN3/1p2P3/2N5/PPPBBPPP/R3K2R b KQkq - 3 2".to_string());
         let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
         assert_eq!(count, 5);
     }
 
@@ -103,13 +80,7 @@ mod tests {
     fn test_fen_5() {
         let position = fen::parse("2kr3r/p1ppqpb1/bn2Qnp1/3PN3/1p2P3/2N5/PPPBBPPP/R3K2R b KQ - 3 2".to_string());
         let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
         assert_eq!(count, 44);
     }
 
@@ -117,29 +88,43 @@ mod tests {
     fn test_fen_6() {
         let position = fen::parse("rnb2k1r/pp1Pbppp/2p5/q7/2B5/8/PPPQNnPP/RNB1K2R w KQ - 3 9".to_string());
         let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
         assert_eq!(count, 39);
     }
+    //#[test]
+    // fn test_fen_7() {
+    //     let position = fen::parse("2r5/3pk3/8/2P5/8/2K5/8/8 w - - 5 4".to_string());
+    //     let moves = move_generator::generate(&position);
+    //     let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
+    //     assert_eq!(count, 9);
+    // }
     #[test]
     fn test_fen_7() {
         let position = fen::parse("2r5/3pk3/8/2P5/8/2K5/8/8 w - - 5 4".to_string());
-        let moves = move_generator::generate(&position);
-        let mut count = 0;
-        for chess_move in moves {
-            let option = position.make_move(&chess_move);
-            if (option.is_some()) {
-                count += 1;
-            }
-        }
+        let count = node_counter::count_nodes(&position, 1);
         assert_eq!(count, 9);
     }
 
+    #[test]
+    fn test_fen_8() {
+        let position = fen::parse("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8".to_string());
+        let count = node_counter::count_nodes(&position, 3);
+        assert_eq!(count, 62379);
+    }
+
+    #[test]
+    fn test_fen_9() {
+        let position = fen::parse("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10".to_string());
+        let count = node_counter::count_nodes(&position, 3);
+        assert_eq!(count, 89890);
+    }
+
+    #[test]
+    fn test_fen_10() {
+        let position = fen::parse("3k4/3p4/8/K1P4r/8/8/8/8 b - - 0 1".to_string());
+        let count = node_counter::count_nodes(&position, /*6*/1);
+        assert_eq!(count, 1134888);
+    }
     //    #[test]
 //     fn test_fens() {
 //         let test_cases = load_fens().unwrap();
