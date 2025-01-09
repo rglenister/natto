@@ -50,7 +50,9 @@ use serde_derive::Deserialize;
     #[serial]
     fn test_fen_1() {
         let position = fen::parse("r6r/1b2k1bq/8/8/7B/8/8/R3K2R b KQ - 3 2".to_string());
-        let count = node_counter::count_nodes(&position, 1);
+        let moves = move_generator::generate(&position);
+        let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
+//        let count = node_counter::count_nodes(&position, 1);
         assert_eq!(count, 8);
     }
     #[test]

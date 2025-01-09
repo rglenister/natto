@@ -1,7 +1,7 @@
 mod sq_macro_generator;
 mod generated_macro;
 
-use crate::board::{Board, PieceColor};
+use crate::board::{Board, PieceColor, PieceType};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
 use crate::chess_move::ChessMove;
@@ -84,10 +84,23 @@ pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) ->
     }).collect::<Vec<ChessMove>>()
 }
 
+pub fn find_generated_move(moves: Vec<ChessMove>, from_square: usize, to_square: usize, promote_to_option: Option<PieceType>) -> Vec<ChessMove> {
+    moves.into_iter().filter(|chess_move | {
+        match chess_move {
+            ChessMove::BasicMove { from, to, .. } => { *from == from_square; *to == to_square }
+            ChessMove::EnPassantMove { from, to, .. } => { *from == from_square; *to == to_square }
+            ChessMove::PromotionMove { from, to, promote_to, .. } => { *from == from_square; *to == to_square; Some(promote_to) == promote_to_option.as_ref() }
+            ChessMove::CastlingMove { from, to, .. } => { *from == from_square; *to == to_square }
+        }
+    }).collect::<Vec<ChessMove>>()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::bit_board::BitBoard;
     use crate::board::{Piece, PieceType};
+    use crate::board::PieceType::{Knight, Queen, Rook};
+    use crate::chess_move::ChessMove::{BasicMove, PromotionMove};
     use super::*;
 
     #[test]
@@ -154,6 +167,29 @@ mod tests {
         let number: u64 = 0xff00fff;
         let count = number.count_ones();
         assert!(count.eq(&20));
+    }
+
+    #[test]
+    fn test_find_generated_basic_move() {
+        let mut moves: Vec<ChessMove> = vec![];
+        moves.push(BasicMove {from: 1, to: 2, capture: false });
+        moves.push(BasicMove {from: 3, to: 4, capture: false });
+        let matched_moves = find_generated_move(moves, 1, 2, None);
+        assert_eq!(matched_moves.len(), 1);
+        assert_eq!(*matched_moves.get(0).unwrap(), BasicMove {from: 1, to: 2, capture: false});
+    }
+
+    #[test]
+    fn test_find_generated_promotion_move() {
+        let mut moves: Vec<ChessMove> = vec![];
+        moves.push(BasicMove {from: 1, to: 2, capture: false });
+        moves.push(BasicMove {from: 3, to: 4, capture: false });
+        moves.push(PromotionMove {from: 3, to: 9, capture: false, promote_to: Queen });
+        moves.push(PromotionMove {from: 3, to: 9, capture: false, promote_to: Rook });
+        moves.push(PromotionMove {from: 3, to: 9, capture: false, promote_to: Knight });
+        let matched_moves = find_generated_move(moves, 3, 9, Some(Rook));
+        assert_eq!(matched_moves.len(), 1);
+        assert_eq!(*matched_moves.get(0).unwrap(), PromotionMove {from: 3, to: 9, capture: false, promote_to: Rook });
     }
 }
 

@@ -12,6 +12,7 @@ pub struct BitBoard {
 pub struct CastlingMetadata {
     pub(crate) board_side: BoardSide,
     pub(crate) king_from_square: usize,
+    pub(crate) king_through_square: usize,
     pub(crate) king_to_square: usize,
     pub(crate) rook_from_square: usize,
     pub(crate) rook_to_square: usize,
@@ -20,12 +21,20 @@ pub struct CastlingMetadata {
 pub static CASTLING_METADATA: [[CastlingMetadata; 2]; 2] =
     [
         [
-            CastlingMetadata {board_side: BoardSide::KingSide, king_from_square: sq!("e1"), king_to_square: sq!("g1"), rook_from_square: sq!("h1"), rook_to_square: sq!("f1") },
-            CastlingMetadata {board_side: BoardSide::QueenSide, king_from_square: sq!("e1"), king_to_square: sq!("c1"), rook_from_square: sq!("a1"), rook_to_square: sq!("d1") }
+            CastlingMetadata {
+                board_side: BoardSide::KingSide, king_from_square: sq!("e1"), king_through_square: sq!("f1"), king_to_square: sq!("g1"), rook_from_square: sq!("h1"), rook_to_square: sq!("f1")
+            },
+            CastlingMetadata {
+                board_side: BoardSide::QueenSide, king_from_square: sq!("e1"), king_through_square: sq!("d1"), king_to_square: sq!("c1"), rook_from_square: sq!("a1"), rook_to_square: sq!("d1")
+            }
         ],
         [
-            CastlingMetadata {board_side: BoardSide::KingSide, king_from_square: sq!("e8"), king_to_square: sq!("g8"), rook_from_square: sq!("h8"), rook_to_square: sq!("f8") },
-            CastlingMetadata {board_side: BoardSide::QueenSide, king_from_square: sq!("e8"), king_to_square: sq!("c8"), rook_from_square: sq!("a8"), rook_to_square: sq!("d8") }
+            CastlingMetadata {
+                board_side: BoardSide::KingSide, king_from_square: sq!("e8"), king_through_square: sq!("f8"), king_to_square: sq!("g8"), rook_from_square: sq!("h8"), rook_to_square: sq!("f8")
+            },
+            CastlingMetadata {
+                board_side: BoardSide::QueenSide, king_from_square: sq!("e8"), king_through_square: sq!("d8"), king_to_square: sq!("c8"), rook_from_square: sq!("a8"), rook_to_square: sq!("d8")
+            }
         ]
     ];
 

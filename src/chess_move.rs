@@ -3,6 +3,7 @@ use crate::board::{BoardSide, PieceType};
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone)]
 pub(crate) enum ChessMove {
+//    #[default]
     BasicMove {
         from: usize,
         to: usize,

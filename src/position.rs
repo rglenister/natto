@@ -1,9 +1,12 @@
 use crate::bit_board::{BitBoard, CASTLING_METADATA};
-use crate::board::{Board, BoardSide, Piece, PieceColor};
+use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
 use crate::chess_move::ChessMove;
-use crate::{fen, position};
+use crate::{fen, move_generator, position, util};
 use crate::board::PieceColor::{Black, White};
-use crate::move_generator::king_attacks_finder;
+use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
+use crate::move_generator::{king_attacks_finder, square_attacks_finder};
+
+include!("util/generated_macro.rs");
 
 pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 #[derive(Clone)]
@@ -87,6 +90,15 @@ impl Position {
         self.full_move_number
     }
 
+    pub fn make_raw_move(&self, square_from: usize, square_to: usize, promote_to: Option<PieceType>) -> Option<Self> {
+        let moves = util::find_generated_move(move_generator::generate(self), square_from, square_to, promote_to);
+        if moves.len() == 1 {
+            self.make_move(&moves[0])
+        } else {
+            None
+        }
+    }
+
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<Self> {
         let mut new_position = self.clone();
 
@@ -100,12 +112,15 @@ impl Position {
                 new_position.board.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
             }
             ChessMove::CastlingMove { from, to, capture, board_side } => {
-                let num_checks = king_attacks_finder(&mut new_position, self.side_to_move);
-                if num_checks == 0 {
+                let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
+                if king_attacks_finder(&mut new_position, self.side_to_move) == 0 &&
+                            square_attacks_finder(&mut new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
                     do_basic_move(&mut new_position.board, *from, *to);
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                     let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();
                     new_position.board.put_piece(castling_meta_data.rook_to_square, rook);
+                } else {
+                    return None;
                 }
             }
             ChessMove::PromotionMove { from, to, capture, promote_to } => {
@@ -145,6 +160,8 @@ mod tests {
     use crate::bit_board::BitBoard;
     use super::*;
     use crate::board::{BoardSide, PieceColor};
+    use crate::chess_move::ChessMove::CastlingMove;
+    use crate::move_generator::generate;
 
     #[test]
     fn test_general_usability() {
@@ -195,5 +212,35 @@ mod tests {
         assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], true);
         assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], true);
         assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], false);
+    }
+
+
+    #[test]
+    fn test_cannot_castle_out_of_check() {
+        let fen = "r3k2r/p1pp1pb1/bn2Qnp1/2qPN3/1p2P3/2N5/PPPBBPPP/R3K2R b KQkq - 3 2";
+        let position = Position::from(fen);
+        let moves = generate(&position);
+        let castling_moves: Vec<&ChessMove> =
+            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
+        assert_eq!(castling_moves.len(), 2);
+        assert_eq!(castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).count(), 0);
+    }
+
+    #[test]
+    fn test_cannot_castle_through_check() {
+        let fen = "r3k3/8/8/8/7B/8/8/4K3 b q - 0 1";
+        let mut position = Position::from(fen);
+        let moves = generate(&position);
+        let castling_moves: Vec<_> =
+            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
+        assert_eq!(castling_moves.len(), 1);
+        assert_eq!(castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).count(), 0);
+    }
+
+    #[test]
+    fn test_ep_capture_square_is_set_after_double_pawn_move() {
+        let mut position = Position::from(NEW_GAME_FEN);
+        position.make_raw_move(sq!("e2"), sq!("e4"), None);
+        let moves = generate(&position);
     }
 }

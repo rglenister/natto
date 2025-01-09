@@ -682,5 +682,6 @@ mod tests {
         assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 22);
         assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 38);
     }
+
 }
 
