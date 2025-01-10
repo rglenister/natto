@@ -1,10 +1,13 @@
-use crate::bit_board::{BitBoard, CASTLING_METADATA};
+use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
 use crate::chess_move::ChessMove;
 use crate::{fen, move_generator, position, util};
+use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
+use crate::board::PieceType::{King, Pawn, Rook};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::move_generator::{king_attacks_finder, square_attacks_finder};
+use crate::util::distance;
 
 include!("util/generated_macro.rs");
 
@@ -101,13 +104,14 @@ impl Position {
 
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<Self> {
         let mut new_position = self.clone();
+        new_position.en_passant_capture_square = None;
 
         match chess_move {
             ChessMove::BasicMove { from, to , capture} => {
-                do_basic_move(&mut new_position.board, *from, *to);
+                do_basic_move(&mut new_position, *from, *to);
             }
             ChessMove::EnPassantMove { from, to, capture, capture_square } => {
-                do_basic_move(&mut new_position.board, *from, *to);
+                do_basic_move(&mut new_position, *from, *to);
                 let forward_pawn_increment: i32 = if self.side_to_move == PieceColor::White {-8} else {8};
                 new_position.board.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
             }
@@ -115,10 +119,11 @@ impl Position {
                 let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                 if king_attacks_finder(&mut new_position, self.side_to_move) == 0 &&
                             square_attacks_finder(&mut new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
-                    do_basic_move(&mut new_position.board, *from, *to);
+                    do_basic_move(&mut new_position, *from, *to);
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                     let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();
                     new_position.board.put_piece(castling_meta_data.rook_to_square, rook);
+                    new_position.castling_rights[self.side_to_move as usize] = [false, false];
                 } else {
                     return None;
                 }
@@ -128,10 +133,22 @@ impl Position {
                 new_position.board.put_piece(*to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
             }
         }
-        fn do_basic_move(board: &mut BitBoard, from: usize, to: usize) {
-            let piece = board.remove_piece(from).unwrap();
-            let captured_piece = board.remove_piece(to);
-            board.put_piece(to, piece)
+        fn do_basic_move(new_position: &mut Position, from: usize, to: usize) {
+            let piece = new_position.board.remove_piece(from).unwrap();
+            let piece_type = piece.piece_type;
+            let captured_piece = new_position.board.remove_piece(to);
+            new_position.board.put_piece(to, piece);
+            if piece_type == Pawn && distance(from as i32, to as i32) == 2 {
+                new_position.en_passant_capture_square = Some((from + to) / 2);
+            } else if piece_type == King && from == KING_HOME_SQUARE[new_position.side_to_move() as usize] {
+                new_position.castling_rights[new_position.side_to_move as usize] = [false, false];
+            } else if piece_type == Rook {
+                if from == CASTLING_METADATA[new_position.side_to_move() as usize][KingSide as usize].rook_from_square {
+                    new_position.castling_rights[new_position.side_to_move as usize][KingSide as usize] = false;
+                } else if from == CASTLING_METADATA[new_position.side_to_move() as usize][QueenSide as usize].rook_from_square {
+                    new_position.castling_rights[new_position.side_to_move as usize][QueenSide as usize] = false;
+                }
+            }
         }
 
         let is_valid_move = king_attacks_finder(&mut new_position, self.side_to_move()) == 0;
@@ -238,9 +255,79 @@ mod tests {
     }
 
     #[test]
-    fn test_ep_capture_square_is_set_after_double_pawn_move() {
-        let mut position = Position::from(NEW_GAME_FEN);
-        position.make_raw_move(sq!("e2"), sq!("e4"), None);
+    fn test_ep_capture_square_is_set_after_double_white_pawn_move() {
+        let position_1 = Position::from(NEW_GAME_FEN);
+        let position_2 = position_1.make_raw_move(sq!("e2"), sq!("e4"), None).unwrap();
+        assert_eq!(position_2.en_passant_capture_square, Some(sq!("e3")));
+        let position_3 = position_2.make_raw_move(sq!("b8"), sq!("c6"), None).unwrap();
+        assert_eq!(position_3.en_passant_capture_square, None);
+    }
+
+    #[test]
+    fn test_ep_capture_square_is_set_after_double_black_pawn_move() {
+        let position_1 = Position::from(NEW_GAME_FEN);
+        let position_2 = position_1.make_raw_move(sq!("e2"), sq!("e3"), None).unwrap();
+        assert_eq!(position_2.en_passant_capture_square, None);
+        let position_3 = position_2.make_raw_move(sq!("a7"), sq!("a5"), None).unwrap();
+        assert_eq!(position_3.en_passant_capture_square, Some(sq!("a6")));
+        let position_4 = position_3.make_raw_move(sq!("c2"), sq!("c3"), None).unwrap();
+        assert_eq!(position_4.en_passant_capture_square, None);
+    }
+
+    #[test]
+    fn test_castling_rights_lost_after_castling() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        let mut position = Position::from(fen);
+        assert_eq!(position.castling_rights[White as usize], [true, true]);
+        assert_eq!(position.castling_rights[Black as usize], [true, true]);
         let moves = generate(&position);
+        let castling_moves: Vec<_> =
+            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
+        assert_eq!(castling_moves.len(), 2);
+        let positions: Vec<_> = castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).collect();
+        assert_eq!(positions.len(), 2);
+        assert_eq!(positions[0].castling_rights[White as usize], [false, false]);
+        assert_eq!(positions[1].castling_rights[White as usize], [false, false]);
+    }
+
+    #[test]
+    fn test_castling_rights_lost_after_moving_king() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        let mut position = Position::from(fen);
+        assert_eq!(position.castling_rights[White as usize], [true, true]);
+        assert_eq!(position.castling_rights[Black as usize], [true, true]);
+        let moves = generate(&position);
+        let king_moves: Vec<_> =
+            moves.iter().filter(|chess_move| matches!(chess_move, BasicMove { from: sq!("e1"), .. })).collect();
+        assert_eq!(king_moves.len(), 5);
+        let new_position = position.make_move(king_moves[0]).unwrap();
+        assert_eq!(new_position.castling_rights[White as usize], [false, false]);
+        assert_eq!(new_position.castling_rights[Black as usize], [true, true]);
+    }
+    #[test]
+    fn test_castling_rights_lost_after_moving_rook() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        let mut position_1 = Position::from(fen);
+        assert_eq!(position_1.castling_rights[White as usize], [true, true]);
+        assert_eq!(position_1.castling_rights[Black as usize], [true, true]);
+
+        let position_2 = position_1.make_raw_move(sq!("a1"), sq!("a2"), None).unwrap();
+        assert_eq!(position_2.castling_rights[White as usize], [true, false]);
+        assert_eq!(position_2.castling_rights[Black as usize], [true, true]);
+
+        let position_3 = position_1.make_raw_move(sq!("h1"), sq!("h2"), None).unwrap();
+        assert_eq!(position_3.castling_rights[White as usize], [false, true]);
+        assert_eq!(position_3.castling_rights[Black as usize], [true, true]);
+
+    }
+
+    #[test]
+    fn test_full_move_counter_incremented_after_black_move() {
+
+    }
+
+    #[test]
+    fn test_half_move_counter_incremented() {
+
     }
 }

@@ -87,10 +87,10 @@ pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) ->
 pub fn find_generated_move(moves: Vec<ChessMove>, from_square: usize, to_square: usize, promote_to_option: Option<PieceType>) -> Vec<ChessMove> {
     moves.into_iter().filter(|chess_move | {
         match chess_move {
-            ChessMove::BasicMove { from, to, .. } => { *from == from_square; *to == to_square }
-            ChessMove::EnPassantMove { from, to, .. } => { *from == from_square; *to == to_square }
-            ChessMove::PromotionMove { from, to, promote_to, .. } => { *from == from_square; *to == to_square; Some(promote_to) == promote_to_option.as_ref() }
-            ChessMove::CastlingMove { from, to, .. } => { *from == from_square; *to == to_square }
+            ChessMove::BasicMove { from, to, .. } => { *from == from_square && *to == to_square }
+            ChessMove::EnPassantMove { from, to, .. } => { *from == from_square && *to == to_square }
+            ChessMove::PromotionMove { from, to, promote_to, .. } => { *from == from_square && *to == to_square; Some(promote_to) == promote_to_option.as_ref() }
+            ChessMove::CastlingMove { from, to, .. } => { *from == from_square && *to == to_square }
         }
     }).collect::<Vec<ChessMove>>()
 }

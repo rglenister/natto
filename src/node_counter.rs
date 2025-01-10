@@ -26,7 +26,7 @@ pub fn count_nodes(position: &Position, max_depth: i32) -> usize{
 
 fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) -> () {
     if depth != 0 {
-        increment_node_counter();
+//        increment_node_counter();
     }
     if depth < max_depth {
         move_generator::generate(position)
@@ -35,7 +35,7 @@ fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) -> () {
             .map(|pos| do_count_nodes( &pos, depth + 1, max_depth))
             .count();
     } else {
-
+        increment_node_counter();
     }
     ()
 }

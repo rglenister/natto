@@ -32,6 +32,8 @@ pub fn generate(position: &Position) -> Vec<ChessMove> {
     moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Queen as usize], occupied_squares, friendly_squares));
 
     moves.extend(generate_king_moves(&position, bitboards[King as usize], occupied_squares, friendly_squares));
+    // println!("{:?}", moves.len());
+    // println!("{:?}", moves);
     moves
 }
 
@@ -238,6 +240,9 @@ fn generate_move_bitboard(
 }
 
 fn generate_king_moves(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
+    if square_indexes == 0 {
+        println!("No King!!!");
+    }
     let mut moves = get_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
     moves.extend(
         BoardSide::iter()
@@ -314,10 +319,8 @@ pub fn square_attacks_finder(position: &mut Position, attacking_color: PieceColo
             }
         })
     }
-    let knight_moves = NON_SLIDING_PIECE_MOVE_TABLE[&Knight][square_index as usize];
-    let enemy_knights = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Knight);
-    let attacking_knights = knight_moves & enemy_knights;
-    attacking_squares |= attacking_knights;
+    attacking_squares |= fff(position, King, attacking_color, square_index);
+    attacking_squares |= fff(position, Knight, attacking_color, square_index);
 
     let pawn_attack_squares = PAWN_ATTACKS_TABLE[&attacking_color][square_index as usize];
     let pawn_attack_square_indexes = util::bit_indexes(pawn_attack_squares);
@@ -326,6 +329,12 @@ pub fn square_attacks_finder(position: &mut Position, attacking_color: PieceColo
     attacking_squares |= attacking_pawn;
 
     attacking_squares
+}
+
+fn fff(position: &mut Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: i32) -> u64 {
+    let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
+    let enemy_squares = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
+    moves & enemy_squares
 }
 
 pub fn king_attacks_finder(position: &mut position::Position, king_color: PieceColor) -> u64 {

@@ -35,7 +35,7 @@ use serde_derive::Deserialize;
     use crate::{fen, move_generator, node_counter, search};
 
     use std::fs;
-    use crate::position::Position;
+    use crate::position::{Position, NEW_GAME_FEN};
     use crate::search::{get_node_count, increment_node_counter, search};
 
     #[derive(Deserialize, Debug)]
@@ -44,6 +44,14 @@ use serde_derive::Deserialize;
         depth: usize,
         nodes: usize,
         fen: String,
+    }
+
+    #[test]
+    #[serial]
+    fn test_fen_new_game_position() {
+        let position = Position::from(NEW_GAME_FEN);
+        let count = node_counter::count_nodes(&position, 6);
+        assert_eq!(count, 119060324);
     }
 
     #[test]
@@ -122,6 +130,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_10() {
+        // exception
         let position = fen::parse("3k4/3p4/8/K1P4r/8/8/8/8 b - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 1134888);
@@ -146,6 +155,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_13() {
+        // castling flags??
         let position = fen::parse("5k2/8/8/8/8/8/8/4K2R w K - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 661072);
@@ -154,6 +164,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_14() {
+        // castling flags??
         let position = fen::parse("3k4/8/8/8/8/8/8/R3K3 w Q - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 803711);
@@ -162,6 +173,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_15() {
+        // ok
         let position = fen::parse("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 4);
         assert_eq!(count, 1274206);
@@ -170,6 +182,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_16() {
+        // ok
         let position = fen::parse("r3k2r/8/3Q4/8/8/5q2/8/R3K2R b KQkq - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 4);
         assert_eq!(count, 1720476);
@@ -178,6 +191,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_17() {
+        // castling flags?
         let position = fen::parse("2K2r2/4P3/8/8/8/8/8/3k4 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 3821001);
@@ -186,7 +200,8 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_18() {
-        let position = fen::parse("2K2r2/4P3/8/8/8/8/8/3k4 w - - 0 1".to_string());
+        // big discrepancy
+        let position = fen::parse("8/8/1P2K3/8/2n5/1q6/8/5k2 b - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 5);
         assert_eq!(count, 1004658);
     }
@@ -194,6 +209,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_19() {
+        // close
         let position = fen::parse("4k3/1P6/8/8/8/8/K7/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 217342);
@@ -202,6 +218,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_20() {
+        // exception
         let position = fen::parse("8/P1k5/K7/8/8/8/8/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 92683);
@@ -210,6 +227,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_21() {
+        // exception
         let position = fen::parse("K1k5/8/P7/8/8/8/8/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 2217);
@@ -218,6 +236,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_22() {
+        // exception
         let position = fen::parse("8/k1P5/8/1K6/8/8/8/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 7);
         assert_eq!(count, 567584);
@@ -226,6 +245,7 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_23() {
+        // close
         let position = fen::parse("8/8/2k5/5q2/5n2/8/5K2/8 b - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 4);
         assert_eq!(count, 23527);

@@ -35,8 +35,8 @@ pub enum PieceType {
 #[derive(Eq, Hash, PartialEq)]
 #[repr(u8)]
 pub enum BoardSide {
-    KingSide,
-    QueenSide,
+    KingSide = 0,
+    QueenSide = 1,
 }
 
 #[derive(Debug, PartialEq)]
