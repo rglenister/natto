@@ -1,6 +1,8 @@
 mod sq_macro_generator;
 mod generated_macro;
 
+use std::ops::Add;
+use crate::board;
 use crate::board::{Board, PieceColor, PieceType};
 use crate::board::PieceColor::White;
 use crate::board::PieceColor::Black;
@@ -18,6 +20,15 @@ pub fn parse_square(square: &str) -> Option<usize> {
         let col_char = square.chars().nth(0).expect("Invalid square");
         let col = col_char as u32 - 'a' as u32;
         Some(((row - 1) * 8 + col).try_into().unwrap())
+    }
+}
+
+pub fn write_square(square_index: usize) -> String {
+    if square_index < board::NUMBER_OF_SQUARES {
+        let file_lookup = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        file_lookup[square_index % 8].to_string().add((square_index / 8 + 1).to_string().as_str())
+    } else {
+        "Invalid square".to_string()
     }
 }
 
@@ -89,7 +100,7 @@ pub fn find_generated_move(moves: Vec<ChessMove>, from_square: usize, to_square:
         match chess_move {
             ChessMove::BasicMove { from, to, .. } => { *from == from_square && *to == to_square }
             ChessMove::EnPassantMove { from, to, .. } => { *from == from_square && *to == to_square }
-            ChessMove::PromotionMove { from, to, promote_to, .. } => { *from == from_square && *to == to_square; Some(promote_to) == promote_to_option.as_ref() }
+            ChessMove::PromotionMove { from, to, promote_to, .. } => { let _ = *from == from_square && *to == to_square; Some(promote_to) == promote_to_option.as_ref() }
             ChessMove::CastlingMove { from, to, .. } => { *from == from_square && *to == to_square }
         }
     }).collect::<Vec<ChessMove>>()
@@ -121,8 +132,18 @@ mod tests {
     fn test_parse_square() {
         assert_eq!(parse_square("a1").unwrap(), 0);
         assert_eq!(parse_square("a2").unwrap(), 8);
+        assert_eq!(parse_square("e3").unwrap(), 20);
         assert_eq!(parse_square("h7").unwrap(), 55);
         assert_eq!(parse_square("h8").unwrap(), 63);
+    }
+
+    #[test]
+    fn test_write_square() {
+        assert_eq!(write_square(0), "a1");
+        assert_eq!(write_square(8), "a2");
+        assert_eq!(write_square(20), "e3");
+        assert_eq!(write_square(62), "g8");
+        assert_eq!(write_square(63), "h8");
     }
 
     #[test]

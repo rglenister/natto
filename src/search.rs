@@ -1,5 +1,4 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::move_generator;
 use crate::position::Position;
 
 // Define a static atomic counter
@@ -32,11 +31,10 @@ mod tests {
 use serde_derive::Deserialize;
 
     use std::error::Error;
-    use crate::{fen, move_generator, node_counter, search};
+    use crate::{fen, move_generator, node_counter};
 
     use std::fs;
     use crate::position::{Position, NEW_GAME_FEN};
-    use crate::search::{get_node_count, increment_node_counter, search};
 
     #[derive(Deserialize, Debug)]
 
@@ -60,7 +58,6 @@ use serde_derive::Deserialize;
         let position = fen::parse("r6r/1b2k1bq/8/8/7B/8/8/R3K2R b KQ - 3 2".to_string());
         let moves = move_generator::generate(&position);
         let count = moves.iter().filter_map(|chess_move| position.make_move(chess_move)).count();
-//        let count = node_counter::count_nodes(&position, 1);
         assert_eq!(count, 8);
     }
     #[test]
@@ -200,7 +197,6 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_18() {
-        // big discrepancy
         let position = fen::parse("8/8/1P2K3/8/2n5/1q6/8/5k2 b - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 5);
         assert_eq!(count, 1004658);
@@ -209,7 +205,6 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_19() {
-        // close
         let position = fen::parse("4k3/1P6/8/8/8/8/K7/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 217342);
@@ -218,7 +213,6 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_20() {
-        // exception
         let position = fen::parse("8/P1k5/K7/8/8/8/8/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 92683);
@@ -227,7 +221,6 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_21() {
-        // exception
         let position = fen::parse("K1k5/8/P7/8/8/8/8/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 6);
         assert_eq!(count, 2217);
@@ -236,7 +229,6 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_22() {
-        // exception
         let position = fen::parse("8/k1P5/8/1K6/8/8/8/8 w - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 7);
         assert_eq!(count, 567584);
@@ -245,35 +237,27 @@ use serde_derive::Deserialize;
     #[test]
     #[serial]
     fn test_fen_23() {
-        // close
         let position = fen::parse("8/8/2k5/5q2/5n2/8/5K2/8 b - - 0 1".to_string());
         let count = node_counter::count_nodes(&position, 4);
         assert_eq!(count, 23527);
     }
 
-    //    #[test]
-//     fn test_fens() {
-//         let test_cases = load_fens().unwrap();
-//         let mut test_number = 0;
-// //        assert_eq!(test_cases.len(), 7);
-//         for test in test_cases {
-//             let mut count: usize = 0;
-//             let position = fen::parse(test.fen);
-//             let moves = move_generator::generate(&position);
-//             for chess_move in moves {
-//                 let option = position.make_move(&chess_move);
-//                 if (option.is_some()) {
-//                     count += 1;
-//                 }
-//             }
-//             assert_eq!(count, test.nodes);
-//             test_number += 1;
-//         }
-//     }
-//
-//     fn load_fens() -> Result<Vec<FenTestCase>, Box<dyn Error>> {
-//         let file = fs::read_to_string("src/test_data/fen_test_data.json")?;
-//         let test_cases = json5::from_str(file.as_str())?;
-//         Ok(test_cases)
-//     }
+    #[test]
+    #[serial]
+    fn test_fens() {
+        let test_cases = load_fens().unwrap();
+        let mut test_number = 0;
+        for test in test_cases {
+            let position = fen::parse(test.fen);
+            let count = node_counter::count_nodes(&position, test.depth as i32);
+            assert_eq!(count, test.nodes, "Test {}",  test_number);
+            test_number += 1;
+        }
+    }
+
+    fn load_fens() -> Result<Vec<FenTestCase>, Box<dyn Error>> {
+        let file = fs::read_to_string("src/test_data/fen_test_data.json")?;
+        let test_cases = json5::from_str(file.as_str())?;
+        Ok(test_cases)
+    }
 }

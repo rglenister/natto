@@ -1,11 +1,11 @@
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
 use crate::chess_move::ChessMove;
-use crate::{fen, move_generator, position, util};
+use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{King, Pawn, Rook};
-use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
+use crate::chess_move::ChessMove::{BasicMove};
 use crate::move_generator::{king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
 
@@ -107,7 +107,7 @@ impl Position {
         new_position.en_passant_capture_square = None;
 
         match chess_move {
-            ChessMove::BasicMove { from, to , capture} => {
+            ChessMove::BasicMove { from, to , capture } => {
                 do_basic_move(&mut new_position, *from, *to);
             }
             ChessMove::EnPassantMove { from, to, capture, capture_square } => {
@@ -136,7 +136,7 @@ impl Position {
         fn do_basic_move(new_position: &mut Position, from: usize, to: usize) {
             let piece = new_position.board.remove_piece(from).unwrap();
             let piece_type = piece.piece_type;
-            let captured_piece = new_position.board.remove_piece(to);
+            let _captured_piece = new_position.board.remove_piece(to);
             new_position.board.put_piece(to, piece);
             if piece_type == Pawn && distance(from as i32, to as i32) == 2 {
                 new_position.en_passant_capture_square = Some((from + to) / 2);
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn test_cannot_castle_through_check() {
         let fen = "r3k3/8/8/8/7B/8/8/4K3 b q - 0 1";
-        let mut position = Position::from(fen);
+        let position = Position::from(fen);
         let moves = generate(&position);
         let castling_moves: Vec<_> =
             moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_castling_rights_lost_after_castling() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-        let mut position = Position::from(fen);
+        let position = Position::from(fen);
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
         let moves = generate(&position);
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn test_castling_rights_lost_after_moving_king() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-        let mut position = Position::from(fen);
+        let position = Position::from(fen);
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
         let moves = generate(&position);
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_castling_rights_lost_after_moving_rook() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-        let mut position_1 = Position::from(fen);
+        let position_1 = Position::from(fen);
         assert_eq!(position_1.castling_rights[White as usize], [true, true]);
         assert_eq!(position_1.castling_rights[Black as usize], [true, true]);
 

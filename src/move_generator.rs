@@ -71,16 +71,10 @@ pub fn get_sliding_moves_by_piece_type(
 }
 
 fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: u64, occupied_squares: u64) -> u64 {
-    let table_entry = SLIDING_PIECE_MOVE_TABLE
-        .get(&piece_type)
-        .unwrap()
-        .get(square_index as usize)
-        .unwrap();
-
+    let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
     let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
-//    print_bitboard(valid_moves);
     valid_moves
 }
 
@@ -240,9 +234,6 @@ fn generate_move_bitboard(
 }
 
 fn generate_king_moves(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
-    if square_indexes == 0 {
-        println!("No King!!!");
-    }
     let mut moves = get_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
     moves.extend(
         BoardSide::iter()
@@ -319,11 +310,10 @@ pub fn square_attacks_finder(position: &mut Position, attacking_color: PieceColo
             }
         })
     }
-    attacking_squares |= fff(position, King, attacking_color, square_index);
-    attacking_squares |= fff(position, Knight, attacking_color, square_index);
+    attacking_squares |= non_sliding_piece_attacks(position, King, attacking_color, square_index);
+    attacking_squares |= non_sliding_piece_attacks(position, Knight, attacking_color, square_index);
 
     let pawn_attack_squares = PAWN_ATTACKS_TABLE[&attacking_color][square_index as usize];
-    let pawn_attack_square_indexes = util::bit_indexes(pawn_attack_squares);
     let attacking_pawns = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Pawn);
     let attacking_pawn = pawn_attack_squares & attacking_pawns;
     attacking_squares |= attacking_pawn;
@@ -331,7 +321,7 @@ pub fn square_attacks_finder(position: &mut Position, attacking_color: PieceColo
     attacking_squares
 }
 
-fn fff(position: &mut Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: i32) -> u64 {
+fn non_sliding_piece_attacks(position: &mut Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: i32) -> u64 {
     let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
     let enemy_squares = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
     moves & enemy_squares
