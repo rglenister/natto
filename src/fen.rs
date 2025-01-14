@@ -40,12 +40,12 @@ pub fn parse(fen: String) -> Position {
 
 pub fn write(position: &Position) -> String {
     return format!("{} {} {} {} {} {}",
-            write_board(position.board_unmut()),
-            if position.side_to_move() == White {"w"} else {"b"},
-            get_castling_rights(position),
-            position.en_passant_capture_square().map_or("-".to_string(), |ep_square| util::write_square(ep_square)),
-            position.half_move_clock(),
-            position.full_move_number());
+                   write_board(position.board_unmut()),
+                   if position.side_to_move() == White { "w" } else { "b" },
+                   get_castling_rights(position),
+                   position.en_passant_capture_square().map_or("-".to_string(), |ep_square| util::write_square(ep_square)),
+                   position.half_move_clock(),
+                   position.full_move_number());
 
     fn write_board(board: &BitBoard) -> String {
         return (0..64)
@@ -54,26 +54,22 @@ pub fn write(position: &Position) -> String {
             .collect::<Vec<_>>()
             .chunks(8)
             .rev()
-            .map(|row| create_row(row))
-            .collect::<Vec<_>>()
+            .map(|c| c.iter().collect::<String>())
+            .map(|row| encode_row(&row))
             .join("/");
 
-        fn create_row(row: &[char]) -> String {
-            let grouped: Vec<_> = row.iter()
-                .chunk_by(|&ch| *ch == ' ')
-                .into_iter()
-                .map(|(is_space, group)| (is_space, group.collect::<String>()))
-                .collect();
-
-            let mut output = String::new();
-            for (is_space, group) in grouped {
-                if is_space {
-                    output.push_str(group.len().to_string().as_str());
+        fn encode_row(row: &str) -> String {
+            if !row.is_empty() {
+                let remaining = row.trim_start_matches(|ch: char| ch == ' ');
+                let run_length = row.len() - remaining.len();
+                if run_length > 0 {
+                    run_length.to_string() + &encode_row(remaining)
                 } else {
-                    output.push_str(group.as_str());
+                    remaining.chars().nth(0).unwrap().to_string() + &encode_row(&remaining[1..])
                 }
+            } else {
+                "".to_string()
             }
-            output
         }
     }
 
@@ -86,7 +82,6 @@ pub fn write(position: &Position) -> String {
         output
     }
 }
-
 
 fn expand_board(fen_board: &str) -> String {
     let expanded = digits_to_spaces(fen_board);
@@ -116,6 +111,7 @@ fn reverse_rows(input: &str) -> String {
 mod tests {
     use super::*;
     use crate::board::PieceColor::White;
+    use crate::position::NEW_GAME_FEN;
 
     #[test]
     fn test_parse() {
@@ -130,10 +126,19 @@ mod tests {
     }
 
     #[test]
-    fn test_write() {
+    fn test_write_1() {
         let fen = "r6r/1b2k1bq/8/8/7B/8/8/R3K2R b Kq h3 9 22";
         let position = parse(fen.to_string());
         let result = write(&position);
         assert_eq!(result, fen);
     }
+
+    #[test]
+    fn test_write_2() {
+        let fen = NEW_GAME_FEN.to_string();
+        let position = parse(fen.to_string());
+        let result = write(&position);
+        assert_eq!(result, fen);
+    }
+
 }

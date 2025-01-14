@@ -4,7 +4,7 @@ use crate::chess_move::ChessMove;
 use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
-use crate::board::PieceType::{King, Pawn, Queen, Rook};
+use crate::board::PieceType::{King, Pawn, Rook};
 use crate::chess_move::ChessMove::{BasicMove};
 use crate::move_generator::{king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
