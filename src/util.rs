@@ -169,7 +169,6 @@ mod tests {
         board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
         board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
         let string = board.to_string();
-        println!("{}", string);
     }
 
     #[test]

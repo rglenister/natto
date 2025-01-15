@@ -11,9 +11,10 @@ use crate::util::distance;
 
 include!("util/generated_macro.rs");
 
-pub(crate) const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
 #[derive(Clone)]
-pub(crate) struct Position {
+pub struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
     castling_rights: [[bool; 2]; 2],
@@ -118,7 +119,7 @@ impl Position {
             ChessMove::CastlingMove { from, to, capture, board_side } => {
                 let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                 if king_attacks_finder(&mut new_position, self.side_to_move) == 0 &&
-                            square_attacks_finder(&mut new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
+                            square_attacks_finder(&new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
                     do_basic_move(&mut new_position, *from, *to, false);
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                     let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();

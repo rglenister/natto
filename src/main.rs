@@ -2,18 +2,27 @@ extern crate core;
 
 use crate::bit_board::BitBoard;
 
-mod fen;
+pub mod chess_engine;
+pub mod fen;
+
+pub mod node_counter;
+
 mod board;
-mod chess_move;
+pub mod chess_move;
 mod bit_board;
-mod position;
+pub mod position;
 mod util;
 mod engine;
 mod uci;
-mod move_generator;
-mod search;
-mod node_counter;
+pub mod move_generator;
+pub mod search;
+mod game;
+//mod node_count_tests;
 
 fn main() {
     uci::process_input::<BitBoard>();
+}
+
+pub fn fff() {
+
 }

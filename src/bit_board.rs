@@ -162,9 +162,6 @@ impl Board for BitBoard {
             for piece_type in PieceType::iter() {
                 if self.bit_boards[piece_color.clone() as usize][piece_type.clone() as usize] & mask != 0 {
                     self.bit_boards[piece_color.clone() as usize][piece_type.clone() as usize] &= !mask;
-                    if piece_type == King {
-//                        println!("Removeing King!!!")
-                    }
                     return Some(Piece { piece_color, piece_type })
                 }
             }
