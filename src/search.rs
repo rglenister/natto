@@ -1,3 +1,4 @@
+use std::iter::once;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::{max, Itertools};
 use crate::chess_move::ChessMove;
@@ -43,30 +44,31 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
         let moves = generate(position);
         let legal_moves: Vec<_> = moves.iter().filter_map(|m| position.make_move(m)).collect();
         let search_results = legal_moves.iter()
-            .map(|(pos, cm)| { do_search(pos, /* cm + */ current_line, depth + 1, max_depth) } )
+            .map(|(pos, cm)| { do_search(pos, &add_item(current_line, cm), depth + 1, max_depth) } )
             .collect::<Vec<_>>()
             .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score)).unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
-        negate_search_results(&search_results)
+        return SearchResults {score: -search_results.score, best_line: search_results.best_line}
     } else {
-        score_position(position, depth)
+        return score_position(position, current_line, depth)
+    }
+    fn add_item(line: &Vec<ChessMove>, cm: &ChessMove) -> Vec<ChessMove> {
+        let mut appended_line = line.clone();
+        appended_line.push(*cm);
+        appended_line
     }
 }
 
-fn score_position(position: &Position, depth: isize) -> SearchResults {
+fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isize) -> SearchResults {
     let game = Game::new(position);
     if game.get_game_status() != InProgress {
         if game.get_game_status() == GameStatus::Checkmate {
-            SearchResults {score: depth - MAXIMUM_SCORE, best_line: Vec::new()}
+            SearchResults {score: depth - MAXIMUM_SCORE, best_line: current_line.clone()}
         } else {
-            SearchResults {score: 0, best_line: Vec::new()}
+            SearchResults {score: 0, best_line: current_line.clone()}
         }
     } else {
-        SearchResults {score: 0, best_line: Vec::new()}
+        SearchResults {score: 0, best_line: current_line.clone()}
     }
-}
-
-fn negate_search_results(results: &SearchResults) -> SearchResults {
-    SearchResults {score: -results.score, best_line: Vec::new()}
 }
 
 #[cfg(test)]
@@ -107,6 +109,7 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 5);
         println!("Node count (mate in 3) = {}", get_node_count());
+        println!("best line = {:?}", search_results.best_line);
         assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
     }
 }

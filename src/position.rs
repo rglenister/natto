@@ -5,7 +5,6 @@ use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{King, Pawn, Rook};
-use crate::chess_move::ChessMove::{BasicMove};
 use crate::move_generator::{king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
 
@@ -111,7 +110,7 @@ impl Position {
             ChessMove::BasicMove { from, to , capture } => {
                 do_basic_move(&mut new_position, *from, *to, *capture);
             }
-            ChessMove::EnPassantMove { from, to, capture, capture_square } => {
+            ChessMove::EnPassantMove { from, to, capture: r#capture, capture_square } => {
                 do_basic_move(&mut new_position, *from, *to, true);
                 let forward_pawn_increment: i32 = if self.side_to_move == White {-8} else {8};
                 new_position.board.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
@@ -191,7 +190,7 @@ mod tests {
     use crate::bit_board::BitBoard;
     use super::*;
     use crate::board::{BoardSide, PieceColor};
-    use crate::chess_move::ChessMove::CastlingMove;
+    use crate::chess_move::ChessMove::{BasicMove, CastlingMove};
     use crate::move_generator::generate;
 
     #[test]

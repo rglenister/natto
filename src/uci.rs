@@ -2,7 +2,6 @@ use std::io;
 use std::io::BufRead;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use regex::Regex;
 use crate::{board, engine};
 use crate::engine::Engine;
 use crate::position::Position;
@@ -80,21 +79,8 @@ pub fn process_input<T: board::Board>() -> () {
     }
 }
 
-// fn process_position(input: String) -> Position {
-//     Regex::new(r"position (startpos|(fen (?:\b\w+\b(?:\s+|$)){6})) (moves (a-h1-8)+)").unwrap();
-// }
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::board::PieceColor::White;
-    use crate::chess_move::ChessMove::BasicMove;
-    use crate::position::NEW_GAME_FEN;
-
-    // position [fen <fenstring> | startpos ]  moves <move1> .... <movei>
-    // position startpos moves e2e4 e7e5
-    //         Regex::new(r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb]) (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+)").unwrap();
-    //Regex::new(r"position");
     #[test]
     fn test_regex() {
         // process_position("position startpos moves e2e4 e7e5");
