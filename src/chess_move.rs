@@ -29,6 +29,13 @@ pub enum ChessMove {
     }
 }
 
+pub struct RawChessMove {
+    pub from: usize,
+    pub to: usize,
+    pub promote_to: PieceType,
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::board::{BoardSide, PieceType};
