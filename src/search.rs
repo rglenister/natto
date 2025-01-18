@@ -5,7 +5,7 @@ use crate::chess_move::ChessMove;
 use crate::chess_move::ChessMove::BasicMove;
 use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
-use crate::move_generator::generate;
+use crate::move_generator::{generate, king_attacks_finder};
 use crate::position::Position;
 
 include!("util/generated_macro.rs");
@@ -59,6 +59,9 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
 }
 
 fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isize) -> SearchResults {
+    if king_attacks_finder(position, position.side_to_move()) == 0 {
+        return SearchResults {score: 0, best_line: current_line.clone()};
+    }
     let game = Game::new(position);
     if game.get_game_status() != InProgress {
         if game.get_game_status() == GameStatus::Checkmate {
@@ -73,8 +76,10 @@ fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isi
 
 #[cfg(test)]
 mod tests {
+    use crate::chess_move::format_moves;
     use super::*;
     use crate::search::{search, MAXIMUM_SCORE};
+    use crate::util::bit_indexes;
 
     #[test]
     fn test_already_checkmated() {
@@ -100,6 +105,8 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 3);
         println!("Node count (mate in 2) = {}", get_node_count());
+        println!("{}", search_results.best_line[0]);
+        println!("best line = {:?}", format_moves(search_results.best_line));
         assert_eq!(search_results.score, MAXIMUM_SCORE - 3);
     }
 
@@ -109,7 +116,7 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 5);
         println!("Node count (mate in 3) = {}", get_node_count());
-        println!("best line = {:?}", search_results.best_line);
+        println!("best line = {:?}", format_moves(search_results.best_line));
         assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
     }
 }
