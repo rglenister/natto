@@ -17,12 +17,11 @@ mod uci;
 pub mod move_generator;
 pub mod search;
 mod game;
+
+
+pub mod move_formatter;
 //mod node_count_tests;
 
 fn main() {
     uci::process_input::<BitBoard>();
-}
-
-pub fn fff() {
-
 }

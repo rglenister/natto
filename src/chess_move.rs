@@ -6,32 +6,50 @@ use crate::board::BoardSide::KingSide;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::util::write_square;
 
+
+#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy)]
+pub struct BaseMove {
+    pub from: usize,
+    pub to: usize,
+    pub capture: bool,
+}
+
+impl BaseMove {
+    pub(crate) fn new(from: usize, to: usize, capture: bool) -> BaseMove {
+        BaseMove { from, to, capture }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone, Copy)]
 pub enum ChessMove {
 //    #[default]
     BasicMove {
-        from: usize,
-        to: usize,
-        capture: bool,
+        base_move: BaseMove,
     },
     EnPassantMove {
-        from: usize,
-        to: usize,
-        capture: bool,
+        base_move: BaseMove,
         capture_square: usize
     },
     PromotionMove{
-        from: usize,
-        to: usize,
-        capture: bool,
+        base_move: BaseMove,
         promote_to: PieceType,
     },
     CastlingMove {
-        from: usize,
-        to: usize,
-        capture: bool,
+        base_move: BaseMove,
         board_side: BoardSide,
+    }
+}
+
+impl ChessMove {
+    pub fn get_base_move(&self) -> &BaseMove {
+        match self {
+            BasicMove { base_move }
+                | EnPassantMove { base_move, .. }
+                | PromotionMove { base_move, ..}
+                | CastlingMove { base_move, ..} => &base_move,
+        }
     }
 }
 
@@ -42,10 +60,10 @@ pub fn format_moves(moves: Vec<ChessMove>) -> String {
 impl fmt::Display for ChessMove {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BasicMove {from, to, capture} => write!(f, "{}", write_default(*from, *to, *capture)),
-            EnPassantMove {from, to, capture, capture_square} => write!(f, "{}{}", write_default(*from, *to, *capture), "e.p"),
-            PromotionMove  {from, to, capture,promote_to} => write!(f, "{}{}", write_default(*from, *to, *capture), promote_to),
-            CastlingMove {from, to, capture, board_side} => write!(f, "{}", if *board_side == KingSide {"0-0"} else {"0-0-0"}),
+            BasicMove {base_move} => write!(f, "{}", write_default(base_move.from, base_move.to, base_move.capture)),
+            EnPassantMove {base_move, capture_square} => write!(f, "{}{}", write_default(base_move.from, base_move.to, base_move.capture), "e.p"),
+            PromotionMove  {base_move,promote_to} => write!(f, "{}{}", write_default(base_move.from, base_move.to, base_move.capture), promote_to),
+            CastlingMove {base_move, board_side} => write!(f, "{}", if *board_side == KingSide {"0-0"} else {"0-0-0"}),
         }
 
     }
@@ -64,17 +82,19 @@ pub struct RawChessMove {
 #[cfg(test)]
 mod tests {
     use crate::board::{BoardSide, PieceType};
+    use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 
     #[test]
     fn test_basic_move() {
-        let basic_move = BasicMove { from: 1, to: 2, capture: false };
+        let basic_move = BasicMove { base_move: { BaseMove::new( 1, 2, false)} };
         match basic_move {
-            BasicMove { from, to, capture } => {
+            BasicMove {
+                base_move: BaseMove { from, to, capture },
+            } => {
                 assert_eq!(from, 1);
                 assert_eq!(to, 2);
                 assert_eq!(capture, false);
-
             }
             _ => {}
         }
@@ -82,9 +102,10 @@ mod tests {
 
     #[test]
     fn test_en_passant_move() {
-        let en_passant_move = EnPassantMove { from: 1, to: 2, capture: true, capture_square: 3 };
+        let en_passant_move = EnPassantMove { base_move: { BaseMove::new(1, 2, true)}, capture_square: 3 };
         match en_passant_move {
-            EnPassantMove { from, to, capture, capture_square } => {
+            EnPassantMove {
+                base_move: BaseMove { from, to, capture}, capture_square } => {
                 assert_eq!(from, 1);
                 assert_eq!(to, 2);
                 assert_eq!(capture, true);
@@ -96,9 +117,10 @@ mod tests {
 
     #[test]
     fn test_promotion_move() {
-        let promotion_move = PromotionMove { from: 8, to: 0, capture: true, promote_to: PieceType::Rook };
+        let promotion_move = PromotionMove { base_move: {BaseMove::new(8, 0,  true)}, promote_to: PieceType::Rook };
         match promotion_move {
-            PromotionMove { from, to, capture, promote_to } => {
+            PromotionMove {
+                base_move: BaseMove { from, to, capture}, promote_to } => {
                 assert_eq!(from, 8);
                 assert_eq!(to, 0);
                 assert_eq!(capture, true);
@@ -110,9 +132,10 @@ mod tests {
 
     #[test]
     fn test_castling_move() {
-        let castling_move = CastlingMove { from: 4, to: 6, capture: false, board_side: BoardSide::KingSide };
+        let castling_move = CastlingMove { base_move: {BaseMove::new(4, 6, false)}, board_side: BoardSide::KingSide };
         match castling_move {
-            CastlingMove { from, to, capture, board_side } => {
+            CastlingMove {
+                base_move: BaseMove { from, to, capture}, board_side } => {
                 assert_eq!(from, 4);
                 assert_eq!(to, 6);
                 assert_eq!(capture, false);

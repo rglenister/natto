@@ -1,3 +1,5 @@
+include!("util/generated_macro.rs");
+
 use std::iter::once;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::{max, Itertools};
@@ -7,8 +9,7 @@ use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
 use crate::position::Position;
-
-include!("util/generated_macro.rs");
+use crate::move_formatter;
 
 // Define a static atomic counter
 static NODE_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -46,7 +47,8 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
         let search_results = legal_moves.iter()
             .map(|(pos, cm)| { do_search(pos, &add_item(current_line, cm), depth + 1, max_depth) } )
             .collect::<Vec<_>>()
-            .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score)).unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
+            .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
+                    .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
         return SearchResults {score: -search_results.score, best_line: search_results.best_line}
     } else {
         return score_position(position, current_line, depth)

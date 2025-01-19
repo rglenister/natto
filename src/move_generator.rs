@@ -7,7 +7,7 @@ use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::chess_move::ChessMove;
+use crate::chess_move::{BaseMove, ChessMove};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
 use crate::{bit_board, position, util};
@@ -80,7 +80,7 @@ fn generate_moves(from: usize, destinations: u64, occupied_squares: u64, friendl
     let mut moves: Vec<ChessMove> = vec![];
     util::process_bits(destinations, |to: u64| {
         if friendly_squares & 1 << to == 0 {
-            moves.push(BasicMove { from, to: to as usize, capture: occupied_squares & 1 << to != 0});
+            moves.push(BasicMove { base_move: BaseMove::new(from, to as usize,occupied_squares & 1 << to != 0)});
         }
     });
     moves
@@ -237,7 +237,7 @@ fn generate_king_moves(position: &Position, square_indexes: u64, occupied_square
         BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
             .map(|board_side| { &bit_board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
-            .map(|cmd| CastlingMove { from: cmd.king_from_square, to: cmd.king_to_square, capture: false, board_side: cmd.board_side })
+            .map(|cmd| CastlingMove { base_move: BaseMove::new(cmd.king_from_square, cmd.king_to_square, false), board_side: cmd.board_side })
             .collect::<Vec<_>>()
     );
     moves
@@ -251,9 +251,9 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
     util::process_bits(square_indexes, |square_index| {
         let create_moves = |from: i32, to: i32, capture: bool| -> Vec<ChessMove> {
             if BitBoard::rank(to, position.side_to_move()) != 7 {
-                vec!(BasicMove { from: from as usize, to: to as usize, capture})
+                vec!(BasicMove { base_move: BaseMove::new(from as usize, to as usize, capture)})
             } else {
-                [Knight, Bishop, Rook, Queen].map(|piece_type| { PromotionMove { from: from as usize, to: to as usize, capture, promote_to: piece_type } }).to_vec()
+                [Knight, Bishop, Rook, Queen].map(|piece_type| { PromotionMove { base_move: { BaseMove::new(from as usize, to as usize, capture)}, promote_to: piece_type } }).to_vec()
             }
         };
 
@@ -273,7 +273,7 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
             position.en_passant_capture_square()
                 .map(|sq| sq as i32 - forward_increment)
                 .filter(|ep_square| BitBoard::is_along_side(square_index.try_into().unwrap(), *ep_square as i32))
-                .map(|ep_square| { EnPassantMove { from: square_index as usize, to: (ep_square as i32 + forward_increment) as usize, capture: true, capture_square: ep_square as usize } })
+                .map(|ep_square| { EnPassantMove { base_move: {BaseMove::new(square_index as usize, (ep_square as i32 + forward_increment) as usize, true)}, capture_square: ep_square as usize } })
         };
 
         let is_valid_capture = |from: i32, to: i32| -> bool {
@@ -333,6 +333,7 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
 #[cfg(test)]
 mod tests {
     use crate::board::BoardSide::{KingSide, QueenSide};
+    use crate::chess_move::BaseMove;
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
 
@@ -342,8 +343,8 @@ mod tests {
     fn test_knight_on_corner_square() {
         assert_eq!(
             get_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 0),
-            vec!(BasicMove { from: 0, to: 10, capture: false },
-                 BasicMove { from: 0, to: 17, capture: false })
+            vec!(BasicMove { base_move: { BaseMove::new(0, 10,  false) }},
+                 BasicMove {  base_move: { BaseMove::new(0, 17, false)}})
         );
     }
 
@@ -352,7 +353,7 @@ mod tests {
     fn test_knight_attacking_friendly_piece() {
         assert_eq!(
             get_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 1 << 10),
-            vec!(BasicMove { from: 0, to: 17, capture: false })
+            vec!(BasicMove { base_move: { BaseMove::new(0, 17, false)}})
         );
     }
 
@@ -361,8 +362,8 @@ mod tests {
     fn test_knight_attacking_enemy_piece() {
         assert_eq!(
             get_moves_by_piece_type(PieceType::Knight, 1 << 0, 1 << 10, 0),
-            vec!(BasicMove { from: 0, to: 10, capture: true },
-                 BasicMove { from: 0, to: 17, capture: false })
+            vec!(BasicMove { base_move: { BaseMove::new(0, 10, true )}},
+                 BasicMove { base_move: { BaseMove::new(0, 17, false )}})
         );
     }
 
@@ -370,9 +371,9 @@ mod tests {
     fn test_king_lookup_table() {
         assert_eq!(
             get_moves_by_piece_type(PieceType::King, 1 << 0, 0, 0),
-            vec!(BasicMove { from: 0, to: 1, capture: false },
-                 BasicMove { from: 0, to: 8, capture: false },
-                 BasicMove { from: 0, to: 9, capture: false })
+            vec!(BasicMove { base_move: { BaseMove::new(0, 1, false)}},
+                 BasicMove { base_move: { BaseMove::new(0, 8, false)}},
+                 BasicMove { base_move: { BaseMove::new(0, 9, false)}})
         );
     }
 
@@ -391,8 +392,8 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 10);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 10, to: 18, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 10, to: 26, capture: false });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(10, 18, false)});
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new( 10, 26, false)});
     }
 
     /// Black pawns can make single or double moves from their home squares
@@ -402,8 +403,8 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 53);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 53, to: 45, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 53, to: 37, capture: false });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(53, 45, false)});
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(53, 37, false)});
     }
 
     /// White pawns can be completely blocked
@@ -431,7 +432,7 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 10);
         assert_eq!(moves.len(), 1);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 10, to: 18, capture: false });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(10, 18, false)});
     }
 
     /// Black pawns can be blocked from making a double move
@@ -441,7 +442,7 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 53);
         assert_eq!(moves.len(), 1);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 53, to: 45, capture: false });
+        assert_eq!(*moves.get(0).unwrap(),BasicMove { base_move: BaseMove::new(53, 45, false)});
     }
 
     /// White pawns can capture
@@ -454,23 +455,22 @@ mod tests {
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 19);
         assert_eq!(moves.len(), 3);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 19, to: 27, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 19, to: 28, capture: true });
-        assert_eq!(*moves.get(2).unwrap(), BasicMove { from: 19, to: 26, capture: true });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(19, 27, false)});
+        assert_eq!(*moves.get(2).unwrap(), BasicMove { base_move: BaseMove::new(19, 26, true)});
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 23);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 23, to: 31, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 23, to: 30, capture: true });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(23, 31, false)});
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(23, 30, true)});
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 37);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 37, to: 45, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 37, to: 46, capture: true });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(37, 45, false)});
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(37, 46, true)});
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 44);
         assert_eq!(moves.len(), 1);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 44, to: 52, capture: false });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(44, 52, false)});
     }
 
     /// Black pawns can capture
@@ -482,12 +482,11 @@ mod tests {
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 32);
         assert_eq!(moves.len(), 1);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 32, to: 24, capture: false });
-
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(32, 24, false)});
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 26);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 26, to: 18, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { from: 26, to: 19, capture: true });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(26, 18, false)});
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(26, 19, true)});
     }
 
     /// White pawns can capture en passant
@@ -500,13 +499,13 @@ mod tests {
         assert_eq!(all_moves.len(), 9);
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 36);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 36, to: 44, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { from: 36, to: 45, capture: true, capture_square: 37 });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(36, 44, false)});
+        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { base_move: BaseMove::new(36, 45, true), capture_square: 37});
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 38);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 38, to: 46, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { from: 38, to: 45, capture: true, capture_square: 37 });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(38, 46, false)});
+        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { base_move: BaseMove::new(38, 45, true), capture_square: 37});
     }
 
     /// Black pawns can capture en passant
@@ -519,13 +518,13 @@ mod tests {
         assert_eq!(all_moves.len(), 9);
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 28);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 28, to: 20, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { from: 28, to: 21, capture: true, capture_square: 29 });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(28, 20, false)});
+        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { base_move: BaseMove::new(28, 21, true), capture_square: 29});
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 30);
         assert_eq!(moves.len(), 2);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { from: 30, to: 22, capture: false });
-        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { from: 30, to: 21, capture: true, capture_square: 29 });
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(30, 22, false)});
+        assert_eq!(*moves.get(1).unwrap(), EnPassantMove { base_move: BaseMove::new(30, 21, true), capture_square: 29});
     }
 
     /// White pawns can be promoted
@@ -535,10 +534,10 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 50);
         assert_eq!(moves.len(), 4);
-        assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), PromotionMove { from: 50, to: 58, capture: false, promote_to: Queen });
+        assert_eq!(*moves.get(0).unwrap(), PromotionMove { base_move: BaseMove::new(50, 58, false), promote_to: Knight });
+        assert_eq!(*moves.get(1).unwrap(), PromotionMove { base_move: BaseMove::new(50, 58, false), promote_to: Bishop });
+        assert_eq!(*moves.get(2).unwrap(), PromotionMove { base_move: BaseMove::new(50, 58, false), promote_to: Rook });
+        assert_eq!(*moves.get(3).unwrap(), PromotionMove { base_move: BaseMove::new(50, 58, false), promote_to: Queen });
     }
 
     /// Black pawns can be promoted
@@ -548,10 +547,11 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 14);
         assert_eq!(moves.len(), 4);
-        assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Queen });
+
+        assert_eq!(*moves.get(0).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Knight });
+        assert_eq!(*moves.get(1).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Bishop });
+        assert_eq!(*moves.get(2).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Rook });
+        assert_eq!(*moves.get(3).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Queen });
     }
 
     /// Black pawns can be promoted by capturing
@@ -561,18 +561,20 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate(&position), 14);
         assert_eq!(moves.len(), 12);
-        assert_eq!(*moves.get(0).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), PromotionMove { from: 14, to: 6, capture: false, promote_to: Queen });
-        assert_eq!(*moves.get(4).unwrap(), PromotionMove { from: 14, to: 7, capture: true, promote_to: Knight });
-        assert_eq!(*moves.get(5).unwrap(), PromotionMove { from: 14, to: 7, capture: true, promote_to: Bishop });
-        assert_eq!(*moves.get(6).unwrap(), PromotionMove { from: 14, to: 7, capture: true, promote_to: Rook });
-        assert_eq!(*moves.get(7).unwrap(), PromotionMove { from: 14, to: 7, capture: true, promote_to: Queen });
-        assert_eq!(*moves.get(8).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Knight });
-        assert_eq!(*moves.get(9).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Bishop });
-        assert_eq!(*moves.get(10).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Rook });
-        assert_eq!(*moves.get(11).unwrap(), PromotionMove { from: 14, to: 5, capture: true, promote_to: Queen });
+        assert_eq!(*moves.get(0).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Knight });
+        assert_eq!(*moves.get(1).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Bishop });
+        assert_eq!(*moves.get(2).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Rook });
+        assert_eq!(*moves.get(3).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Queen });
+
+        assert_eq!(*moves.get(4).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Knight });
+        assert_eq!(*moves.get(5).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Bishop });
+        assert_eq!(*moves.get(6).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Rook });
+        assert_eq!(*moves.get(7).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Queen });
+
+        assert_eq!(*moves.get(8).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Knight });
+        assert_eq!(*moves.get(9).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Bishop });
+        assert_eq!(*moves.get(10).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Rook });
+        assert_eq!(*moves.get(11).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Queen });
     }
 
     /// Test white king moves
@@ -586,8 +588,8 @@ mod tests {
             moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. }))
             .collect();
         assert_eq!(castling_moves.len(), 2);
-        assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { from: sq!("e1"), to: sq!("g1"), capture: false, board_side: KingSide });
-        assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { from: sq!("e1"), to: sq!("c1"), capture: false, board_side: QueenSide });
+        assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { base_move: BaseMove::new(sq!("e1"), sq!("g1"), false), board_side: KingSide });
+        assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { base_move: BaseMove::new(sq!("e1"), sq!("c1"), false), board_side: QueenSide });
     }
 
     /// Test black king moves
@@ -601,8 +603,8 @@ mod tests {
             moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. }))
                 .collect();
         assert_eq!(castling_moves.len(), 2);
-        assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { from: sq!("e8"), to: sq!("g8"), capture: false, board_side: KingSide });
-        assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { from: sq!("e8"), to: sq!("c8"), capture: false, board_side: QueenSide });
+        assert_eq!(**castling_moves.get(0).unwrap(), CastlingMove { base_move: BaseMove::new(sq!("e8"), sq!("g8"), false), board_side: KingSide });
+        assert_eq!(**castling_moves.get(1).unwrap(), CastlingMove { base_move: BaseMove::new(sq!("e8"), sq!("c8"), false), board_side: QueenSide });
     }
 
     /// Test square attacks finder

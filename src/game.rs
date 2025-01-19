@@ -60,6 +60,7 @@ impl Game {
 mod tests {
     use super::*;
         use crate::board::PieceColor::White;
+    use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::BasicMove;
     use crate::position::NEW_GAME_FEN;
 
@@ -72,7 +73,7 @@ mod tests {
         assert_eq!(game.check_count(), 2);
         assert_eq!(game.get_game_status(), GameStatus::InProgress);
         assert_eq!(game.legal_moves.len(), 1);
-        assert_eq!(game.legal_moves[0], BasicMove {from: sq!("h8"), to: sq!("g8"), capture: false})
+        assert_eq!(game.legal_moves[0], BasicMove { base_move: {BaseMove::new(sq!("h8"), sq!("g8"), false)}})
     }
 
     #[test]

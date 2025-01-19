@@ -26,7 +26,7 @@ pub fn parse_square(square: &str) -> Option<usize> {
 pub fn write_square(square_index: usize) -> String {
     if square_index < board::NUMBER_OF_SQUARES {
         let file_lookup = ["a", "b", "c", "d", "e", "f", "g", "h"];
-        file_lookup[square_index % 8].to_string().add((square_index / 8 + 1).to_string().as_str())
+        file_lookup[square_index % 8].to_string().add(&(square_index / 8 + 1).to_string())
     } else {
         "Invalid square".to_string()
     }
@@ -87,10 +87,10 @@ pub fn bit_indexes(bitmap: u64) -> Vec<u64> {
 pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) -> Vec<ChessMove> {
     moves.into_iter().filter(|chess_move | {
         match chess_move {
-            ChessMove::BasicMove { from, .. } => *from == from_square,
-            ChessMove::EnPassantMove { from, .. } => *from == from_square,
-            ChessMove::PromotionMove { from, .. } => *from == from_square,
-            ChessMove::CastlingMove { from, .. } => *from == from_square,
+            ChessMove::BasicMove { base_move, .. } => base_move.from == from_square,
+            ChessMove::EnPassantMove { base_move, .. } => base_move.from == from_square,
+            ChessMove::PromotionMove { base_move, .. } => base_move.from == from_square,
+            ChessMove::CastlingMove { base_move, .. } => base_move.from == from_square,
         }
     }).collect::<Vec<ChessMove>>()
 }
@@ -98,10 +98,10 @@ pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) ->
 pub fn find_generated_move(moves: Vec<ChessMove>, from_square: usize, to_square: usize, promote_to_option: Option<PieceType>) -> Vec<ChessMove> {
     moves.into_iter().filter(|chess_move | {
         match chess_move {
-            ChessMove::BasicMove { from, to, .. } => { *from == from_square && *to == to_square }
-            ChessMove::EnPassantMove { from, to, .. } => { *from == from_square && *to == to_square }
-            ChessMove::PromotionMove { from, to, promote_to, .. } => { let _ = *from == from_square && *to == to_square; Some(promote_to) == promote_to_option.as_ref() }
-            ChessMove::CastlingMove { from, to, .. } => { *from == from_square && *to == to_square }
+            ChessMove::BasicMove { base_move, .. } => { base_move.from == from_square && base_move.to == to_square }
+            ChessMove::EnPassantMove { base_move, .. } => { base_move.from == from_square && base_move.to == to_square }
+            ChessMove::PromotionMove { base_move, promote_to, .. } => { let _ = base_move.from == from_square && base_move.to == to_square; Some(promote_to) == promote_to_option.as_ref() }
+            ChessMove::CastlingMove { base_move, .. } => { base_move.from == from_square && base_move.to == to_square }
         }
     }).collect::<Vec<ChessMove>>()
 }
@@ -111,6 +111,7 @@ mod tests {
     use crate::bit_board::BitBoard;
     use crate::board::{Piece, PieceType};
     use crate::board::PieceType::{Knight, Queen, Rook};
+    use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::{BasicMove, PromotionMove};
     use super::*;
 
@@ -192,24 +193,24 @@ mod tests {
     #[test]
     fn test_find_generated_basic_move() {
         let mut moves: Vec<ChessMove> = vec![];
-        moves.push(BasicMove {from: 1, to: 2, capture: false });
-        moves.push(BasicMove {from: 3, to: 4, capture: false });
+        moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false } }});
+        moves.push(BasicMove {base_move: { BaseMove {from: 3, to: 4, capture: false }}});
         let matched_moves = find_generated_move(moves, 1, 2, None);
         assert_eq!(matched_moves.len(), 1);
-        assert_eq!(*matched_moves.get(0).unwrap(), BasicMove {from: 1, to: 2, capture: false});
+        assert_eq!(*matched_moves.get(0).unwrap(), BasicMove {base_move: BaseMove {from: 1, to: 2, capture: false}});
     }
 
     #[test]
     fn test_find_generated_promotion_move() {
         let mut moves: Vec<ChessMove> = vec![];
-        moves.push(BasicMove {from: 1, to: 2, capture: false });
-        moves.push(BasicMove {from: 3, to: 4, capture: false });
-        moves.push(PromotionMove {from: 3, to: 9, capture: false, promote_to: Queen });
-        moves.push(PromotionMove {from: 3, to: 9, capture: false, promote_to: Rook });
-        moves.push(PromotionMove {from: 3, to: 9, capture: false, promote_to: Knight });
+        moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false }}});
+        moves.push(BasicMove {base_move: { BaseMove { from: 3, to: 4, capture: false }}});
+        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Queen });
+        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Rook });
+        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Knight });
         let matched_moves = find_generated_move(moves, 3, 9, Some(Rook));
         assert_eq!(matched_moves.len(), 1);
-        assert_eq!(*matched_moves.get(0).unwrap(), PromotionMove {from: 3, to: 9, capture: false, promote_to: Rook });
+        assert_eq!(*matched_moves.get(0).unwrap(), PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Rook });
     }
 }
 

@@ -64,7 +64,7 @@ static CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] =
 
 impl BitBoard {
     pub fn bitboards_for_color(&self, piece_color: PieceColor) -> [u64; 6] {
-        return self.bit_boards[piece_color as usize];
+        self.bit_boards[piece_color as usize]
     }
     pub fn bitboard_all_pieces(&self) -> u64 {
         BitBoard::bitboard_by_color(&self, PieceColor::White) | BitBoard::bitboard_by_color(&self, PieceColor::Black)
@@ -98,7 +98,7 @@ impl BitBoard {
 
     pub fn can_castle(&self, side_to_move: PieceColor, board_side: &BoardSide) -> bool {
         let king_home_square_mask = KING_HOME_SQUARE_MASKS[side_to_move as usize];
-        let king_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::King);
+        let king_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, King);
         if (king_bitboard & king_home_square_mask) != 0 {
             let rook_home_square_mask = ROOK_HOME_SQUARE_MASKS[side_to_move as usize][*board_side as usize];
             let rook_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::Rook);
@@ -177,18 +177,19 @@ impl Board for BitBoard {
 
 #[cfg(test)]
 mod tests {
+    use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
 
     #[test]
     fn test_get_from_empty_square() {
-        let bit_board: crate::bit_board::BitBoard = crate::bit_board::BitBoard::new();
+        let bit_board: crate::bit_board::BitBoard = BitBoard::new();
         assert!(bit_board.get_piece(0).is_none());
     }
 
     #[test]
     fn test_get() {
-        let mut bit_board: crate::bit_board::BitBoard = crate::bit_board::BitBoard::new();
+        let mut bit_board: crate::bit_board::BitBoard = BitBoard::new();
         let square_index = 63;
         let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight};
         bit_board.put_piece(square_index, piece);
@@ -288,22 +289,22 @@ mod tests {
     fn test_queen_side_black_castling() {
         let mut bit_board: BitBoard = BitBoard::new();
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
-        bit_board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: PieceType::King});
+        bit_board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: King});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
-        bit_board.put_piece(56, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Rook});
+        bit_board.put_piece(56, Piece { piece_color: PieceColor::Black, piece_type: Rook});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        bit_board.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight});
+        bit_board.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         bit_board.remove_piece(57);
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        bit_board.put_piece(58, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
+        bit_board.put_piece(58, Piece { piece_color: PieceColor::Black, piece_type: Bishop});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         bit_board.remove_piece(58);
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        bit_board.put_piece(59, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen});
+        bit_board.put_piece(59, Piece { piece_color: PieceColor::Black, piece_type: Queen});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         bit_board.remove_piece(59);
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);

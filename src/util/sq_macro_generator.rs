@@ -24,13 +24,3 @@ mod tests {
         generate_macros();
     }
 }
-//
-// #[cfg(test)]
-// mod tests {
-//     #[test]
-//     fn test_generate_macros() {
-//         println!("a1 = {}", crate::sq!("a1"));
-//         println!("e4 = {}", crate::sq!("e4"));
-//         println!("h8 = {}", crate::sq!("h8"));
-//     }
-// }
