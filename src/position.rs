@@ -303,20 +303,19 @@ mod tests {
         assert_eq!(positions[1].0.castling_rights[White as usize], [false, false]);
     }
 
-    // #[test]
-    // fn test_castling_rights_lost_after_moving_king() {
-    //     let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-    //     let position = Position::from(fen);
-    //     assert_eq!(position.castling_rights[White as usize], [true, true]);
-    //     assert_eq!(position.castling_rights[Black as usize], [true, true]);
-    //     let moves = generate(&position);
-    //     let king_moves: Vec<_> =
-    //         moves.iter().filter(|chess_move| matches!(chess_move, BasicMove { base_move: { BaseMove { from(2)}}})).collect();
-    //     assert_eq!(king_moves.len(), 5);
-    //     let new_position = position.make_move(king_moves[0]).unwrap();
-    //     assert_eq!(new_position.0.castling_rights[White as usize], [false, false]);
-    //     assert_eq!(new_position.0.castling_rights[Black as usize], [true, true]);
-    // }
+    #[test]
+    fn test_castling_rights_lost_after_moving_king() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        let position = Position::from(fen);
+        assert_eq!(position.castling_rights[White as usize], [true, true]);
+        assert_eq!(position.castling_rights[Black as usize], [true, true]);
+        let moves = generate(&position);
+        let king_moves: Vec<_> = util::filter_moves_by_from_square(moves,sq!("e1"));
+        assert_eq!(king_moves.len(), 7);
+        let new_position = position.make_move(&king_moves[0]).unwrap();
+        assert_eq!(new_position.0.castling_rights[White as usize], [false, false]);
+        assert_eq!(new_position.0.castling_rights[Black as usize], [true, true]);
+    }
     #[test]
     fn test_castling_rights_lost_after_moving_rook() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
