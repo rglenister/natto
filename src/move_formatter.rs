@@ -3,10 +3,13 @@ use crate::position::Position;
 use crate::chess_move::{BaseMove, ChessMove};
 use phf::phf_map;
 use MoveFormat::{LongAlgebraic, ShortAlgebraic};
+use crate::bit_board::BitBoard;
 use crate::board::{Board, Piece, PieceType};
 use crate::board::BoardSide::KingSide;
+use crate::board::PieceType::Pawn;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
-use crate::game::Game;
+use crate::game::{Game, GameStatus};
+use crate::move_generator::generate;
 use crate::util;
 
 include!("util/generated_macro.rs");
@@ -15,9 +18,10 @@ pub const SHORT_FORMATTER: MoveFormatter = MoveFormatter::new(ShortAlgebraic);
 pub const LONG_FORMATTER: MoveFormatter = MoveFormatter::new(LongAlgebraic);
 
 pub trait FormatMove {
-    fn format_move_list(&self, position: &Position, chess_moves: Vec<ChessMove>) -> Option<Vec<String>>;
+    fn format_move_list(&self, position: &Position, chess_moves: &Vec<ChessMove>) -> Option<Vec<String>>;
 }
 
+#[derive(Eq, Hash, PartialEq)]
 enum MoveFormat {
     ShortAlgebraic,
     LongAlgebraic,
@@ -49,9 +53,9 @@ struct GameMove {
 }
 
 impl FormatMove for MoveFormatter {
-    fn format_move_list(&self, position: &Position, chess_moves: Vec<ChessMove>) -> Option<Vec<String>> {
+    fn format_move_list(&self, position: &Position, chess_moves: &Vec<ChessMove>) -> Option<Vec<String>> {
         let game_moves: Option<Vec<GameMove>> = chess_moves.iter().try_fold(Vec::new(), |mut acc: Vec<GameMove>, &cm| {
-            let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().position.clone()} else { position };
+            let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().game.position.clone()} else { position };
             let next_pos: Option<(Position, ChessMove)> = pos.make_raw_move(cm.get_base_move().from, cm.get_base_move().to, get_promote_to(cm));
             if next_pos.is_some() {
                 next_pos.map(|np| acc.push(GameMove::new(Game::new(&np.0), pos, &cm)));
@@ -106,7 +110,7 @@ impl MoveFormatter {
         )
     }
     fn get_piece(&self, game_move: &GameMove) -> String {
-        let piece = self.get_moved_piece(game_move);
+        let piece = self.get_moved_piece(&game_move.position, &game_move.chess_move);
         if piece.piece_type != PieceType::Pawn {
             PIECE_CHAR_TO_UNICODE[&piece.to_char()].to_string()
         } else {
@@ -114,10 +118,29 @@ impl MoveFormatter {
         }
     }
     fn get_from_square(&self, game_move: &GameMove) -> String {
-        util::write_square(game_move.chess_move.get_base_move().from)
+        if self.move_format ==  ShortAlgebraic {
+            let piece = self.get_moved_piece(&game_move.position, &game_move.chess_move);
+            if piece.piece_type == Pawn {
+                if game_move.chess_move.get_base_move().capture {
+                    util::write_square(game_move.chess_move.get_base_move().from).chars().nth(0).unwrap().to_string()
+                } else {
+                    "".to_string()
+                }
+            } else {
+                self.get_short_algebraic_from_square_for_piece(game_move)
+            }
+        } else {
+            util::write_square(game_move.chess_move.get_base_move().from)
+        }
     }
     fn get_from_to_separator(&self, game_move: &GameMove) -> String {
-        if game_move.chess_move.get_base_move().capture {'x'.to_string()} else {"-".to_string()}
+        if game_move.chess_move.get_base_move().capture {
+            'x'.to_string()
+        } else if self.move_format == ShortAlgebraic {
+            "".to_string()
+        } else {
+            "-".to_string()
+        }
     }
 
     fn get_to_square(&self, game_move: &GameMove) -> String {
@@ -136,68 +159,163 @@ impl MoveFormatter {
     fn get_en_passant_indicator(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
             EnPassantMove {base_move: _ , capture_square: _} => {
-                "e.p".to_string()
+                " e.p".to_string()
             }
             _ => "".to_string()
         }
     }
 
     fn get_result(&self, game_move: &GameMove) -> String {
-        "".to_string()
+        match game_move.game.get_game_status() {
+            GameStatus::Checkmate => { "#".to_string() }
+            _ => "+".repeat(game_move.game.check_count()).to_string()
+        }
     }
 
-    fn get_moved_piece(&self, game_move: &GameMove) -> Piece {
-        game_move.position.board_unmut().get_piece(game_move.chess_move.get_base_move().from).unwrap()
+    fn get_short_algebraic_from_square_for_piece(&self, game_move: &GameMove) -> String {
+        let cm = game_move.chess_move;
+        let binding = generate(&game_move.position);
+        let other_moves_to_the_same_square: Vec<_> = binding
+            .iter().filter(|m|
+                    m.get_base_move().to == cm.get_base_move().to
+                    && **m != cm
+                    && self.get_moved_piece(&game_move.position, &game_move.chess_move) == self.get_moved_piece(&game_move.position, *m))
+            .collect();
+
+        if other_moves_to_the_same_square.is_empty() {
+            "".to_string()
+        } else {
+            let algebraic = util::write_square(cm.get_base_move().from);
+            if other_moves_to_the_same_square.iter().filter(|m| BitBoard::col(m.get_base_move().from) == BitBoard::col(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+                algebraic.chars().nth(0).unwrap().to_string()
+            } else if other_moves_to_the_same_square.iter().filter(|m| BitBoard::row(m.get_base_move().from) == BitBoard::row(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+                algebraic.chars().nth(1).unwrap().to_string()
+            } else {
+                algebraic
+            }
+        }
+    }
+
+    fn get_moved_piece(&self, position: &Position, chess_move: &ChessMove) -> Piece {
+        position.board_unmut().get_piece(chess_move.get_base_move().from).unwrap()
     }
 
 }
 
-// pub fn format_moves(position: &Position, moves: Vec<ChessMove>, move_format: MoveFormat) -> String {
-//     let legal_moves: Vec<_> = moves.iter().filter_map(|m| position.make_move(m)).collect();
-//     let mut output = String::new();
-//     "".to_string()
-// }
-
-
 #[cfg(test)]
 mod tests {
-    use crate::board::PieceType::Bishop;
-    use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
+    use crate::board::PieceType::{Knight, Queen};
     use crate::position::NEW_GAME_FEN;
     use super::*;
 
     #[test]
     fn test_opening_move() {
-        let position1 = Position::from(NEW_GAME_FEN);
-        let position2 =  position1.make_raw_move(sq!("e2"), sq!("e4"), None).unwrap();
-        let s = LONG_FORMATTER.format_move_list(&position1, vec!(position2.1, BasicMove { base_move: { BaseMove {from: sq!("e8"), to: sq!("e5"), capture: false}}}));
-        let result = s.unwrap();
-        assert_eq!(result.len(), 2);
-        assert_eq!(result.get(0), Some("e2-e4".to_string()).as_ref());
-        assert_eq!(result.get(1), Some("e8-e5".to_string()).as_ref());
+        let position = Position::from(NEW_GAME_FEN);
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("e2"), sq!("e4"), false) },
+            BasicMove { base_move: BaseMove::new(sq!("e7"), sq!("e5"), false) }
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e2-e4,e7-e5");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e4,e5");
     }
 
     #[test]
-    fn test_knight_move() {
-        let position1 = Position::from(NEW_GAME_FEN);
-        let position2 =  position1.make_raw_move(sq!("g1"), sq!("f3"), None).unwrap();
-        let s = LONG_FORMATTER.format_move_list(&position1, vec!(position2.1));
-//        println!("{}", s);
-        assert_eq!(s.unwrap()[0], "\u{2658}g1-f3");
-        let position3 =  position2.0.make_raw_move(sq!("g8"), sq!("f6"), None).unwrap();
-        let s = LONG_FORMATTER.format_move_list(&position2.0, vec!(position3.1));
-//        println!("{}", s);
-        assert_eq!(s.unwrap()[0], "\u{265E}g8-f6");
-        let position4 =  position3.0.make_raw_move(sq!("f3"), sq!("e5"), None).unwrap();
-        let s = LONG_FORMATTER.format_move_list(&position3.0, vec!(position4.1));
-//        println!("{}", s);
-        assert_eq!(s.unwrap()[0], "\u{2658}f3-e5");
+    fn test_promotion_move_white() {
+        let position = Position::from("4k3/P7/8/8/8/8/8/4K3 w - - 0 1");
+        let moves = vec!(
+            PromotionMove { base_move: BaseMove::new(sq!("a7"), sq!("a8"), false), promote_to: Knight }
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a7-a8\u{2658}");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a8\u{2658}");
     }
 
     #[test]
-    fn test_get_promote_to() {
-        let chess_move: ChessMove = PromotionMove {base_move: BaseMove{from: 1, to: 2, capture: false}, promote_to: Bishop};
-        let promote_to = get_promote_to(chess_move);
-        assert_eq!(promote_to, Some(Bishop));
+    fn test_promotion_move_black() {
+        let position = Position::from("4k3/P7/8/8/8/8/p7/4K3 b - - 0 1");
+        let moves = vec!(
+            PromotionMove { base_move: BaseMove::new(sq!("a2"), sq!("a1"), false), promote_to: Queen }
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a2-a1\u{265B}+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a1\u{265B}+");
+    }
+
+    #[test]
+    fn test_capture_move() {
+        let position = Position::from("b3k3/8/8/8/8/8/8/4K2R b K - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("a8"), sq!("h1"), true) }
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265D}a8xh1");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265D}xh1");
+    }
+
+    #[test]
+    fn test_en_passant_capture_move() {
+        let position = Position::from("4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1");
+        let moves = vec!(
+            EnPassantMove { base_move: BaseMove::new(sq!("e4"), sq!("d3"), true), capture_square: sq!("d3") }
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e4xd3 e.p");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "exd3 e.p");
+    }
+
+    #[test]
+    fn test_checking_move() {
+        let position = Position::from("4k2q/8/8/8/3Pp3/8/8/4K3 b - - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("h8"), sq!("h4"), false)}
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265B}h8-h4+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265B}h4+");
+    }
+
+    #[test]
+    fn test_double_checking_move() {
+        let position = Position::from("4k2q/8/8/3P4/4p3/2n5/1K6/8 b - - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("c3"), sq!("a4"), false)}
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265E}c3-a4++");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265E}a4++");
+    }
+
+    #[test]
+    fn test_mating_move() {
+        let position = Position::from("8/8/8/8/8/4K3/6R1/4k3 w - - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("g2"), sq!("g1"), false)}
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}g2-g1#");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}g1#");
+    }
+
+    #[test]
+    fn test_ambiguous_move_1() {
+        let position = Position::from("4k3/8/8/8/R6R/8/8/4K3 w - - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("a4"), sq!("e4"), false)}
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}a4-e4+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}ae4+");
+    }
+
+    #[test]
+    fn test_ambiguous_move_2() {
+        let position = Position::from("8/8/8/6R1/k7/6R1/8/4K3 w - - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("g5"), sq!("g4"), false)}
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}g5-g4+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}5g4+");
+    }
+
+    #[test]
+    fn test_ambiguous_move_3() {
+        let position = Position::from("8/8/8/1k6/4Q2Q/8/8/1K5Q w - - 0 1");
+        let moves = vec!(
+            BasicMove { base_move: BaseMove::new(sq!("h4"), sq!("e1"), false)}
+        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2655}h4-e1");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2655}h4e1");
     }
 }

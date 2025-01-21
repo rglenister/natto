@@ -1,5 +1,3 @@
-use crate::bit_board::BitBoard;
-use crate::board::PieceColor;
 use crate::chess_move::ChessMove;
 use crate::move_generator;
 use crate::position::Position;
@@ -19,8 +17,9 @@ pub enum GameStatus {
 }
 
 pub struct Game {
+    pub position: Position,
     legal_moves: Vec<ChessMove>,
-    check_count: isize,
+    check_count: usize,
 }
 
 
@@ -29,8 +28,9 @@ impl Game {
         position: &Position,
     ) -> Self {
         let game = Self {
+            position: position.clone(),
             legal_moves: move_generator::generate(&position).into_iter().filter(|cm| position.make_move(&cm).is_some()).collect::<Vec<_>>(),
-            check_count: move_generator::king_attacks_finder(position, position.side_to_move()).count_ones() as isize,
+            check_count: move_generator::king_attacks_finder(position, position.side_to_move()).count_ones() as usize,
         };
         game
     }
@@ -45,7 +45,7 @@ impl Game {
         self.check_count >= 1
     }
 
-    pub fn check_count(&self) -> isize {
+    pub fn check_count(&self) -> usize {
         self.check_count
     }
 

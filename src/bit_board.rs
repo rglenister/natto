@@ -111,15 +111,15 @@ impl BitBoard {
         false
     }
 
-    pub fn row(square_index: i32) -> i32 {
+    pub fn row(square_index: usize) -> usize {
         square_index / 8
     }
 
-    pub fn col(square_index: i32) -> i32 {
+    pub fn col(square_index: usize) -> usize {
         square_index % 8
     }
 
-    pub fn rank(square_index: i32, piece_color: PieceColor) -> i32 {
+    pub fn rank(square_index: usize, piece_color: PieceColor) -> usize {
         if piece_color == PieceColor::White {
             BitBoard::row(square_index)
         } else {
@@ -127,8 +127,8 @@ impl BitBoard {
         }
     }
 
-    pub fn is_along_side(square_1: i32, square_2: i32) -> bool {
-        (square_2 - square_1).abs() == 1 && BitBoard::row(square_1) == BitBoard::row(square_2)
+    pub fn is_along_side(square_1: usize, square_2: usize) -> bool {
+        (square_2 as i32 - square_1 as i32).abs() == 1 && BitBoard::row(square_1) == BitBoard::row(square_2)
     }
 }
 

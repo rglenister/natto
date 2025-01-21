@@ -249,7 +249,7 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
 
     let mut moves: Vec<ChessMove> = vec!();
     util::process_bits(square_indexes, |square_index| {
-        let create_moves = |from: i32, to: i32, capture: bool| -> Vec<ChessMove> {
+        let create_moves = |from: usize, to: usize, capture: bool| -> Vec<ChessMove> {
             if BitBoard::rank(to, position.side_to_move()) != 7 {
                 vec!(BasicMove { base_move: BaseMove::new(from as usize, to as usize, capture)})
             } else {
@@ -261,8 +261,8 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
             let mut moves: Vec<ChessMove> = vec!();
             let one_step_forward = square_index + forward_increment;
             if occupied_squares & 1 << one_step_forward == 0 {
-                moves.extend(create_moves((square_index as usize).try_into().unwrap(), one_step_forward, false));
-                if BitBoard::rank(square_index, position.side_to_move()) == 1 && occupied_squares & (1 << one_step_forward + forward_increment) == 0 {
+                moves.extend(create_moves((square_index as usize).try_into().unwrap(), one_step_forward.try_into().unwrap(), false));
+                if BitBoard::rank(square_index.try_into().unwrap(), position.side_to_move()) == 1 && occupied_squares & (1 << one_step_forward + forward_increment) == 0 {
                     moves.extend(create_moves((square_index as usize).try_into().unwrap(), ((one_step_forward + forward_increment) as usize).try_into().unwrap(), false));
                 }
             }
@@ -272,7 +272,7 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
         let generate_en_passant = |square_index: u64| -> Option<ChessMove> {
             position.en_passant_capture_square()
                 .map(|sq| sq as i32 - forward_increment)
-                .filter(|ep_square| BitBoard::is_along_side(square_index.try_into().unwrap(), *ep_square as i32))
+                .filter(|ep_square| BitBoard::is_along_side(square_index.try_into().unwrap(), (*ep_square as i32).try_into().unwrap()))
                 .map(|ep_square| { EnPassantMove { base_move: {BaseMove::new(square_index as usize, (ep_square as i32 + forward_increment) as usize, true)}, capture_square: ep_square as usize } })
         };
 
@@ -283,7 +283,7 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
         let generate_standard_captures = |square_index: u64| -> Vec<ChessMove> {
             [forward_increment + 1, forward_increment - 1].map(|increment| square_index as i32 + increment)
                 .iter().filter(|&to| is_valid_capture(square_index.try_into().unwrap(), *to))
-                .flat_map(|&to| create_moves((square_index as usize).try_into().unwrap(), to, true)).collect()
+                .flat_map(|&to| create_moves((square_index as usize).try_into().unwrap(), to.try_into().unwrap(), true)).collect()
         };
 
         moves.extend(generate_forward_moves(square_index as i32));
