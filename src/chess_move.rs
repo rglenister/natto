@@ -1,10 +1,8 @@
 use std::fmt;
-use itertools::Itertools;
-use json5::to_string;
 use crate::board::{BoardSide, PieceType};
 use crate::board::BoardSide::KingSide;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
-use crate::util::write_square;
+use crate::util::format_square;
 
 
 #[derive(Debug, PartialEq, Eq)]
@@ -53,7 +51,7 @@ impl ChessMove {
     }
 }
 
-pub fn format_moves(moves: Vec<ChessMove>) -> String {
+pub fn format_moves(moves: &Vec<ChessMove>) -> String {
     moves.iter().map(|m| m.to_string()).collect::<Vec<_>>().join(", ")
 }
 
@@ -69,7 +67,7 @@ impl fmt::Display for ChessMove {
     }
 }
 fn write_default(from: usize, to: usize, capture: bool) -> String {
-    format!("{}{}{}", write_square(from), if capture { 'x' } else { '-' }, write_square(to),)
+    format!("{}{}{}", format_square(from), if capture { 'x' } else { '-' }, format_square(to),)
 }
 
 pub struct RawChessMove {

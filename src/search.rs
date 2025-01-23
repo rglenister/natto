@@ -1,10 +1,8 @@
 include!("util/generated_macro.rs");
 
-use std::iter::once;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::{max, Itertools};
 use crate::chess_move::ChessMove;
-use crate::chess_move::ChessMove::BasicMove;
 use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
@@ -79,6 +77,7 @@ fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isi
 #[cfg(test)]
 mod tests {
     use crate::chess_move::format_moves;
+    use crate::move_formatter::FormatMove;
     use super::*;
     use crate::search::{search, MAXIMUM_SCORE};
     use crate::util::bit_indexes;
@@ -108,7 +107,9 @@ mod tests {
         let search_results = search(&position, 0, 3);
         println!("Node count (mate in 2) = {}", get_node_count());
         println!("{}", search_results.best_line[0]);
-        println!("best line = {:?}", format_moves(search_results.best_line));
+        println!("best line = {:?}", format_moves(&search_results.best_line));
+        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
+        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
         assert_eq!(search_results.score, MAXIMUM_SCORE - 3);
     }
 
@@ -118,7 +119,22 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 5);
         println!("Node count (mate in 3) = {}", get_node_count());
-        println!("best line = {:?}", format_moves(search_results.best_line));
+        println!("best line = {:?}", format_moves(&search_results.best_line));
+        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
         assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
+    }
+
+
+    #[test]
+    fn test_mate_in_four() {
+        let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, 0, 7);
+        println!("Node count (mate in 4) = {}", get_node_count());
+        println!("best line = {:?}", format_moves(&search_results.best_line));
+        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        assert_eq!(search_results.score, MAXIMUM_SCORE - 77);
     }
 }

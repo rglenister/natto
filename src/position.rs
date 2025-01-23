@@ -190,7 +190,7 @@ mod tests {
     use crate::bit_board::BitBoard;
     use super::*;
     use crate::board::{BoardSide, PieceColor};
-    use crate::chess_move::ChessMove::{BasicMove, CastlingMove};
+    use crate::chess_move::ChessMove::CastlingMove;
     use crate::move_generator::generate;
 
     #[test]

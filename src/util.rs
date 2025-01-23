@@ -14,7 +14,7 @@ pub fn create_color(initial: &str) -> Option<PieceColor> {
 
 pub fn parse_square(square: &str) -> Option<usize> {
     if square == "-" {
-        return None
+        None
     } else {
         let row = square.chars().nth(1).expect("Invalid square").to_digit(10).expect("Invalid square");
         let col_char = square.chars().nth(0).expect("Invalid square");
@@ -23,10 +23,9 @@ pub fn parse_square(square: &str) -> Option<usize> {
     }
 }
 
-pub fn write_square(square_index: usize) -> String {
+pub fn format_square(square_index: usize) -> String {
     if square_index < board::NUMBER_OF_SQUARES {
-        let file_lookup = ["a", "b", "c", "d", "e", "f", "g", "h"];
-        file_lookup[square_index % 8].to_string().add(&(square_index / 8 + 1).to_string())
+        (('a' as u8 + (square_index % 8) as u8) as char).to_string().add(&(square_index / 8 + 1).to_string())
     } else {
         "Invalid square".to_string()
     }
@@ -139,12 +138,12 @@ mod tests {
     }
 
     #[test]
-    fn test_write_square() {
-        assert_eq!(write_square(0), "a1");
-        assert_eq!(write_square(8), "a2");
-        assert_eq!(write_square(20), "e3");
-        assert_eq!(write_square(62), "g8");
-        assert_eq!(write_square(63), "h8");
+    fn test_format_square() {
+        assert_eq!(format_square(0), "a1");
+        assert_eq!(format_square(8), "a2");
+        assert_eq!(format_square(20), "e3");
+        assert_eq!(format_square(62), "g8");
+        assert_eq!(format_square(63), "h8");
     }
 
     #[test]

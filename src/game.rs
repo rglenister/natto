@@ -49,9 +49,9 @@ impl Game {
         self.check_count
     }
 
-    fn get_legal_moves(position: Position) -> Vec<ChessMove> {
-        let moves = move_generator::generate(&position);
-        let moves2 = moves.into_iter().filter(|cm| position.make_move(cm).is_some()).collect();
+    pub fn get_legal_moves(&self) -> Vec<ChessMove> {
+        let moves = move_generator::generate(&self.position);
+        let moves2 = moves.into_iter().filter(|cm| self.position.make_move(cm).is_some()).collect();
         moves2
     }
 }
@@ -59,10 +59,8 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-        use crate::board::PieceColor::White;
     use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::BasicMove;
-    use crate::position::NEW_GAME_FEN;
 
     #[test]
     fn test_double_check() {

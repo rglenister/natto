@@ -43,7 +43,7 @@ pub fn write(position: &Position) -> String {
                    write_board(position.board_unmut()),
                    if position.side_to_move() == White { "w" } else { "b" },
                    get_castling_rights(position),
-                   position.en_passant_capture_square().map_or("-".to_string(), |ep_square| util::write_square(ep_square)),
+                   position.en_passant_capture_square().map_or("-".to_string(), |ep_square| util::format_square(ep_square)),
                    position.half_move_clock(),
                    position.full_move_number());
 

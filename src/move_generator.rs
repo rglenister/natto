@@ -10,7 +10,7 @@ use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chess_move::{BaseMove, ChessMove};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::position::Position;
-use crate::{bit_board, position, util};
+use crate::{bit_board, util};
 
 include!("util/generated_macro.rs");
 
