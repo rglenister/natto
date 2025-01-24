@@ -59,6 +59,13 @@ impl Piece {
 
     pub fn from_char(piece: char) -> Result<Piece, String>{
         let piece_color = if piece.is_ascii_uppercase() { White } else { Black };
+        let piece_type: PieceType = PieceType::from_char(piece)?;
+        Ok(Piece {piece_type, piece_color})
+    }
+}
+
+impl PieceType {
+    pub fn from_char(piece: char) -> Result<PieceType, String>{
         let piece_type: PieceType = match piece.to_ascii_lowercase() {
             'p' => Pawn,
             'n' => Knight,
@@ -68,10 +75,9 @@ impl Piece {
             'k' => King,
             _ => return Err(format!("Invalid piece: {}", piece)),
         };
-        Ok(Piece {piece_type, piece_color})
+        Ok(piece_type)
     }
 }
-
 
 pub trait Board {
 

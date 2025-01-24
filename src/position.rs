@@ -1,6 +1,6 @@
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
-use crate::chess_move::ChessMove;
+use crate::chess_move::{ChessMove, RawChessMove};
 use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
@@ -93,8 +93,8 @@ impl Position {
         self.full_move_number
     }
 
-    pub fn make_raw_move(&self, square_from: usize, square_to: usize, promote_to: Option<PieceType>) -> Option<(Self, ChessMove)> {
-        let moves = util::find_generated_move(move_generator::generate(self), square_from, square_to, promote_to);
+    pub fn make_raw_move(&self, raw_move: &RawChessMove) -> Option<(Self, ChessMove)> {
+        let moves = util::find_generated_move(move_generator::generate(self), raw_move.from, raw_move.to, raw_move.promote_to);
         if moves.len() == 1 {
             self.make_move(&moves[0])
         } else {
@@ -270,20 +270,20 @@ mod tests {
     #[test]
     fn test_ep_capture_square_is_set_after_double_white_pawn_move() {
         let position_1 = Position::from(NEW_GAME_FEN);
-        let (position_2, _) = position_1.make_raw_move(sq!("e2"), sq!("e4"), None).unwrap();
+        let (position_2, _) = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
         assert_eq!(position_2.en_passant_capture_square, Some(sq!("e3")));
-        let (position_3, _) = position_2.make_raw_move(sq!("b8"), sq!("c6"), None).unwrap();
+        let (position_3, _) = position_2.make_raw_move(&RawChessMove::new(sq!("b8"), sq!("c6"), None)).unwrap();
         assert_eq!(position_3.en_passant_capture_square, None);
     }
 
     #[test]
     fn test_ep_capture_square_is_set_after_double_black_pawn_move() {
         let position_1 = Position::from(NEW_GAME_FEN);
-        let (position_2, _) = position_1.make_raw_move(sq!("e2"), sq!("e3"), None).unwrap();
+        let (position_2, _) = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e3"), None)).unwrap();
         assert_eq!(position_2.en_passant_capture_square, None);
-        let (position_3, cm) = position_2.make_raw_move(sq!("a7"), sq!("a5"), None).unwrap();
+        let (position_3, cm) = position_2.make_raw_move(&RawChessMove::new(sq!("a7"), sq!("a5"), None)).unwrap();
         assert_eq!(position_3.en_passant_capture_square, Some(sq!("a6")));
-        let (position_4, _) = position_3.make_raw_move(sq!("c2"), sq!("c3"), None).unwrap();
+        let (position_4, _) = position_3.make_raw_move(&RawChessMove::new(sq!("c2"), sq!("c3"), None)).unwrap();
         assert_eq!(position_4.en_passant_capture_square, None);
     }
 
@@ -323,11 +323,11 @@ mod tests {
         assert_eq!(position_1.castling_rights[White as usize], [true, true]);
         assert_eq!(position_1.castling_rights[Black as usize], [true, true]);
 
-        let position_2 = position_1.make_raw_move(sq!("a1"), sq!("a2"), None).unwrap();
+        let position_2 = position_1.make_raw_move(&RawChessMove::new(sq!("a1"), sq!("a2"), None)).unwrap();
         assert_eq!(position_2.0.castling_rights[White as usize], [true, false]);
         assert_eq!(position_2.0.castling_rights[Black as usize], [true, true]);
 
-        let position_3 = position_1.make_raw_move(sq!("h1"), sq!("h2"), None).unwrap();
+        let position_3 = position_1.make_raw_move(&RawChessMove::new(sq!("h1"), sq!("h2"), None)).unwrap();
         assert_eq!(position_3.0.castling_rights[White as usize], [false, true]);
         assert_eq!(position_3.0.castling_rights[Black as usize], [true, true]);
 
@@ -337,9 +337,9 @@ mod tests {
     fn test_full_move_counter_incremented_after_black_move() {
         let position_1 = Position::from(NEW_GAME_FEN);
         assert_eq!(position_1.full_move_number, 1);
-        let position_2 = position_1.make_raw_move(sq!("e2"), sq!("e4"), None).unwrap();
+        let position_2 = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
         assert_eq!(position_2.0.full_move_number, 1);
-        let position_3 = position_2.0.make_raw_move(sq!("e7"), sq!("e5"), None).unwrap();
+        let position_3 = position_2.0.make_raw_move(&RawChessMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
         assert_eq!(position_3.0.full_move_number, 2);
     }
 
@@ -347,19 +347,19 @@ mod tests {
     fn test_half_move_counter_incrementation() {
         let position_1 = Position::from(NEW_GAME_FEN);
         assert_eq!(position_1.half_move_clock, 0);
-        let position_2 = position_1.make_raw_move(sq!("e2"), sq!("e4"), None).unwrap();
+        let position_2 = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
         assert_eq!(position_2.0.half_move_clock, 0);
-        let position_3 = position_2.0.make_raw_move(sq!("e7"), sq!("e5"), None).unwrap();
+        let position_3 = position_2.0.make_raw_move(&RawChessMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
         assert_eq!(position_3.0.half_move_clock, 0);
-        let position_4 = position_3.0.make_raw_move(sq!("g1"), sq!("f3"), None).unwrap();
+        let position_4 = position_3.0.make_raw_move(&RawChessMove::new(sq!("g1"), sq!("f3"), None)).unwrap();
         assert_eq!(position_4.0.half_move_clock, 1);
-        let position_5 = position_4.0.make_raw_move(sq!("d7"), sq!("d6"), None).unwrap();
+        let position_5 = position_4.0.make_raw_move(&RawChessMove::new(sq!("d7"), sq!("d6"), None)).unwrap();
         assert_eq!(position_5.0.half_move_clock, 0);
-        let position_6 = position_5.0.make_raw_move(sq!("b1"), sq!("c3"), None).unwrap();
+        let position_6 = position_5.0.make_raw_move(&RawChessMove::new(sq!("b1"), sq!("c3"), None)).unwrap();
         assert_eq!(position_6.0.half_move_clock, 1);
-        let position_7 = position_6.0.make_raw_move(sq!("d8"), sq!("g5"), None).unwrap();
+        let position_7 = position_6.0.make_raw_move(&RawChessMove::new(sq!("d8"), sq!("g5"), None)).unwrap();
         assert_eq!(position_7.0.half_move_clock, 2);
-        let position_8 = position_7.0.make_raw_move(sq!("f3"), sq!("g5"), None).unwrap();
+        let position_8 = position_7.0.make_raw_move(&RawChessMove::new(sq!("f3"), sq!("g5"), None)).unwrap();
         assert_eq!(position_8.0.half_move_clock, 0);
     }
 }

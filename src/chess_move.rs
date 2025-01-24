@@ -70,12 +70,19 @@ fn write_default(from: usize, to: usize, capture: bool) -> String {
     format!("{}{}{}", format_square(from), if capture { 'x' } else { '-' }, format_square(to),)
 }
 
+#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub struct RawChessMove {
     pub from: usize,
     pub to: usize,
-    pub promote_to: PieceType,
+    pub promote_to: Option<PieceType>,
 }
 
+impl RawChessMove {
+    pub(crate) fn new(from: usize, to: usize, promote_to: Option<PieceType>) -> RawChessMove {
+        RawChessMove {from, to, promote_to}
+    }
+}
 
 #[cfg(test)]
 mod tests {

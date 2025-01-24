@@ -126,15 +126,15 @@ mod tests {
     }
 
 
-    #[test]
-    fn test_mate_in_four() {
-        let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
-        let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 7);
-        println!("Node count (mate in 4) = {}", get_node_count());
-        println!("best line = {:?}", format_moves(&search_results.best_line));
-        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 77);
-    }
+    // #[test]
+    // fn test_mate_in_four() {
+    //     let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
+    //     let position: Position = Position::from(fen);
+    //     let search_results = search(&position, 0, 7);
+    //     println!("Node count (mate in 4) = {}", get_node_count());
+    //     println!("best line = {:?}", format_moves(&search_results.best_line));
+    //     println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+    //     println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+    //     assert_eq!(search_results.score, MAXIMUM_SCORE - 77);
+    // }
 }

@@ -1,5 +1,5 @@
 use crate::position::Position;
-use crate::chess_move::ChessMove;
+use crate::chess_move::{ChessMove, RawChessMove};
 use phf::phf_map;
 use MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::bit_board::BitBoard;
@@ -55,7 +55,7 @@ impl FormatMove for MoveFormatter {
     fn format_move_list(&self, position: &Position, chess_moves: &Vec<ChessMove>) -> Option<Vec<String>> {
         let game_moves: Option<Vec<GameMove>> = chess_moves.iter().try_fold(Vec::new(), |mut acc: Vec<GameMove>, &cm| {
             let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().game.position.clone()} else { position };
-            let next_pos: Option<(Position, ChessMove)> = pos.make_raw_move(cm.get_base_move().from, cm.get_base_move().to, get_promote_to(cm));
+            let next_pos: Option<(Position, ChessMove)> = pos.make_raw_move(&RawChessMove::new(cm.get_base_move().from, cm.get_base_move().to, get_promote_to(cm)));
             if next_pos.is_some() {
                 next_pos.map(|np| acc.push(GameMove::new(Game::new(&np.0), pos, &cm)));
                 Some(acc)

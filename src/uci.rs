@@ -1,10 +1,18 @@
+use std::option::Option;
 use std::io;
 use std::io::BufRead;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use crate::{board, engine};
+use itertools::Itertools;
+use regex::Regex;
+use crate::move_formatter::GameMove;
+use crate::{board, engine, util};
+use crate::chess_move::{ChessMove, RawChessMove};
 use crate::engine::Engine;
+use crate::game::Game;
 use crate::position::Position;
+
+include!("util/generated_macro.rs");
 
 enum UciCommand {
     Uci,
@@ -79,11 +87,102 @@ pub fn process_input<T: board::Board>() -> () {
     }
 }
 
+fn parse_initial_moves(raw_move_strings: Vec<String>)  -> Option<Vec<RawChessMove>> {
+    let result: Option<Vec<RawChessMove>> = raw_move_strings.iter().try_fold(Vec::new(), |mut acc: Vec<RawChessMove>, rms: &String| {
+        match parse_move(rms.clone()) {
+            Some(raw_chess_move) => {
+                acc.push(raw_chess_move);
+                Some(acc)
+            },
+            None => None
+        }
+    });
+    result
+}
+
+fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
+    let re = Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap();
+    let captures = re.captures(&raw_move_string);
+    captures.map(|captures| {
+        let promote_to = captures.name("promote_to").map(|m| board::PieceType::from_char(m.as_str().to_string().chars().nth(0).unwrap()));
+        return RawChessMove::new(
+            util::parse_square(captures.name("from").unwrap().as_str()).unwrap(),
+            util::parse_square(captures.name("to").unwrap().as_str()).unwrap(),
+            if promote_to.is_some() { Some(promote_to.unwrap().expect("REASON")) } else { None }
+        );
+    })
+}
+
+fn process_initial_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> Option<Vec<Position>> {
+    let result: Option<Vec<Position>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<Position>, rm: &RawChessMove| {
+        let current_position = if !acc.is_empty() { &acc.last().unwrap().clone()} else { position };
+        let a = current_position.make_raw_move(rm);
+        match a {
+            Some((next_position, cm)) => {
+                acc.push(next_position);
+                Some(acc)
+            },
+            None  => None
+        }
+    });
+    result
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::board::{Board, Piece};
+    use super::*;
+    use crate::board::PieceColor::{Black, White};
+    use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
+    use crate::position::NEW_GAME_FEN;
+
     #[test]
-    fn test_regex() {
-        // process_position("position startpos moves e2e4 e7e5");
-        // process_position("position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5");
+    fn test_process_initial_moves() {
+        let position = Position::from(NEW_GAME_FEN);
+        let positions = process_initial_moves(
+                &position,
+                vec!(
+                    RawChessMove::new(sq!("e2"), sq!("e4"), None),
+                    RawChessMove::new(sq!("e7"), sq!("e5"), None)
+                )
+        );
+        assert!(positions.is_some());
+        let positions = positions.unwrap();
+        assert_eq!(positions.len(), 2);
+        let end_position = positions.last().unwrap();
+        let board = end_position.board_unmut();
+        assert_eq!(board.get_piece(sq!("e2")), None);
+        assert_eq!(board.get_piece(sq!("e4")), Some(Piece {piece_type: Pawn, piece_color: White}));
+        assert_eq!(board.get_piece(sq!("e7")), None);
+        assert_eq!(board.get_piece(sq!("e5")),Some(Piece {piece_type: Pawn, piece_color: Black}));
     }
+
+    #[test]
+    fn test_parse_initial_moves() {
+        assert_eq!(
+            parse_initial_moves(vec!("e2e4".to_string())),
+            Some(vec!(RawChessMove {from: sq!("e2"), to: sq!("e4"), promote_to: None})));
+        assert_eq!(
+            parse_initial_moves(vec!("e2e4".to_string(), "e7e5".to_string())),
+            Some(vec!(RawChessMove {from: sq!("e2"), to: sq!("e4"), promote_to: None}, RawChessMove {from: sq!("e7"), to: sq!("e5"), promote_to: None})));
+
+        assert_eq!(
+            parse_initial_moves(vec!("i2e4".to_string(), "e7e5".to_string())),
+            None);
+    }
+
+    #[test]
+    fn test_parse_move() {
+        assert_eq!(parse_move("a1b1".to_string()).unwrap(), RawChessMove {from: sq!("a1"), to: sq!("b1"), promote_to: None});
+        assert_eq!(parse_move("h8a1n".to_string()).unwrap(), RawChessMove {from: sq!("h8"), to: sq!("a1"), promote_to: Some(Knight)});
+        assert_eq!(parse_move("h8a1b".to_string()).unwrap(), RawChessMove {from: sq!("h8"), to: sq!("a1"), promote_to: Some(Bishop)});
+        assert_eq!(parse_move("a1b1r".to_string()).unwrap(), RawChessMove {from: sq!("a1"), to: sq!("b1"), promote_to: Some(Rook)});
+        assert_eq!(parse_move("a1b1q".to_string()).unwrap(), RawChessMove {from: sq!("a1"), to: sq!("b1"), promote_to: Some(Queen)});
+
+        assert_eq!(parse_move("a1b1k".to_string()), None);
+        assert_eq!(parse_move("".to_string()), None);
+        assert_eq!(parse_move("i8h8".to_string()), None);
+    }
+
+
 }
