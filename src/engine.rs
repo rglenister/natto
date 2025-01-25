@@ -1,3 +1,4 @@
+use crate::fen;
 use std::thread;
 use crate::position::Position;
 use std::sync::{
@@ -7,6 +8,7 @@ use std::sync::{
 use std::thread::sleep;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::time::Duration;
+use crate::board::Board;
 
 pub(crate) struct Engine {
     position: Option<Position>,
@@ -21,7 +23,9 @@ impl Engine {
     }
 
     pub fn position(&mut self, position: Position) {
-        self.position = Some(position);
+        self.position = Some(position.clone());
+        println!("{}", fen::write(&position));
+        println!("{}", position.board_unmut().to_string());
     }
 
     pub fn go(&mut self) -> Arc<AtomicBool> {

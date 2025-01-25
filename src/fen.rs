@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use regex::Regex;
 use itertools::Itertools;
 use crate::bit_board::BitBoard;
@@ -9,10 +10,13 @@ use crate::util::create_color;
 use crate::util::parse_square;
 
 
+static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
+    r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb]) (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+)"
+).unwrap());
+
+
 pub fn parse(fen: String) -> Position {
-    let re =
-        Regex::new(r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb]) (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+)").unwrap();
-    if let Some(captures) = re.captures(&fen) {
+    if let Some(captures) = FEN_REGEX.captures(&fen) {
         let board_str = expand_board(captures.name("board").unwrap().as_str());
         let side_to_move = captures.name("side_to_move").unwrap().as_str();
         let castling_rights = captures.name("castling_rights").unwrap().as_str();

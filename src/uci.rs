@@ -4,15 +4,17 @@ use std::io::BufRead;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use regex::Regex;
-use crate::move_formatter::GameMove;
 use crate::{board, engine, util};
 use crate::chess_move::{ChessMove, RawChessMove};
 use crate::engine::Engine;
-use crate::game::Game;
-use crate::position::Position;
+use crate::position::{Position, NEW_GAME_FEN};
 
 include!("util/generated_macro.rs");
+
+static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+)) (moves (.*))?$").unwrap());
+static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
 enum UciCommand {
     Uci,
@@ -65,9 +67,10 @@ pub fn process_input<T: board::Board>() -> () {
                 engine.position(Position::new_game());
 
             }
-            UciCommand::Position(fen) => {
-                println!("info string Setting up position");
-                engine.position(Position::from(fen.as_str()));
+            UciCommand::Position(position_str) => {
+                println!("info string Setting up position {}", position_str);
+                let position = parse_position(&position_str);
+                engine.position(Position::from(position_str.as_str()));
             }
             UciCommand::Go(go) => {
                 println!("info string Setting up go - option = {:?}", go);
@@ -87,33 +90,44 @@ pub fn process_input<T: board::Board>() -> () {
     }
 }
 
-fn parse_initial_moves(raw_move_strings: Vec<String>)  -> Option<Vec<RawChessMove>> {
-    let result: Option<Vec<RawChessMove>> = raw_move_strings.iter().try_fold(Vec::new(), |mut acc: Vec<RawChessMove>, rms: &String| {
-        match parse_move(rms.clone()) {
-            Some(raw_chess_move) => {
-                acc.push(raw_chess_move);
-                Some(acc)
-            },
-            None => None
+fn parse_position(input: &str) -> Option<Position> {
+    if let Some(captures) = UCI_POSITION_REGEX.captures(input) {
+        if &captures[1] == "startpos" {
+            let new_game_position = Position::from(NEW_GAME_FEN);
+            if let Some(moves) = captures.get(4) {
+                let end_position = update_position(new_game_position, moves.as_str().to_string());
+                println!("Startpos with moves: {:?}", moves);
+                end_position
+            } else {
+                println!("Startpos with no moves");
+                Some(new_game_position)
+            }
+        } else if let Some(fen) = captures.get(2) {
+            let fen_position = Position::from(fen.as_str());
+            if let Some(moves) = captures.get(4) {
+                println!("FEN: {}\nMoves: {:?}", fen.as_str(), moves);
+                update_position(fen_position, moves.as_str().to_string())
+            } else {
+                println!("FEN: {}\nNo moves provided", fen.as_str());
+                Some(fen_position)
+            }
+        } else {
+            None
         }
-    });
-    result
+    } else {
+        eprintln!("Unable to parse position: {}", input);
+        None
+    }
 }
 
-fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
-    let re = Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap();
-    let captures = re.captures(&raw_move_string);
-    captures.map(|captures| {
-        let promote_to = captures.name("promote_to").map(|m| board::PieceType::from_char(m.as_str().to_string().chars().nth(0).unwrap()));
-        return RawChessMove::new(
-            util::parse_square(captures.name("from").unwrap().as_str()).unwrap(),
-            util::parse_square(captures.name("to").unwrap().as_str()).unwrap(),
-            if promote_to.is_some() { Some(promote_to.unwrap().expect("REASON")) } else { None }
-        );
-    })
+fn update_position(position: Position, moves: String) -> Option<Position> {
+    let moves_vec: Vec<String> = moves.split_whitespace().map(String::from).collect();
+    let raw_chess_moves = parse_initial_moves(moves_vec)?;
+    let positions = replay_moves(&position, raw_chess_moves)?;
+    let last_position: Position = positions.last()?.clone();
+    Some(last_position)
 }
-
-fn process_initial_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> Option<Vec<Position>> {
+fn replay_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> Option<Vec<Position>> {
     let result: Option<Vec<Position>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<Position>, rm: &RawChessMove| {
         let current_position = if !acc.is_empty() { &acc.last().unwrap().clone()} else { position };
         let a = current_position.make_raw_move(rm);
@@ -128,6 +142,32 @@ fn process_initial_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> O
     result
 }
 
+fn parse_initial_moves(raw_move_strings: Vec<String>) -> Option<Vec<RawChessMove>> {
+    let result: Option<Vec<RawChessMove>> = raw_move_strings.iter().try_fold(Vec::new(), |mut acc: Vec<RawChessMove>, rms: &String| {
+        match parse_move(rms.clone()) {
+            Some(raw_chess_move) => {
+                acc.push(raw_chess_move);
+                Some(acc)
+            },
+            None => None
+        }
+    });
+    result
+}
+
+fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
+    let captures = RAW_MOVE_REGEX.captures(&raw_move_string);
+    captures.map(|captures| {
+        let promote_to = captures.name("promote_to").map(|m| board::PieceType::from_char(m.as_str().to_string().chars().nth(0).unwrap()));
+        return RawChessMove::new(
+            util::parse_square(captures.name("from").unwrap().as_str()).unwrap(),
+            util::parse_square(captures.name("to").unwrap().as_str()).unwrap(),
+            if promote_to.is_some() { Some(promote_to.unwrap().expect("REASON")) } else { None }
+        );
+    })
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::board::{Board, Piece};
@@ -137,20 +177,10 @@ mod tests {
     use crate::position::NEW_GAME_FEN;
 
     #[test]
-    fn test_process_initial_moves() {
+    fn test_update_position() {
         let position = Position::from(NEW_GAME_FEN);
-        let positions = process_initial_moves(
-                &position,
-                vec!(
-                    RawChessMove::new(sq!("e2"), sq!("e4"), None),
-                    RawChessMove::new(sq!("e7"), sq!("e5"), None)
-                )
-        );
-        assert!(positions.is_some());
-        let positions = positions.unwrap();
-        assert_eq!(positions.len(), 2);
-        let end_position = positions.last().unwrap();
-        let board = end_position.board_unmut();
+        let last_position = update_position(position, "e2e4 e7e5".to_string()).unwrap();
+        let board = last_position.board_unmut();
         assert_eq!(board.get_piece(sq!("e2")), None);
         assert_eq!(board.get_piece(sq!("e4")), Some(Piece {piece_type: Pawn, piece_color: White}));
         assert_eq!(board.get_piece(sq!("e7")), None);
