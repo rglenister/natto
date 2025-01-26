@@ -61,11 +61,11 @@ impl Position {
         Position::from(NEW_GAME_FEN)
     }
 
-    pub fn board_unmut(&self) -> &BitBoard {
+    pub fn board(&self) -> &BitBoard {
         &self.board
     }
 
-    pub fn board(&mut self) -> &mut BitBoard {
+    pub fn board_mut(&mut self) -> &mut BitBoard {
         &mut self.board
     }
 

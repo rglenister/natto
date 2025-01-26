@@ -17,7 +17,7 @@ include!("util/generated_macro.rs");
 
 pub fn generate(position: &Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec![];
-    let board: &BitBoard = position.board_unmut();
+    let board: &BitBoard = position.board();
     let occupied_squares = board.bitboard_all_pieces();
     let friendly_squares = board.bitboard_by_color(position.side_to_move());
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
@@ -244,7 +244,7 @@ fn generate_king_moves(position: &Position, square_indexes: u64, occupied_square
 }
 
 fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_squares: u64) -> Vec<ChessMove> {
-    let opposition_pieces_bitboard = position.board_unmut().bitboard_by_color(position.opposing_side());
+    let opposition_pieces_bitboard = position.board().bitboard_by_color(position.opposing_side());
     let forward_increment: i32 = if position.side_to_move() == White { 8 } else { -8 };
 
     let mut moves: Vec<ChessMove> = vec!();
@@ -295,15 +295,15 @@ fn generate_pawn_moves(position: &Position, square_indexes: u64, occupied_square
 }
 
 pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: i32) -> u64 {
-    let occupied_squares = position.board_unmut().bitboard_all_pieces();
-    let enemy_squares = position.board_unmut().bitboard_by_color(attacking_color);
-    let enemy_queens = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Queen);
+    let occupied_squares = position.board().bitboard_all_pieces();
+    let enemy_squares = position.board().bitboard_by_color(attacking_color);
+    let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, Queen);
     let mut attacking_squares = 0;
     for piece_type in [Bishop, Rook] {
         let moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index.try_into().unwrap(), occupied_squares);
         let possible_attackers = moves & enemy_squares;
         util::process_bits(possible_attackers, |square_index| {
-            if (enemy_queens | position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, piece_type)) & 1 << square_index != 0 {
+            if (enemy_queens | position.board().bitboard_by_color_and_piece_type(attacking_color, piece_type)) & 1 << square_index != 0 {
                 attacking_squares |= 1 << square_index;
             }
         })
@@ -312,7 +312,7 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
     attacking_squares |= non_sliding_piece_attacks(position, Knight, attacking_color, square_index);
 
     let pawn_attack_squares = PAWN_ATTACKS_TABLE[&attacking_color][square_index as usize];
-    let attacking_pawns = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, Pawn);
+    let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, Pawn);
     let attacking_pawn = pawn_attack_squares & attacking_pawns;
     attacking_squares |= attacking_pawn;
 
@@ -321,13 +321,13 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
 
 fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: i32) -> u64 {
     let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
-    let enemy_squares = position.board_unmut().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
+    let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
     moves & enemy_squares
 }
 
 pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
     square_attacks_finder(
-        position, if king_color == White {Black} else {White}, position.board_unmut().king_square(king_color))
+        position, if king_color == White {Black} else {White}, position.board().king_square(king_color))
 }
 
 #[cfg(test)]

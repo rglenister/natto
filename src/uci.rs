@@ -13,7 +13,7 @@ use crate::position::{Position, NEW_GAME_FEN};
 
 include!("util/generated_macro.rs");
 
-static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+)) (moves (.*))?$").unwrap());
+static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))\s?(moves (.*))?$").unwrap());
 static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
 enum UciCommand {
@@ -55,7 +55,7 @@ pub fn process_input<T: board::Board>() -> () {
 
         match command {
             UciCommand::Uci => {
-                println!("id name EasyChess");
+                println!("id name Natto");
                 println!("id author Richard Glenister");
                 println!("uciok");
             }
@@ -69,8 +69,8 @@ pub fn process_input<T: board::Board>() -> () {
             }
             UciCommand::Position(position_str) => {
                 println!("info string Setting up position {}", position_str);
-                let position = parse_position(&position_str);
-                engine.position(Position::from(position_str.as_str()));
+                let position = parse_position(&input);
+                engine.position(position.unwrap());
             }
             UciCommand::Go(go) => {
                 println!("info string Setting up go - option = {:?}", go);
@@ -84,7 +84,7 @@ pub fn process_input<T: board::Board>() -> () {
                 println!("info string Quitting");
             }
             UciCommand::None => {
-                eprintln!("info string No input receivedf");
+                eprintln!("info string No input received");
             }
         }
     }
@@ -127,6 +127,7 @@ fn update_position(position: Position, moves: String) -> Option<Position> {
     let last_position: Position = positions.last()?.clone();
     Some(last_position)
 }
+
 fn replay_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> Option<Vec<Position>> {
     let result: Option<Vec<Position>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<Position>, rm: &RawChessMove| {
         let current_position = if !acc.is_empty() { &acc.last().unwrap().clone()} else { position };
@@ -180,11 +181,19 @@ mod tests {
     fn test_update_position() {
         let position = Position::from(NEW_GAME_FEN);
         let last_position = update_position(position, "e2e4 e7e5".to_string()).unwrap();
-        let board = last_position.board_unmut();
+        let board = last_position.board();
         assert_eq!(board.get_piece(sq!("e2")), None);
         assert_eq!(board.get_piece(sq!("e4")), Some(Piece {piece_type: Pawn, piece_color: White}));
         assert_eq!(board.get_piece(sq!("e7")), None);
         assert_eq!(board.get_piece(sq!("e5")),Some(Piece {piece_type: Pawn, piece_color: Black}));
+    }
+
+
+    #[test]
+    fn test_update_position_with_illegal_move() {
+        let position = Position::from(NEW_GAME_FEN);
+        let last_position = update_position(position, "e2e4 e8e5".to_string());
+        assert!(last_position.is_none());
     }
 
     #[test]

@@ -44,7 +44,7 @@ pub fn parse(fen: String) -> Position {
 
 pub fn write(position: &Position) -> String {
     return format!("{} {} {} {} {} {}",
-                   write_board(position.board_unmut()),
+                   write_board(position.board()),
                    if position.side_to_move() == White { "w" } else { "b" },
                    get_castling_rights(position),
                    position.en_passant_capture_square().map_or("-".to_string(), |ep_square| util::format_square(ep_square)),

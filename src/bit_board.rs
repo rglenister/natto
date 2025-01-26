@@ -18,7 +18,7 @@ pub struct CastlingMetadata {
     pub(crate) rook_to_square: usize,
 }
 
-pub static CASTLING_METADATA: [[CastlingMetadata; 2]; 2] =
+pub const CASTLING_METADATA: [[CastlingMetadata; 2]; 2] =
     [
         [
             CastlingMetadata {
@@ -38,19 +38,19 @@ pub static CASTLING_METADATA: [[CastlingMetadata; 2]; 2] =
         ]
     ];
 
-pub static KING_HOME_SQUARE: [usize; 2] =
+pub const KING_HOME_SQUARE: [usize; 2] =
     [sq!("e1"), sq!("e8")];
 
-static KING_HOME_SQUARE_MASKS: [u64; 2] =
+const KING_HOME_SQUARE_MASKS: [u64; 2] =
     [1 << sq!("e1"), 1 << sq!("e8")];
 
-static ROOK_HOME_SQUARE_MASKS: [[u64; 2]; 2] =
+const ROOK_HOME_SQUARE_MASKS: [[u64; 2]; 2] =
     [
         [1 << sq!("h1"), 1 << sq!("a1")],
         [1 << sq!("h8"), 1 << sq!("a8")]
     ];
 
-static CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] =
+const CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] =
     [
         [
             1 << sq!("f1") | 1 << sq!("g1"),

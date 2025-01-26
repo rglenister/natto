@@ -25,7 +25,7 @@ impl Engine {
     pub fn position(&mut self, position: Position) {
         self.position = Some(position.clone());
         println!("{}", fen::write(&position));
-        println!("{}", position.board_unmut().to_string());
+        println!("{}", position.board().to_string());
     }
 
     pub fn go(&mut self) -> Arc<AtomicBool> {

@@ -196,7 +196,7 @@ impl MoveFormatter {
     }
 
     fn get_moved_piece(&self, position: &Position, chess_move: &ChessMove) -> Piece {
-        position.board_unmut().get_piece(chess_move.get_base_move().from).unwrap()
+        position.board().get_piece(chess_move.get_base_move().from).unwrap()
     }
 
 }

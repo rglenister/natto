@@ -2,6 +2,9 @@ include!("util/generated_macro.rs");
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::{max, Itertools};
+use strum::IntoEnumIterator;
+use crate::bit_board::BitBoard;
+use crate::board::{Board, PieceColor, PieceType};
 use crate::chess_move::ChessMove;
 use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
@@ -13,6 +16,8 @@ use crate::move_formatter;
 static NODE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 static MAXIMUM_SCORE: isize = 10000;
+
+pub const PIECE_SCORES: [usize; 6] = [100, 300, 300, 500, 900, 0];
 
 #[derive(Clone)]
 struct SearchResults {
@@ -67,20 +72,53 @@ fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isi
         if game.get_game_status() == GameStatus::Checkmate {
             SearchResults {score: depth - MAXIMUM_SCORE, best_line: current_line.clone()}
         } else {
-            SearchResults {score: 0, best_line: current_line.clone()}
+            SearchResults {score: score_pieces(position), best_line: current_line.clone()}
         }
     } else {
-        SearchResults {score: 0, best_line: current_line.clone()}
+        SearchResults {score: score_pieces(position), best_line: current_line.clone()}
     }
+}
+
+fn score_pieces(position: &Position) -> isize {
+    fn score_board_for_color(board: &BitBoard, color: PieceColor) -> isize {
+        let bitboards = board.bitboards_for_color(color);
+        PieceType::iter().map(|piece_type| {
+            let piece_count = bitboards[piece_type as usize].count_ones() as isize;
+            piece_count * PIECE_SCORES[piece_type as usize] as isize
+        }).sum()
+    }
+
+    score_board_for_color(position.board(), position.side_to_move())
+        - score_board_for_color(position.board(), position.opposing_side())
 }
 
 #[cfg(test)]
 mod tests {
     use crate::chess_move::format_moves;
     use crate::move_formatter::FormatMove;
+    use crate::position::NEW_GAME_FEN;
     use super::*;
     use crate::search::{search, MAXIMUM_SCORE};
-    use crate::util::bit_indexes;
+
+    #[test]
+    fn test_score_pieces() {
+        let position: Position = Position::from(NEW_GAME_FEN);
+        assert_eq!(score_pieces(&position), 0);
+
+        let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
+        assert_eq!(score_pieces(&missing_white_pawn), -100);
+
+        let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        assert_eq!(score_pieces(&missing_black_pawn), 100);
+
+        let fen = "7K/5k2/8/7r/8/8/8/8 b - - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(score_pieces(&position), 500);
+
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
+        let all_black_no_white: Position = Position::from(fen);
+        assert_eq!(score_pieces(&all_black_no_white), 3900);
+    }
 
     #[test]
     fn test_already_checkmated() {
