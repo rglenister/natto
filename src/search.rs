@@ -1,5 +1,6 @@
 include!("util/generated_macro.rs");
 
+use std::fmt::Display;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::{max, Itertools};
 use strum::IntoEnumIterator;
@@ -11,18 +12,25 @@ use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
 use crate::position::Position;
 use crate::move_formatter;
+use crate::util::format_square;
 
 // Define a static atomic counter
 static NODE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-static MAXIMUM_SCORE: isize = 10000;
+static MAXIMUM_SCORE: isize = 100000;
 
 pub const PIECE_SCORES: [usize; 6] = [100, 300, 300, 500, 900, 0];
 
-#[derive(Clone)]
-struct SearchResults {
-    score: isize,
-    best_line: Vec<ChessMove>,
+#[derive(Clone, Debug)]
+pub struct SearchResults {
+    pub score: isize,
+    pub best_line: Vec<ChessMove>,
+}
+
+impl Display for SearchResults {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "score: {} bestline: {}", self.score, self.best_line.clone().into_iter().join(", "))
+    }
 }
 
 fn increment_node_counter() {
@@ -37,9 +45,11 @@ fn reset_node_counter() {
     NODE_COUNTER.store(0, Ordering::SeqCst);
 }
 
-fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResults {
+pub fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResults {
     reset_node_counter();
-    do_search(position,&vec!(), depth, max_depth)
+    let search_results = do_search(&position,&vec!(), depth, max_depth);
+    println!("{}", search_results);
+    search_results
 }
 
 fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize) -> SearchResults {
@@ -52,9 +62,12 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
             .collect::<Vec<_>>()
             .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
                     .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
-        return SearchResults {score: -search_results.score, best_line: search_results.best_line}
+        let results =  SearchResults {score: -search_results.score, best_line: search_results.best_line};
+        println!("info depth {} seldepth {} score cp {} nodes {} nps {} time {} pv {}", depth, depth, results.score, get_node_count(), "?nps?", "?time?", "?pv?");
+        // info depth 20 seldepth 32 score cp 38 nodes 105456 nps 5230 time 201 pv e2e4 e7e5
+        return results;
     } else {
-        return score_position(position, current_line, depth)
+        return score_position(position, current_line, depth);
     }
     fn add_item(line: &Vec<ChessMove>, cm: &ChessMove) -> Vec<ChessMove> {
         let mut appended_line = line.clone();
@@ -160,7 +173,7 @@ mod tests {
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
+        assert_eq!(search_results.score, MAXIMUM_SCORE - 55);
     }
 
 

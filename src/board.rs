@@ -77,6 +77,14 @@ impl PieceType {
         };
         Ok(piece_type)
     }
+
+    pub fn first_letter(&self) -> char {
+        if *self != Knight {
+            self.to_string().chars().next().unwrap()
+        } else {
+            'N'
+        }
+    }
 }
 
 pub trait Board {
@@ -108,7 +116,7 @@ pub trait Board {
             }
             s.write_char('\n').unwrap()
         }
-        return s;
+        s
     }
 }
 

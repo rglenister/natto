@@ -23,7 +23,7 @@ pub fn generate(position: &Position) -> Vec<ChessMove> {
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
 
     moves.extend(generate_pawn_moves(&position, bitboards[PieceType::Pawn as usize], occupied_squares));
-    moves.extend(get_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares));
+    moves.extend(get_non_sliding_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares));
     moves.extend(get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares));
     moves.extend(get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares));
 
@@ -35,7 +35,7 @@ pub fn generate(position: &Position) -> Vec<ChessMove> {
     moves
 }
 
-pub fn get_moves_by_piece_type(
+pub fn get_non_sliding_moves_by_piece_type(
     piece_type: PieceType,
     square_indexes: usize,
     occupied_squares: u64,
@@ -232,7 +232,7 @@ fn generate_move_bitboard(
 }
 
 fn generate_king_moves(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64) -> Vec<ChessMove> {
-    let mut moves = get_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
+    let mut moves = get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares);
     moves.extend(
         BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn test_knight_on_corner_square() {
         assert_eq!(
-            get_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 0),
+            get_non_sliding_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 0),
             vec!(BasicMove { base_move: { BaseMove::new(0, 10,  false) }},
                  BasicMove {  base_move: { BaseMove::new(0, 17, false)}})
         );
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn test_knight_attacking_friendly_piece() {
         assert_eq!(
-            get_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 1 << 10),
+            get_non_sliding_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 1 << 10),
             vec!(BasicMove { base_move: { BaseMove::new(0, 17, false)}})
         );
     }
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn test_knight_attacking_enemy_piece() {
         assert_eq!(
-            get_moves_by_piece_type(PieceType::Knight, 1 << 0, 1 << 10, 0),
+            get_non_sliding_moves_by_piece_type(PieceType::Knight, 1 << 0, 1 << 10, 0),
             vec!(BasicMove { base_move: { BaseMove::new(0, 10, true )}},
                  BasicMove { base_move: { BaseMove::new(0, 17, false )}})
         );
@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn test_king_lookup_table() {
         assert_eq!(
-            get_moves_by_piece_type(PieceType::King, 1 << 0, 0, 0),
+            get_non_sliding_moves_by_piece_type(PieceType::King, 1 << 0, 0, 0),
             vec!(BasicMove { base_move: { BaseMove::new(0, 1, false)}},
                  BasicMove { base_move: { BaseMove::new(0, 8, false)}},
                  BasicMove { base_move: { BaseMove::new(0, 9, false)}})

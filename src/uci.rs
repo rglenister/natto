@@ -1,12 +1,14 @@
 use std::option::Option;
 use std::io;
 use std::io::BufRead;
+use std::process::exit;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use crate::{board, engine, util};
+use crate::board::Board;
+use crate::{board, engine, fen, util};
 use crate::chess_move::{ChessMove, RawChessMove};
 use crate::engine::Engine;
 use crate::position::{Position, NEW_GAME_FEN};
@@ -27,6 +29,7 @@ enum UciCommand {
     None
 }
 
+struct UciEngine {}
 impl UciCommand {
     fn from_input(input: &str) -> Self {
         let mut parts = input.split_whitespace();
@@ -48,6 +51,7 @@ impl UciCommand {
 pub fn process_input<T: board::Board>() -> () {
     let mut engine: Engine = engine::Engine::new();
     let stdin = io::stdin();
+    let mut position: Option<Position> = None;
     let mut stop_flag = Arc::new(AtomicBool::new(false));
     for line in stdin.lock().lines() {
         let input = line.expect("Failed to read line").trim().to_string();
@@ -64,17 +68,25 @@ pub fn process_input<T: board::Board>() -> () {
             }
             UciCommand::UciNewGame => {
                 println!("info string Setting up new game");
-                engine.position(Position::new_game());
-
             }
+
             UciCommand::Position(position_str) => {
                 println!("info string Setting up position {}", position_str);
-                let position = parse_position(&input);
-                engine.position(position.unwrap());
+                let pos = parse_position(&input);
+                position = pos;
+                if let Some(ref pos) = position {
+                    println!("{}", fen::write(&pos.clone()));
+                    println!("{}", pos.board().to_string());
+                }
+
             }
             UciCommand::Go(go) => {
                 println!("info string Setting up go - option = {:?}", go);
-                stop_flag = engine.go();
+                stop_flag = Arc::new(AtomicBool::new(false));
+
+                if let Some(ref pos) = position {
+                    stop_flag = engine.go(pos.clone(), stop_flag);
+                }
             }
             UciCommand::Stop => {
                 println!("info string Stopping");
@@ -82,6 +94,8 @@ pub fn process_input<T: board::Board>() -> () {
             }
             UciCommand::Quit => {
                 println!("info string Quitting");
+                stop_flag.store(true, Ordering::Relaxed);
+                exit(0)
             }
             UciCommand::None => {
                 eprintln!("info string No input received");

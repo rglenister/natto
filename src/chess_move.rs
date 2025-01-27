@@ -4,6 +4,7 @@ use crate::board::BoardSide::KingSide;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::util::format_square;
 
+include!("util/generated_macro.rs");
 
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone, Copy)]
@@ -83,11 +84,28 @@ impl RawChessMove {
         RawChessMove {from, to, promote_to}
     }
 }
+impl fmt::Display for RawChessMove {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let promote_to: String = self.promote_to.map_or(String::new(), |piece_type| piece_type.first_letter().to_lowercase().to_string());
+        write!(f, "{}{}{}", format_square(self.from), format_square(self.to), promote_to)
+    }
+}
+
+pub fn convert_chess_moves_to_raw(moves: Vec<ChessMove>) -> Vec<RawChessMove> {
+    moves.into_iter().map(|m| {
+        let promote_to: Option<PieceType>  = match m {
+            PromotionMove { base_move: _base_move, promote_to } => { Some(promote_to) },
+            _ => None
+        };
+        RawChessMove::new(m.get_base_move().from, m.get_base_move().to, promote_to)
+    }).collect()
+}
 
 #[cfg(test)]
 mod tests {
     use crate::board::{BoardSide, PieceType};
-    use crate::chess_move::BaseMove;
+    use crate::board::PieceType::Rook;
+    use crate::chess_move::{convert_chess_moves_to_raw, BaseMove, ChessMove, RawChessMove};
     use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 
     #[test]
@@ -148,5 +166,35 @@ mod tests {
             }
             _ => {}
         }
+    }
+
+    #[test]
+    fn test_raw_chess_move() {
+        let raw_raw_move = RawChessMove::new(sq!{"b1"}, sq!("c1"), None);
+        assert_eq!(raw_raw_move.to_string(), "b1c1");
+        let raw_raw_move = RawChessMove::new(sq!{"e7"}, sq!("e8"), Some(PieceType::Knight));
+        assert_eq!(raw_raw_move.to_string(), "e7e8n");
+        let raw_raw_move = RawChessMove::new(sq!{"e7"}, sq!("e8"), Some(PieceType::Bishop));
+        assert_eq!(raw_raw_move.to_string(), "e7e8b");
+        let raw_raw_move = RawChessMove::new(sq!{"e7"}, sq!("e8"), Some(PieceType::Rook));
+        assert_eq!(raw_raw_move.to_string(), "e7e8r");
+        let raw_raw_move = RawChessMove::new(sq!{"e7"}, sq!("e8"), Some(PieceType::Queen));
+        assert_eq!(raw_raw_move.to_string(), "e7e8q");
+    }
+
+    #[test]
+    fn test_convert_chess_moves_to_raw() {
+        let moves: Vec<ChessMove> = vec![
+            BasicMove { base_move: BaseMove { from: 1, to: 2, capture: false} },
+            EnPassantMove { base_move: BaseMove { from: 3, to: 4, capture: false}, capture_square: 33 },
+            PromotionMove { base_move: BaseMove { from: 5, to: 6, capture: false}, promote_to: PieceType::Rook },
+            CastlingMove { base_move: BaseMove { from: 7, to: 8, capture: false}, board_side: BoardSide::KingSide },
+        ];
+        let raw_moves = convert_chess_moves_to_raw(moves);
+        assert_eq!(raw_moves.len(), 4);
+        assert_eq!(raw_moves[0], RawChessMove::new(1, 2, None));
+        assert_eq!(raw_moves[1], RawChessMove::new(3, 4, None));
+        assert_eq!(raw_moves[2], RawChessMove::new(5, 6, Some(Rook)));
+        assert_eq!(raw_moves[3], RawChessMove::new(7, 8, None));
     }
 }
