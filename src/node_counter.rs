@@ -3,13 +3,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::position::Position;
 use crate::move_generator::generate;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, RwLock};
 
-static NODE_COUNTER: LazyLock<NodeCounter> = LazyLock::new(|| {
+static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
-    node_counter
+    RwLock::new(node_counter)
 });
 
+#[derive(Debug)]
 pub struct NodeCountStats {
     pub node_count: usize,
     pub start_time: Instant,
@@ -32,16 +33,17 @@ impl NodeCounter {
         self.node_counter.load(Ordering::SeqCst)
     }
 
-    // fn reset(&mut self) {
-    //     self.node_counter.store(0, Ordering::Relaxed);
-    //     self.start_time = Instant::now();
-    // }
+    fn reset(&mut self) {
+        self.node_counter.store(0, Ordering::Relaxed);
+        self.start_time = Instant::now();
+    }
 
     fn stats(&self) -> NodeCountStats {
+        let elapsed = self.start_time.elapsed().as_secs();
         let node_count_stats: NodeCountStats = NodeCountStats {
             node_count: self.node_count(),
             start_time: self.start_time,
-            nodes_per_second: self.node_count() / self.start_time.elapsed().as_micros() as usize / 1000000,
+            nodes_per_second: if elapsed != 0 { self.node_count() / elapsed as usize } else { 0 },
         };
         node_count_stats
     }
@@ -49,10 +51,10 @@ impl NodeCounter {
 
 
 
-pub fn count_nodes(position: &Position, max_depth: i32) -> usize {
-//    NODE_COUNTER.reset();
+pub fn count_nodes(position: &Position, max_depth: i32) -> NodeCountStats {
+    NODE_COUNTER.write().unwrap().reset();
     do_count_nodes(position, 0, max_depth);
-    NODE_COUNTER.stats().node_count
+    NODE_COUNTER.read().unwrap().stats()
 }
 
 fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) -> () {
@@ -66,7 +68,7 @@ fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) -> () {
             .map(|(pos, _)| do_count_nodes( &pos, depth + 1, max_depth))
             .count();
     } else {
-        NODE_COUNTER.increment();
+        NODE_COUNTER.read().unwrap().increment();
     }
     ()
 }

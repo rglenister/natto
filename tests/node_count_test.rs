@@ -18,8 +18,9 @@ struct FenTestCase {
 #[serial]
 fn test_fen_new_game_position() {
     let position = Position::from(NEW_GAME_FEN);
-    let count = node_counter::count_nodes(&position, 6);
-    assert_eq!(count, 119060324);
+    let node_count_stats = node_counter::count_nodes(&position, 6);
+    println!("{:?}", node_count_stats);
+    assert_eq!(node_count_stats.node_count, 119060324);
 }
 
 #[test]
@@ -29,8 +30,8 @@ fn test_fens() {
     let mut test_number = 0;
     for test in test_cases {
         let position = fen::parse(test.fen);
-        let count = node_counter::count_nodes(&position, test.depth as i32);
-        assert_eq!(count, test.nodes, "Test {}",  test_number);
+        let node_count_stats = node_counter::count_nodes(&position, test.depth as i32);
+        assert_eq!(node_count_stats.node_count, test.nodes, "Test {}",  test_number);
         test_number += 1;
     }
 }
