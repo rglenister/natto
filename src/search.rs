@@ -1,6 +1,7 @@
 include!("util/generated_macro.rs");
 
 use std::fmt::Display;
+use std::isize::MAX;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::{max, Itertools};
 use strum::IntoEnumIterator;
@@ -47,18 +48,18 @@ fn reset_node_counter() {
 
 pub fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResults {
     reset_node_counter();
-    let search_results = do_search(&position,&vec!(), depth, max_depth);
+    let search_results = do_search(&position,&vec!(), depth, max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE);
     eprintln!("{}", search_results);
     search_results
 }
 
-fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize) -> SearchResults {
+fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, alpha: isize, beta: isize) -> SearchResults {
     increment_node_counter();
     if depth < max_depth {
         let moves = generate(position);
         let legal_moves: Vec<_> = moves.iter().filter_map(|m| position.make_move(m)).collect();
         let search_results = legal_moves.iter()
-            .map(|(pos, cm)| { do_search(pos, &add_item(current_line, cm), depth + 1, max_depth) } )
+            .map(|(pos, cm)| { do_search(pos, &add_item(current_line, cm), depth + 1, max_depth, beta, alpha) } )
             .collect::<Vec<_>>()
             .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
                     .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();

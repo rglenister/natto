@@ -110,7 +110,7 @@ fn parse_position(input: &str) -> Option<Position> {
             let new_game_position = Position::from(NEW_GAME_FEN);
             if let Some(moves) = captures.get(4) {
                 let end_position = update_position(new_game_position, moves.as_str().to_string());
-                eprintln!("Startpos with moves: {:?}", moves);
+                eprintln!("Startpos with moves: {:?}", moves.as_str());
                 end_position
             } else {
                 eprintln!("Startpos with no moves");
