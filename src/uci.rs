@@ -15,7 +15,7 @@ use crate::position::{Position, NEW_GAME_FEN};
 
 include!("util/generated_macro.rs");
 
-static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))\s?(moves (.*))?$").unwrap());
+static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))[ ]*(moves (.*))?$").unwrap());
 static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
 enum UciCommand {
@@ -75,8 +75,8 @@ pub fn process_input<T: board::Board>() -> () {
                 let pos = parse_position(&input);
                 position = pos;
                 if let Some(ref pos) = position {
-                    println!("{}", fen::write(&pos.clone()));
-                    println!("{}", pos.board().to_string());
+                    eprintln!("{}", fen::write(&pos.clone()));
+                    eprintln!("{}", pos.board().to_string());
                 }
 
             }
@@ -110,19 +110,19 @@ fn parse_position(input: &str) -> Option<Position> {
             let new_game_position = Position::from(NEW_GAME_FEN);
             if let Some(moves) = captures.get(4) {
                 let end_position = update_position(new_game_position, moves.as_str().to_string());
-                println!("Startpos with moves: {:?}", moves);
+                eprintln!("Startpos with moves: {:?}", moves);
                 end_position
             } else {
-                println!("Startpos with no moves");
+                eprintln!("Startpos with no moves");
                 Some(new_game_position)
             }
         } else if let Some(fen) = captures.get(2) {
             let fen_position = Position::from(fen.as_str());
             if let Some(moves) = captures.get(4) {
-                println!("FEN: {}\nMoves: {:?}", fen.as_str(), moves);
+                eprintln!("FEN: {}\nMoves: {:?}", fen.as_str(), moves);
                 update_position(fen_position, moves.as_str().to_string())
             } else {
-                println!("FEN: {}\nNo moves provided", fen.as_str());
+                eprintln!("FEN: {}\nNo moves provided", fen.as_str());
                 Some(fen_position)
             }
         } else {

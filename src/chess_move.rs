@@ -93,12 +93,16 @@ impl fmt::Display for RawChessMove {
 
 pub fn convert_chess_moves_to_raw(moves: Vec<ChessMove>) -> Vec<RawChessMove> {
     moves.into_iter().map(|m| {
-        let promote_to: Option<PieceType>  = match m {
-            PromotionMove { base_move: _base_move, promote_to } => { Some(promote_to) },
-            _ => None
-        };
-        RawChessMove::new(m.get_base_move().from, m.get_base_move().to, promote_to)
+        convert_chess_move_to_raw(&m)
     }).collect()
+}
+
+pub fn convert_chess_move_to_raw(chess_move: &ChessMove) -> RawChessMove {
+    let promote_to: Option<PieceType>  = match chess_move {
+        PromotionMove { base_move: _base_move, promote_to } => { Some(*promote_to) },
+        _ => None
+    };
+    RawChessMove::new(chess_move.get_base_move().from, chess_move.get_base_move().to, promote_to)
 }
 
 #[cfg(test)]

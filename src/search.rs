@@ -48,7 +48,7 @@ fn reset_node_counter() {
 pub fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResults {
     reset_node_counter();
     let search_results = do_search(&position,&vec!(), depth, max_depth);
-    println!("{}", search_results);
+    eprintln!("{}", search_results);
     search_results
 }
 
@@ -63,7 +63,7 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
             .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
                     .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
         let results =  SearchResults {score: -search_results.score, best_line: search_results.best_line};
-        println!("info depth {} seldepth {} score cp {} nodes {} nps {} time {} pv {}", depth, depth, results.score, get_node_count(), "?nps?", "?time?", "?pv?");
+        eprintln!("info depth {} seldepth {} score cp {} nodes {} nps {} time {}", depth, 0, results.score, get_node_count(), "?nps?", "?time?");
         // info depth 20 seldepth 32 score cp 38 nodes 105456 nps 5230 time 201 pv e2e4 e7e5
         return results;
     } else {
@@ -78,7 +78,7 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
 
 fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isize) -> SearchResults {
     if king_attacks_finder(position, position.side_to_move()) == 0 {
-        return SearchResults {score: 0, best_line: current_line.clone()};
+        return SearchResults {score: score_pieces(position), best_line: current_line.clone()};
     }
     let game = Game::new(position);
     if game.get_game_status() != InProgress {
@@ -131,6 +131,16 @@ mod tests {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
         let all_black_no_white: Position = Position::from(fen);
         assert_eq!(score_pieces(&all_black_no_white), 3900);
+    }
+
+    #[test]
+    fn test_piece_captured() {
+        let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, 1, 2);
+        assert_eq!(search_results.score, -900);
+        let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
+        assert_eq!(best_line, "♞c4xe5");
     }
 
     #[test]
