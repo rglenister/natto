@@ -33,6 +33,7 @@ fn test_fens() {
         let node_count_stats = node_counter::count_nodes(&position, test.depth as i32);
         assert_eq!(node_count_stats.node_count, test.nodes, "Test {}",  test_number);
         test_number += 1;
+        println!("{:?}", node_count_stats);
     }
 }
 

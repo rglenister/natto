@@ -1,8 +1,7 @@
 include!("util/generated_macro.rs");
 
 use std::fmt::Display;
-use std::isize::MAX;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{LazyLock, RwLock};
 use itertools::{max, Itertools};
 use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
@@ -13,10 +12,15 @@ use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
 use crate::position::Position;
 use crate::move_formatter;
+use crate::node_counter::NodeCountStats;
 use crate::util::format_square;
 
 // Define a static atomic counter
-static NODE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
+    let node_counter = crate::node_counter::NodeCounter::new();
+    RwLock::new(node_counter)
+});
+
 
 static MAXIMUM_SCORE: isize = 100000;
 
@@ -34,17 +38,6 @@ impl Display for SearchResults {
     }
 }
 
-fn increment_node_counter() {
-    NODE_COUNTER.fetch_add(1, Ordering::SeqCst);
-}
-
-fn get_node_count() -> usize {
-    NODE_COUNTER.load(Ordering::SeqCst)
-}
-
-fn reset_node_counter() {
-    NODE_COUNTER.store(0, Ordering::SeqCst);
-}
 
 pub fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResults {
     reset_node_counter();
@@ -64,7 +57,7 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
             .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
                     .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
         let results =  SearchResults {score: -search_results.score, best_line: search_results.best_line};
-        eprintln!("info depth {} seldepth {} score cp {} nodes {} nps {} time {}", depth, 0, results.score, get_node_count(), "?nps?", "?time?");
+        write_uci_info(&results, depth);
         // info depth 20 seldepth 32 score cp 38 nodes 105456 nps 5230 time 201 pv e2e4 e7e5
         return results;
     } else {
@@ -104,6 +97,27 @@ fn score_pieces(position: &Position) -> isize {
 
     score_board_for_color(position.board(), position.side_to_move())
         - score_board_for_color(position.board(), position.opposing_side())
+}
+
+fn write_uci_info(results: &SearchResults, depth: isize) {
+    let stats = node_counter_stats();
+    eprintln!("info depth {} score {} nodes {} nps {} time {}", depth, results.score, node_count(), stats.nodes_per_second, stats.elapsed_time.as_secs());
+}
+
+fn increment_node_counter() {
+    NODE_COUNTER.read().unwrap().increment();
+}
+
+fn reset_node_counter() {
+    NODE_COUNTER.write().unwrap().reset();
+}
+
+fn node_count() -> usize {
+    NODE_COUNTER.read().unwrap().node_count()
+}
+
+fn node_counter_stats() -> NodeCountStats {
+    NODE_COUNTER.read().unwrap().stats()
 }
 
 #[cfg(test)]
@@ -149,7 +163,7 @@ mod tests {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 0);
-        println!("Node count (mated already) = {}", get_node_count());
+        println!("Node count (mated already) = {}", node_count());
         assert_eq!(search_results.score, -MAXIMUM_SCORE);
     }
 
@@ -158,7 +172,7 @@ mod tests {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 1);
-        println!("Node count (mate in 1) = {}", get_node_count());
+        println!("Node count (mate in 1) = {}", node_count());
         assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
     }
 
@@ -167,7 +181,7 @@ mod tests {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 3);
-        println!("Node count (mate in 2) = {}", get_node_count());
+        println!("Node count (mate in 2) = {}", node_count());
         println!("{}", search_results.best_line[0]);
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
@@ -180,11 +194,11 @@ mod tests {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, 0, 5);
-        println!("Node count (mate in 3) = {}", get_node_count());
+        println!("Node count (mate in 3) = {}", node_count());
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 55);
+        assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
     }
 
 
@@ -197,6 +211,15 @@ mod tests {
     //     println!("best line = {:?}", format_moves(&search_results.best_line));
     //     println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
     //     println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-    //     assert_eq!(search_results.score, MAXIMUM_SCORE - 77);
+    //     assert_eq!(search_results.score, MAXIMUM_SCORE - 7);
     // }
+
+    #[test]
+    fn test_hiarcs_game_engine_would_not_get_out_of_check() {
+        let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, 0, 2);
+        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
+        assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
+    }
 }

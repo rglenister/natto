@@ -28,7 +28,7 @@ impl Engine {
 
         // Spawn the search thread
         thread::spawn(move || {
-            let results = search(&position, 0, 3);
+            let results = search(&position, 0, 4);
             if let Some(chess_move) = results.best_line.first() {
 
                 println!("bestmove {}", convert_chess_move_to_raw(chess_move))
