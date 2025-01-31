@@ -21,6 +21,7 @@ mod game;
 
 pub mod move_formatter;
 //mod node_count_tests;
+pub mod piece_score_tables;
 
 fn main() {
     uci::process_input::<BitBoard>();

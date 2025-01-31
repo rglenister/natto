@@ -1,5 +1,6 @@
 include!("util/generated_macro.rs");
 
+use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use std::fmt::Display;
 use std::sync::{LazyLock, RwLock};
 use itertools::{max, Itertools};
@@ -11,7 +12,8 @@ use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
 use crate::position::Position;
-use crate::move_formatter;
+use crate::{move_formatter, util};
+use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::node_counter::NodeCountStats;
 use crate::util::format_square;
 
@@ -24,7 +26,7 @@ static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLo
 
 static MAXIMUM_SCORE: isize = 100000;
 
-pub const PIECE_SCORES: [usize; 6] = [100, 300, 300, 500, 900, 0];
+pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
 
 #[derive(Clone, Debug)]
 pub struct SearchResults {
@@ -55,7 +57,7 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
             .map(|(pos, cm)| { do_search(pos, &add_item(current_line, cm), depth + 1, max_depth, beta, alpha) } )
             .collect::<Vec<_>>()
             .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
-                    .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: vec!()}).clone();
+                    .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: current_line.clone()}).clone();
         let results =  SearchResults {score: -search_results.score, best_line: search_results.best_line};
         write_uci_info(&results, depth);
         // info depth 20 seldepth 32 score cp 38 nodes 105456 nps 5230 time 201 pv e2e4 e7e5
@@ -89,10 +91,19 @@ fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isi
 fn score_pieces(position: &Position) -> isize {
     fn score_board_for_color(board: &BitBoard, color: PieceColor) -> isize {
         let bitboards = board.bitboards_for_color(color);
-        PieceType::iter().map(|piece_type| {
-            let piece_count = bitboards[piece_type as usize].count_ones() as isize;
-            piece_count * PIECE_SCORES[piece_type as usize] as isize
-        }).sum()
+        let mut score: isize = 0;
+        util::process_bits(bitboards[Pawn as usize], |square_index| {
+            score += PIECE_SCORES[Pawn as usize] + PAWN_SCORE_ADJUSTMENT_TABLE[color as usize][square_index as usize];
+        });
+        for piece_type in Knight as usize ..=Queen as usize {
+            util::process_bits(bitboards[piece_type as usize], |square_index| {
+                score += PIECE_SCORES[piece_type as usize] + PIECE_SCORE_ADJUSTMENT_TABLE[piece_type][square_index as usize];
+            });
+        }
+        util::process_bits(bitboards[King as usize], |square_index| {
+            score += PIECE_SCORES[King as usize] + KING_SCORE_ADJUSTMENT_TABLE[color as usize][square_index as usize];
+        });
+        score
     }
 
     score_board_for_color(position.board(), position.side_to_move())
@@ -139,13 +150,44 @@ mod tests {
         let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         assert_eq!(score_pieces(&missing_black_pawn), 100);
 
-        let fen = "7K/5k2/8/7r/8/8/8/8 b - - 0 1";
-        let position: Position = Position::from(fen);
-        assert_eq!(score_pieces(&position), 500);
 
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
         let all_black_no_white: Position = Position::from(fen);
-        assert_eq!(score_pieces(&all_black_no_white), 3900);
+        assert_eq!(score_pieces(&all_black_no_white), 3760);
+
+        let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
+        let black_pawn_on_seventh_rank: Position = Position::from(fen);
+        assert_eq!(score_pieces(&all_black_no_white), 3760);
+    }
+
+    #[test]
+    fn test_pawn_scores() {
+        let position: Position = Position::from("4k3/P7/8/8/8/6p1/8/4K3 w - - 0 1");
+        assert_eq!(score_pieces(&position), 80);
+    }
+
+    #[test]
+    fn test_knight_scores() {
+        let position: Position = Position::from("N3k3/8/8/4n3/8/8/8/4K3 w - - 0 1");
+        assert_eq!(score_pieces(&position), -60);
+    }
+
+    #[test]
+    fn test_bishop_scores() {
+        let position: Position = Position::from("b3k3/8/8/8/3B4/8/8/4K3 w - - 0 1");
+        assert_eq!(score_pieces(&position), -30);
+    }
+
+    #[test]
+    fn test_rook_scores() {
+        let position: Position = Position::from("4k1r1/8/R7/8/8/8/8/4K3 w - - 0 1");
+        assert_eq!(score_pieces(&position), 0);
+    }
+
+    #[test]
+    fn test_king_scores() {
+        let position: Position = Position::from("8/7k/8/8/8/2K5/8/8 w - - 0 1");
+        assert_eq!(score_pieces(&position), -40);
     }
 
     #[test]
@@ -153,7 +195,7 @@ mod tests {
         let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, 1, 2);
-        assert_eq!(search_results.score, -900);
+        assert_eq!(search_results.score, -980);
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
     }
