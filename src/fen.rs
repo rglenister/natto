@@ -54,7 +54,7 @@ pub fn write(position: &Position) -> String {
     fn write_board(board: &BitBoard) -> String {
         return (0..64)
             .map(|sq| board.get_piece(sq))
-            .map(|p| if p.is_some() { p.unwrap().to_char() } else { ' ' })
+            .map(|p| p.map_or(' ', |p| p.to_char()))
             .collect::<Vec<_>>()
             .chunks(8)
             .rev()
