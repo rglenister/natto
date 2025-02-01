@@ -11,7 +11,7 @@ use crate::util::parse_square;
 
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
-    r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb]) (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+)"
+    r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb])( (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+))?"
 ).unwrap());
 
 
@@ -19,10 +19,10 @@ pub fn parse(fen: String) -> Position {
     if let Some(captures) = FEN_REGEX.captures(&fen) {
         let board_str = expand_board(captures.name("board").unwrap().as_str());
         let side_to_move = captures.name("side_to_move").unwrap().as_str();
-        let castling_rights = captures.name("castling_rights").unwrap().as_str();
-        let en_passant_target_square = captures.name("en_passant_target_square").unwrap().as_str();
-        let halfmove_clock: usize = captures.name("halfmove_clock").unwrap().as_str().parse().expect("it matched the regular expression");
-        let fullmove_number: usize = captures.name("fullmove_number").unwrap().as_str().parse().expect("it matched the regular expression");
+        let castling_rights = captures.name("castling_rights").map_or("-", |m| m.as_str());
+        let en_passant_target_square = captures.name("en_passant_target_square").map_or("-", |m| m.as_str());
+        let halfmove_clock: usize = captures.name("halfmove_clock").map_or("0", |m| m.as_str()).parse().expect("it matched the regular expression");
+        let fullmove_number: usize = captures.name("fullmove_number").map_or("1", |m| m.as_str()).parse().expect("it matched the regular expression");
 
         let mut board: BitBoard = BitBoard::new();
         for i in 0..board::NUMBER_OF_SQUARES {
@@ -124,6 +124,18 @@ mod tests {
 
         assert_eq!(position.side_to_move(), White);
         assert_eq!(position.castling_rights(), [[true; 2]; 2]);
+        assert_eq!(position.en_passant_capture_square(), None);
+        assert_eq!(position.half_move_clock(), 0);
+        assert_eq!(position.full_move_number(), 1);
+    }
+
+    #[test]
+    fn test_parse_using_defaault_values() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w";
+        let position = parse(fen.to_string());
+
+        assert_eq!(position.side_to_move(), White);
+        assert_eq!(position.castling_rights(), [[false; 2]; 2]);
         assert_eq!(position.en_passant_capture_square(), None);
         assert_eq!(position.half_move_clock(), 0);
         assert_eq!(position.full_move_number(), 1);
