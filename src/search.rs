@@ -6,8 +6,8 @@ use std::sync::{LazyLock, RwLock};
 use itertools::{max, Itertools};
 use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
-use crate::board::{Board, PieceColor, PieceType};
-use crate::chess_move::ChessMove;
+use crate::board::{PieceColor};
+use crate::chess_move::{convert_chess_move_to_raw, ChessMove, RawChessMove};
 use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
@@ -48,22 +48,33 @@ pub fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResu
     search_results
 }
 
-fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, alpha: isize, beta: isize) -> SearchResults {
+fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, mut alpha: isize, beta: isize) -> SearchResults {
     increment_node_counter();
     if depth < max_depth {
+        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, best_line: current_line.clone() };
         let moves = generate(position);
-        let legal_moves: Vec<_> = moves.iter().filter_map(|m| position.make_move(m)).collect();
-        let search_results = legal_moves.iter()
-            .map(|(pos, cm)| { do_search(pos, &add_item(current_line, cm), depth + 1, max_depth, beta, alpha) } )
-            .collect::<Vec<_>>()
-            .iter().max_by(|sr1, sr2| sr2.score.cmp(&sr1.score))
-                    .unwrap_or(&SearchResults {score: MAXIMUM_SCORE-depth, best_line: current_line.clone()}).clone();
-        let results =  SearchResults {score: -search_results.score, best_line: search_results.best_line};
-        write_uci_info(&results, depth);
-        // info depth 20 seldepth 32 score cp 38 nodes 105456 nps 5230 time 201 pv e2e4 e7e5
-        return results;
+        for chess_move in moves {
+            if let Some(mut next_result) = position.make_move(&chess_move)
+                    .map(|(pos, cm)| do_search(&pos, &add_item(&current_line, &cm), depth + 1, max_depth, -beta, -alpha)) {
+
+                next_result.score = -next_result.score;
+                if next_result.score > best_search_results.score {
+                    best_search_results.score = next_result.score;
+                    best_search_results.best_line = next_result.best_line;
+                }
+                alpha = alpha.max(next_result.score);
+                if alpha >= beta {
+                    break;
+                }
+            }
+        };
+        if best_search_results.score == -MAXIMUM_SCORE {
+           return SearchResults {score: depth - MAXIMUM_SCORE, best_line: current_line.clone()}.clone();
+        }
+//        write_uci_info(&best_search_results, depth);
+        return best_search_results;
     } else {
-        return score_position(position, current_line, depth);
+        return score_position(position, &current_line, depth);
     }
     fn add_item(line: &Vec<ChessMove>, cm: &ChessMove) -> Vec<ChessMove> {
         let mut appended_line = line.clone();
@@ -219,6 +230,15 @@ mod tests {
     }
 
     #[test]
+    fn test_mate_in_one_using_high_depth() {
+        let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, 0, 3);
+        println!("Node count (mate in 1) = {}", node_count());
+        assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
+    }
+
+    #[test]
     fn test_mate_in_two() {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
@@ -244,17 +264,17 @@ mod tests {
     }
 
 
-    // #[test]
-    // fn test_mate_in_four() {
-    //     let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
-    //     let position: Position = Position::from(fen);
-    //     let search_results = search(&position, 0, 7);
-    //     println!("Node count (mate in 4) = {}", get_node_count());
-    //     println!("best line = {:?}", format_moves(&search_results.best_line));
-    //     println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-    //     println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-    //     assert_eq!(search_results.score, MAXIMUM_SCORE - 7);
-    // }
+    #[test]
+    fn test_mate_in_four() {
+        let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, 0, 7);
+        println!("Node count (mate in 4) = {}", node_count());
+        println!("best line = {:?}", format_moves(&search_results.best_line));
+        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        assert_eq!(search_results.score, MAXIMUM_SCORE - 7);
+    }
 
     #[test]
     fn test_hiarcs_game_engine_would_not_get_out_of_check() {
