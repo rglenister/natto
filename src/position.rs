@@ -1,5 +1,5 @@
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
-use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
+use crate::board::{Board, BoardSide, Piece, PieceColor};
 use crate::chess_move::{ChessMove, RawChessMove};
 use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};

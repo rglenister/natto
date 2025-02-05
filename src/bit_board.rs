@@ -1,5 +1,5 @@
+use strum::IntoEnumIterator;
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
-use strum::{IntoEnumIterator};
 use crate::board::PieceType::{King, Pawn};
 
 include!("util/generated_macro.rs");

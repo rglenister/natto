@@ -1,12 +1,11 @@
-mod sq_macro_generator;
-mod generated_macro;
-
 use std::ops::Add;
 use crate::board;
-use crate::board::{Board, PieceColor, PieceType};
-use crate::board::PieceColor::White;
-use crate::board::PieceColor::Black;
+use crate::board::{PieceColor, PieceType};
+use crate::board::PieceColor::{Black, White};
 use crate::chess_move::ChessMove;
+
+mod sq_macro_generator;
+mod generated_macro;
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" { Some(White) } else if initial == "b" { Some(Black) } else { None }
@@ -108,7 +107,7 @@ pub fn find_generated_move(moves: Vec<ChessMove>, from_square: usize, to_square:
 #[cfg(test)]
 mod tests {
     use crate::bit_board::BitBoard;
-    use crate::board::{Piece, PieceType};
+    use crate::board::{Board, Piece, PieceType};
     use crate::board::PieceType::{Knight, Queen, Rook};
     use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::{BasicMove, PromotionMove};

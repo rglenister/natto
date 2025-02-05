@@ -1,14 +1,12 @@
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use itertools::Itertools;
-use crate::bit_board::BitBoard;
 use crate::{board, util};
+use crate::bit_board::BitBoard;
 use crate::board::{Board, Piece};
 use crate::board::PieceColor::White;
 use crate::position::Position;
-use crate::util::create_color;
-use crate::util::parse_square;
-
+use crate::util::{create_color, parse_square};
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
     r"(?P<board>[pnbrqkPNBRQK12345678/]+) (?P<side_to_move>[wb])( (?P<castling_rights>K?Q?k?q?-?) (?P<en_passant_target_square>[a-h][1-8]|-) (?P<halfmove_clock>\d+) (?P<fullmove_number>\d+))?"

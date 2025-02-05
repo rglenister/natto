@@ -1,4 +1,3 @@
-use crate::chess_move::ChessMove::PromotionMove;
 
 pub const PIECE_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 6] = [
     [ // pawns get their own table

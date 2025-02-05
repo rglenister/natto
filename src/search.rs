@@ -1,23 +1,20 @@
-include!("util/generated_macro.rs");
-
-use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use std::fmt::Display;
 use std::sync::{LazyLock, RwLock};
-use itertools::{max, Itertools};
-use strum::IntoEnumIterator;
+use itertools::Itertools;
 use crate::bit_board::BitBoard;
-use crate::board::{PieceColor};
-use crate::chess_move::{convert_chess_move_to_raw, ChessMove, RawChessMove};
+use crate::board::PieceColor;
+use crate::board::PieceType::{King, Knight, Pawn, Queen};
+use crate::chess_move::ChessMove;
 use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::InProgress;
 use crate::move_generator::{generate, king_attacks_finder};
-use crate::position::Position;
-use crate::{move_formatter, util};
-use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::node_counter::NodeCountStats;
-use crate::util::format_square;
+use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
+use crate::position::Position;
+use crate::util;
 
-// Define a static atomic counter
+include!("util/generated_macro.rs");
+
 static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
     let node_counter = crate::node_counter::NodeCounter::new();
     RwLock::new(node_counter)
@@ -145,6 +142,7 @@ fn node_counter_stats() -> NodeCountStats {
 #[cfg(test)]
 mod tests {
     use crate::chess_move::format_moves;
+    use crate::move_formatter;
     use crate::move_formatter::FormatMove;
     use crate::position::NEW_GAME_FEN;
     use super::*;

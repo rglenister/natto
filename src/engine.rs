@@ -1,13 +1,9 @@
-use crate::{engine, fen, search};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::thread;
-use crate::position::Position;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use crate::chess_move::convert_chess_move_to_raw;
+use crate::position::Position;
 use crate::search::search;
 
 pub(crate) struct Engine {

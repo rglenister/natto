@@ -1,8 +1,7 @@
-use std::os::raw::c_double;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::position::Position;
 use crate::move_generator::generate;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use std::sync::{LazyLock, RwLock};
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {

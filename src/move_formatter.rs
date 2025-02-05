@@ -1,14 +1,14 @@
-use crate::position::Position;
-use crate::chess_move::{ChessMove, RawChessMove};
 use phf::phf_map;
-use MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::bit_board::BitBoard;
-use crate::board::{Board, Piece, PieceType};
 use crate::board::BoardSide::KingSide;
+use crate::board::{Board, Piece, PieceType};
 use crate::board::PieceType::Pawn;
+use crate::chess_move::{ChessMove, RawChessMove};
 use crate::chess_move::ChessMove::{CastlingMove, EnPassantMove, PromotionMove};
 use crate::game::{Game, GameStatus};
+use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate;
+use crate::position::Position;
 use crate::util;
 
 include!("util/generated_macro.rs");

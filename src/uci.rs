@@ -1,17 +1,15 @@
-use std::option::Option;
 use std::io;
 use std::io::BufRead;
 use std::process::exit;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use crate::board::Board;
 use crate::{board, engine, fen, util};
-use crate::chess_move::{ChessMove, RawChessMove};
+use crate::chess_move::RawChessMove;
 use crate::engine::Engine;
 use crate::position::{Position, NEW_GAME_FEN};
+use crate::board::Board;
 
 include!("util/generated_macro.rs");
 
