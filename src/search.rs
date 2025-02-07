@@ -38,11 +38,13 @@ impl Display for SearchResults {
 }
 
 
-pub fn search(position: &Position, depth: isize, max_depth: isize) -> SearchResults {
+pub fn search(position: &Position, max_depth: isize) -> SearchResults {
     reset_node_counter();
-    let search_results = do_search(&position,&vec!(), depth, max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-    eprintln!("{}", search_results);
-    search_results
+    for iteration_max_depth in 0..max_depth {
+        let search_results = do_search(&position,&vec!(), 0, iteration_max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        eprintln!("{}", search_results);
+    }
+    do_search(&position,&vec!(), 0, max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE)
 }
 
 fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, mut alpha: isize, beta: isize) -> SearchResults {
@@ -166,7 +168,7 @@ mod tests {
 
         let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
         let black_pawn_on_seventh_rank: Position = Position::from(fen);
-        assert_eq!(score_pieces(&all_black_no_white), 3760);
+        assert_eq!(score_pieces(&black_pawn_on_seventh_rank), -260);
     }
 
     #[test]
@@ -203,7 +205,7 @@ mod tests {
     fn test_piece_captured() {
         let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 1, 2);
+        let search_results = search(&position, 1);
         assert_eq!(search_results.score, -980);
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
@@ -213,7 +215,7 @@ mod tests {
     fn test_already_checkmated() {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 0);
+        let search_results = search(&position, 0);
         println!("Node count (mated already) = {}", node_count());
         assert_eq!(search_results.score, -MAXIMUM_SCORE);
     }
@@ -222,7 +224,7 @@ mod tests {
     fn test_mate_in_one() {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 1);
+        let search_results = search(&position, 1);
         println!("Node count (mate in 1) = {}", node_count());
         assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
     }
@@ -231,7 +233,7 @@ mod tests {
     fn test_mate_in_one_using_high_depth() {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 3);
+        let search_results = search(&position, 3);
         println!("Node count (mate in 1) = {}", node_count());
         assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
     }
@@ -240,7 +242,7 @@ mod tests {
     fn test_mate_in_two() {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 3);
+        let search_results = search(&position, 3);
         println!("Node count (mate in 2) = {}", node_count());
         println!("{}", search_results.best_line[0]);
         println!("best line = {:?}", format_moves(&search_results.best_line));
@@ -253,7 +255,7 @@ mod tests {
     fn test_mate_in_three() {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 5);
+        let search_results = search(&position, 5);
         println!("Node count (mate in 3) = {}", node_count());
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
@@ -266,7 +268,7 @@ mod tests {
     fn test_mate_in_four() {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 7);
+        let search_results = search(&position, 7);
         println!("Node count (mate in 4) = {}", node_count());
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
@@ -278,7 +280,7 @@ mod tests {
     fn test_hiarcs_game_engine_would_not_get_out_of_check() {
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0, 2);
+        let search_results = search(&position, 2);
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }

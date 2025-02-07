@@ -110,7 +110,7 @@ impl Position {
             ChessMove::BasicMove { base_move } => {
                 do_basic_move(&mut new_position, base_move.from, base_move.to, base_move.capture);
             }
-            ChessMove::EnPassantMove { base_move, capture_square } => {
+            ChessMove::EnPassantMove { base_move, capture_square: _ } => {
                 do_basic_move(&mut new_position, base_move.from, base_move.to, true);
                 let forward_pawn_increment: i32 = if self.side_to_move == White {-8} else {8};
                 new_position.board.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);

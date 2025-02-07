@@ -1,108 +1,62 @@
-use std::io;
+use std::{io, thread};
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::process::exit;
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
+use crossbeam_channel::{unbounded, Receiver, Sender};
+use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use crate::{board, engine, fen, util};
-use crate::chess_move::RawChessMove;
-use crate::engine::Engine;
+use crate::{board, fen, util};
+use crate::chess_move::{convert_chess_move_to_raw, RawChessMove};
 use crate::position::{Position, NEW_GAME_FEN};
 use crate::board::Board;
+use crate::board::PieceColor::{Black, White};
+use crate::search::search;
+
+use std::time::Duration;
 
 include!("util/generated_macro.rs");
 
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))[ ]*(moves (.*))?$").unwrap());
 static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
-enum UciCommand {
-    Uci,
-    IsReady,
-    UciNewGame,
-    Position(String),
-    Go(Option<String>),
-    Stop,
-    Quit,
-    None
+#[derive(Default)]
+pub struct UciGoOptions {
+    pub time: [Option<usize>; 2],
+    pub inc: [Option<usize>; 2],
+    pub moves_to_go: Option<usize>,
+    pub depth: Option<usize>,
+    pub nodes: Option<usize>,
+    pub mate: Option<usize>,
+    pub move_time: Option<usize>,
+    pub infinite: bool,
 }
 
-struct UciEngine {}
-impl UciCommand {
-    fn from_input(input: &str) -> Self {
-        let mut parts = input.split_whitespace();
-        match parts.next() {
-            Some("uci") => UciCommand::Uci,
-            Some("isready") => UciCommand::IsReady,
-            Some("ucinewgame") => UciCommand::UciNewGame,
-            Some("position") => UciCommand::Position(parts.next().unwrap().to_string()),
-            Some("go") => UciCommand::Go(parts.next().map(|s| s.to_string())),
-            Some("stop") => UciCommand::Stop,
-            Some("quit") => UciCommand::Quit,
-            _ => UciCommand::None
+pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptions {
+    let mut uci_go_options = UciGoOptions::default();
+    if let Some(options_string) = options_string {
+        let re = Regex::new(r"(wtime|btime|winc|binc|movestogo|depth|nodes|mate|movetime) (\d+)").unwrap();
+        let mut params = HashMap::new();
+
+        for cap in re.captures_iter(&options_string) {
+            params.insert(cap[1].to_string(), cap[2].parse::<usize>().unwrap());
         }
-
+        uci_go_options.time[White as usize] = params.get("wtime").copied();
+        uci_go_options.time[Black as usize] = params.get("btime").copied();
+        uci_go_options.inc[White as usize] = params.get("winc").copied();
+        uci_go_options.inc[Black as usize] = params.get("binc").copied();
+        uci_go_options.moves_to_go = params.get("movestogo").copied();
+        uci_go_options.depth = params.get("depth").copied();
+        uci_go_options.nodes = params.get("nodes").copied();
+        uci_go_options.mate = params.get("mate").copied();
+        uci_go_options.move_time = params.get("movetime").copied();
     }
-
+    uci_go_options
 }
 
-pub fn process_input<T: board::Board>() -> () {
-    let mut engine: Engine = engine::Engine::new();
-    let stdin = io::stdin();
-    let mut position: Option<Position> = None;
-    let mut stop_flag = Arc::new(AtomicBool::new(false));
-    for line in stdin.lock().lines() {
-        let input = line.expect("Failed to read line").trim().to_string();
-        let command = UciCommand::from_input(&input);
-
-        match command {
-            UciCommand::Uci => {
-                println!("id name Natto");
-                println!("id author Richard Glenister");
-                println!("uciok");
-            }
-            UciCommand::IsReady => {
-                println!("readyok");
-            }
-            UciCommand::UciNewGame => {
-                println!("info string Setting up new game");
-            }
-
-            UciCommand::Position(position_str) => {
-                println!("info string Setting up position {}", position_str);
-                let pos = parse_position(&input);
-                position = pos;
-                if let Some(ref pos) = position {
-                    eprintln!("{}", fen::write(&pos.clone()));
-                    eprintln!("{}", pos.board().to_string());
-                }
-
-            }
-            UciCommand::Go(go) => {
-                println!("info string Setting up go - option = {:?}", go);
-                stop_flag = Arc::new(AtomicBool::new(false));
-
-                if let Some(ref pos) = position {
-                    stop_flag = engine.go(pos.clone(), stop_flag);
-                }
-            }
-            UciCommand::Stop => {
-                println!("info string Stopping");
-                stop_flag.store(true, Ordering::Relaxed);
-            }
-            UciCommand::Quit => {
-                println!("info string Quitting");
-                stop_flag.store(true, Ordering::Relaxed);
-                exit(0)
-            }
-            UciCommand::None => {
-                eprintln!("info string No input received");
-            }
-        }
-    }
-}
-
-fn parse_position(input: &str) -> Option<Position> {
+pub(crate) fn parse_position(input: &str) -> Option<Position> {
     if let Some(captures) = UCI_POSITION_REGEX.captures(input) {
         if &captures[1] == "startpos" {
             let new_game_position = Position::from(NEW_GAME_FEN);
@@ -143,9 +97,9 @@ fn update_position(position: Position, moves: String) -> Option<Position> {
 fn replay_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> Option<Vec<Position>> {
     let result: Option<Vec<Position>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<Position>, rm: &RawChessMove| {
         let current_position = if !acc.is_empty() { &acc.last().unwrap().clone()} else { position };
-        let a = current_position.make_raw_move(rm);
-        match a {
-            Some((next_position, cm)) => {
+        let next_position = current_position.make_raw_move(rm);
+        match next_position {
+            Some((next_position, _cm)) => {
                 acc.push(next_position);
                 Some(acc)
             },
@@ -179,7 +133,6 @@ fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
         );
     })
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -235,5 +188,18 @@ mod tests {
         assert_eq!(parse_move("i8h8".to_string()), None);
     }
 
-
+    #[test]
+    fn test_parse_uci_go_options() {
+        let command = "go wtime 10 btime 11 winc 2 binc 4 movestogo 23 depth 30 nodes 1001 mate 3 movetime 1234".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        assert_eq!(uci_go_options.time[White as usize], Some(10));
+        assert_eq!(uci_go_options.time[Black as usize], Some(11));
+        assert_eq!(uci_go_options.inc[White as usize], Some(2));
+        assert_eq!(uci_go_options.inc[Black as usize], Some(4));
+        assert_eq!(uci_go_options.moves_to_go, Some(23));
+        assert_eq!(uci_go_options.depth, Some(30));
+        assert_eq!(uci_go_options.nodes, Some(1001));
+        assert_eq!(uci_go_options.mate, Some(3));
+        assert_eq!(uci_go_options.move_time, Some(1234));
+    }
 }

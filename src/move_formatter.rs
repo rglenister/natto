@@ -73,7 +73,7 @@ impl FormatMove for MoveFormatter {
 
 fn get_promote_to(chess_move: ChessMove) -> Option<PieceType> {
     match chess_move {
-        PromotionMove { base_move, promote_to} => Some(promote_to),
+        PromotionMove { base_move: _ , promote_to} => Some(promote_to),
         _ => None
     }
 }
