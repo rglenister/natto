@@ -64,7 +64,7 @@ fn main() {
 
     // Spawn input-handling thread
     let input_thread = {
-        //let tx = tx.clone();
+        let tx = tx.clone();
         thread::spawn(move || {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
@@ -114,25 +114,30 @@ fn main() {
                 }
 
                 UciCommand::Position(position_str) => {
-                    position = crate::uci::parse_position(&input);
+                    position = uci::parse_position(&input);
                     if let Some(ref pos) = position {
                         info!("uci set position to: {}", fen::write(&pos.clone()));
                     } else {
-                        error!("failed to parse position: {}", position_str)
+                        error!("failed to parse position: {}", &input)
                     }
                 }
 
                 UciCommand::Go(go_options_string) => {
-                    let uci_go_options: UciGoOptions = uci::parse_uci_go_options(go_options_string.clone());
-                    debug!("info string Setting up go - option = {:?}", go_options_string);
+                    if position.is_some() {
+                        let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
+                        debug!("info string Setting up go - option = {:?}", uci_go_options);
 
-                    debug!("Starting search...");
-                    stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
+                        let search_params = uci::create_search_params(&uci_go_options, position.clone().unwrap().side_to_move());
+                        debug!("Starting search...");
+                        stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
-                    let stop_flag = Arc::clone(&stop_flag);
-                    search_handle = Some(thread::spawn(move || {
-                        perform_search(stop_flag);
-                    }));
+                        let stop_flag = Arc::clone(&stop_flag);
+                        search_handle = Some(thread::spawn(move || {
+                            perform_search(stop_flag);
+                        }));
+                    } else {
+                        error!("cannot search because the position has not been set");
+                    }
                 }
 
                 UciCommand::None => {
@@ -146,7 +151,7 @@ fn main() {
     }
 
 
-    println!("Engine exited cleanly.");
+    debug!("Engine exited cleanly.");
     input_thread.join().unwrap(); // Ensure input thread finishes
 }
 

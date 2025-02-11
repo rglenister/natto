@@ -191,24 +191,24 @@ mod tests {
     #[test]
     fn test_find_generated_basic_move() {
         let mut moves: Vec<ChessMove> = vec![];
-        moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false } }});
-        moves.push(BasicMove {base_move: { BaseMove {from: 3, to: 4, capture: false }}});
+        moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false, score: 0 } }});
+        moves.push(BasicMove {base_move: { BaseMove {from: 3, to: 4, capture: false, score: 0 }}});
         let matched_moves = find_generated_move(moves, 1, 2, None);
         assert_eq!(matched_moves.len(), 1);
-        assert_eq!(*matched_moves.get(0).unwrap(), BasicMove {base_move: BaseMove {from: 1, to: 2, capture: false}});
+        assert_eq!(*matched_moves.get(0).unwrap(), BasicMove {base_move: BaseMove {from: 1, to: 2, capture: false, score: 0}});
     }
 
     #[test]
     fn test_find_generated_promotion_move() {
         let mut moves: Vec<ChessMove> = vec![];
-        moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false }}});
-        moves.push(BasicMove {base_move: { BaseMove { from: 3, to: 4, capture: false }}});
-        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Queen });
-        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Rook });
-        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Knight });
+        moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false, score: 0  }}});
+        moves.push(BasicMove {base_move: { BaseMove { from: 3, to: 4, capture: false, score: 0 }}});
+        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Queen });
+        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Rook });
+        moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Knight });
         let matched_moves = find_generated_move(moves, 3, 9, Some(Rook));
         assert_eq!(matched_moves.len(), 1);
-        assert_eq!(*matched_moves.get(0).unwrap(), PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false}}, promote_to: Rook });
+        assert_eq!(*matched_moves.get(0).unwrap(), PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Rook });
     }
 }
 

@@ -21,14 +21,30 @@ static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLo
 });
 
 
-static MAXIMUM_SCORE: isize = 100000;
+pub const MAXIMUM_SEARCH_DEPTH: isize = isize::MAX;
 
 pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
+
+const MAXIMUM_SCORE: isize = 100000;
+
 
 #[derive(Clone, Debug)]
 pub struct SearchResults {
     pub score: isize,
     pub best_line: Vec<ChessMove>,
+}
+
+pub struct SearchParams {
+    pub allocated_time_millis: usize,
+    pub max_depth: isize,
+    pub max_nodes: usize,
+}
+
+impl SearchParams {
+    pub const DEFAULT_MOVE_TIME_MILLIS: usize = 10000;
+
+    pub const DEFAULT_NUMBER_OF_MOVES_TO_GO : usize = 20;
+
 }
 
 impl Display for SearchResults {
@@ -38,13 +54,14 @@ impl Display for SearchResults {
 }
 
 
-pub fn search(position: &Position, max_depth: isize) -> SearchResults {
+pub fn search(position: &Position, search_params: &SearchParams) -> SearchResults {
     reset_node_counter();
-    for iteration_max_depth in 0..max_depth {
-        let search_results = do_search(&position,&vec!(), 0, iteration_max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+    let mut search_results = SearchResults { score: 0, best_line: vec!() };
+    for iteration_max_depth in 0..search_params.max_depth {
+        search_results = do_search(&position,&vec!(), 0, iteration_max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         eprintln!("{}", search_results);
     }
-    do_search(&position,&vec!(), 0, max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE)
+    search_results
 }
 
 fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, mut alpha: isize, beta: isize) -> SearchResults {
