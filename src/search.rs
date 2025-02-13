@@ -1,5 +1,6 @@
 use std::fmt::Display;
-use std::sync::{LazyLock, RwLock};
+use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use itertools::Itertools;
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor;
@@ -31,6 +32,7 @@ const MAXIMUM_SCORE: isize = 100000;
 #[derive(Clone, Debug)]
 pub struct SearchResults {
     pub score: isize,
+    pub depth: isize,
     pub best_line: Vec<ChessMove>,
 }
 
@@ -42,9 +44,11 @@ pub struct SearchParams {
 
 impl SearchParams {
     pub const DEFAULT_MOVE_TIME_MILLIS: usize = 10000;
-
     pub const DEFAULT_NUMBER_OF_MOVES_TO_GO : usize = 20;
 
+    pub fn new(allocated_time_millis: usize, max_depth: isize, max_nodes: usize) -> SearchParams {
+        SearchParams { allocated_time_millis, max_depth, max_nodes }
+    }
 }
 
 impl Display for SearchResults {
@@ -54,24 +58,24 @@ impl Display for SearchResults {
 }
 
 
-pub fn search(position: &Position, search_params: &SearchParams) -> SearchResults {
+pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>) -> SearchResults {
     reset_node_counter();
-    let mut search_results = SearchResults { score: 0, best_line: vec!() };
-    for iteration_max_depth in 0..search_params.max_depth {
-        search_results = do_search(&position,&vec!(), 0, iteration_max_depth, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+    let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!() };
+    for iteration_max_depth in 0..=search_params.max_depth {
+        search_results = do_search(&position,&vec!(), 0, iteration_max_depth, search_params, -MAXIMUM_SCORE, MAXIMUM_SCORE, stop_flag.clone());
         eprintln!("{}", search_results);
     }
     search_results
 }
 
-fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, mut alpha: isize, beta: isize) -> SearchResults {
+fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, search_params: &SearchParams, mut alpha: isize, beta: isize, stop_flag: Arc<AtomicBool>) -> SearchResults {
     increment_node_counter();
     if depth < max_depth {
-        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, best_line: current_line.clone() };
+        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.clone() };
         let moves = generate(position);
         for chess_move in moves {
             if let Some(mut next_result) = position.make_move(&chess_move)
-                    .map(|(pos, cm)| do_search(&pos, &add_item(&current_line, &cm), depth + 1, max_depth, -beta, -alpha)) {
+                    .map(|(pos, cm)| do_search(&pos, &add_item(&current_line, &cm), depth + 1, max_depth, search_params, -beta, -alpha, stop_flag.clone())) {
 
                 next_result.score = -next_result.score;
                 if next_result.score > best_search_results.score {
@@ -79,13 +83,13 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
                     best_search_results.best_line = next_result.best_line;
                 }
                 alpha = alpha.max(next_result.score);
-                if alpha >= beta {
+                if alpha >= beta || (depth >= 2 && stop_flag.load(Ordering::Relaxed)) {
                     break;
                 }
             }
         };
         if best_search_results.score == -MAXIMUM_SCORE {
-           return SearchResults {score: depth - MAXIMUM_SCORE, best_line: current_line.clone()}.clone();
+           return SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.clone()}.clone();
         }
 //        write_uci_info(&best_search_results, depth);
         return best_search_results;
@@ -101,17 +105,17 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
 
 fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isize) -> SearchResults {
     if king_attacks_finder(position, position.side_to_move()) == 0 {
-        return SearchResults {score: score_pieces(position), best_line: current_line.clone()};
+        return SearchResults {score: score_pieces(position), depth, best_line: current_line.clone()};
     }
     let game = Game::new(position);
     if game.get_game_status() != InProgress {
         if game.get_game_status() == GameStatus::Checkmate {
-            SearchResults {score: depth - MAXIMUM_SCORE, best_line: current_line.clone()}
+            SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.clone()}
         } else {
-            SearchResults {score: score_pieces(position), best_line: current_line.clone()}
+            SearchResults {score: score_pieces(position), depth, best_line: current_line.clone()}
         }
     } else {
-        SearchResults {score: score_pieces(position), best_line: current_line.clone()}
+        SearchResults {score: score_pieces(position), depth, best_line: current_line.clone()}
     }
 }
 
@@ -222,7 +226,7 @@ mod tests {
     fn test_piece_captured() {
         let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 1);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         assert_eq!(search_results.score, -980);
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
@@ -232,7 +236,7 @@ mod tests {
     fn test_already_checkmated() {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 0);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 0, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mated already) = {}", node_count());
         assert_eq!(search_results.score, -MAXIMUM_SCORE);
     }
@@ -241,7 +245,7 @@ mod tests {
     fn test_mate_in_one() {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 1);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mate in 1) = {}", node_count());
         assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
     }
@@ -250,7 +254,7 @@ mod tests {
     fn test_mate_in_one_using_high_depth() {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 3);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 3, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mate in 1) = {}", node_count());
         assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
     }
@@ -259,7 +263,7 @@ mod tests {
     fn test_mate_in_two() {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 3);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 3, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mate in 2) = {}", node_count());
         println!("{}", search_results.best_line[0]);
         println!("best line = {:?}", format_moves(&search_results.best_line));
@@ -272,7 +276,7 @@ mod tests {
     fn test_mate_in_three() {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 5);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 5, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mate in 3) = {}", node_count());
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
@@ -285,7 +289,7 @@ mod tests {
     fn test_mate_in_four() {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 7);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 7, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mate in 4) = {}", node_count());
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
@@ -297,7 +301,7 @@ mod tests {
     fn test_hiarcs_game_engine_would_not_get_out_of_check() {
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let position: Position = Position::from(fen);
-        let search_results = search(&position, 2);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 2, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }

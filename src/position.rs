@@ -12,7 +12,7 @@ include!("util/generated_macro.rs");
 
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
@@ -33,7 +33,6 @@ impl From<&Position> for Position {
         position.into()
     }
 }
-
 
 impl Position {
     pub(crate) fn new(

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use log::{debug, error, info};
 use once_cell::sync::Lazy;
-use regex::Regex;
+use regex::{Captures, Regex};
 use crate::{board, fen, util};
 use crate::chess_move::{convert_chess_move_to_raw, RawChessMove};
 use crate::position::{Position, NEW_GAME_FEN};
@@ -19,7 +19,7 @@ use std::time::Duration;
 
 include!("util/generated_macro.rs");
 
-static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))[ ]*(moves (.*))+$").unwrap());
+static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))[ ]*(moves (.*))?$").unwrap());
 static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
 #[derive(Clone)]
@@ -75,26 +75,19 @@ pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptio
 }
 
 pub(crate) fn parse_position(input: &str) -> Option<Position> {
+    fn load_moves(position: &Position, captures: &Captures) -> Option<Position> {
+        captures.get(4).map_or(Some(*position), |mvs| {
+            update_position(*position, mvs.as_str().to_string())
+        })
+    }
+
     if let Some(captures) = UCI_POSITION_REGEX.captures(input) {
         if &captures[1] == "startpos" {
             let new_game_position = Position::from(NEW_GAME_FEN);
-            if let Some(moves) = captures.get(4) {
-                let end_position = update_position(new_game_position, moves.as_str().to_string());
-                debug!("Startpos with moves: {:?}", moves.as_str());
-                end_position
-            } else {
-                debug!("Startpos with no moves");
-                Some(new_game_position)
-            }
+            load_moves(&new_game_position, &captures)
         } else if let Some(fen) = captures.get(2) {
             let fen_position = Position::from(fen.as_str());
-            if let Some(moves) = captures.get(4) {
-                debug!("FEN: {}\nMoves: {:?}", fen.as_str(), moves);
-                update_position(fen_position, moves.as_str().to_string())
-            } else {
-                debug!("FEN: {}\nNo moves provided", fen.as_str());
-                Some(fen_position)
-            }
+            load_moves(&fen_position, &captures)
         } else {
             None
         }
@@ -103,6 +96,7 @@ pub(crate) fn parse_position(input: &str) -> Option<Position> {
         None
     }
 }
+
 
 fn update_position(position: Position, moves: String) -> Option<Position> {
     let raw_chess_moves = moves_string_to_raw_moves(moves)?;
@@ -159,23 +153,28 @@ fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
 
 pub fn create_search_params(uci_go_options: &UciGoOptions, side_to_move: PieceColor) -> SearchParams{
     let allocate_move_time_millis = || -> Option<usize> {
-        let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
-        let inc_per_move_millis: usize = uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
-        let remaining_number_of_moves_to_go: usize = uci_go_options.moves_to_go.map_or(1, |moves_to_go| moves_to_go);
+        if uci_go_options.move_time.is_some() {
+            uci_go_options.move_time
+        } else {
+            let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
+            let inc_per_move_millis: usize = uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
+            let remaining_number_of_moves_to_go: usize = uci_go_options.moves_to_go.map_or(1, |moves_to_go| moves_to_go);
 
-        let base_time = remaining_time_millis / remaining_number_of_moves_to_go;
-        // Add a portion of the increment (50% here)
-        let inc_bonus = inc_per_move_millis / 2;
+            let base_time = remaining_time_millis / remaining_number_of_moves_to_go;
+            // Add a portion of the increment (50% here)
+            let inc_bonus = inc_per_move_millis / 2;
 
-        // Cap at a maximum thinking time (e.g., ⅓ of total remaining time)
-        let max_time = remaining_time_millis / 3;
+            // Cap at a maximum thinking time (e.g., ⅓ of total remaining time)
+            let max_time = remaining_time_millis / 3;
 
-        // Final time calculation
-        Some((base_time + inc_bonus).min(max_time))
+            // Final time calculation
+            Some((base_time + inc_bonus).min(max_time))
+        }
     };
 
     let allocate_max_depth = || -> isize {
-        uci_go_options.depth.map_or(usize::MAX, |depth| depth).try_into().unwrap()
+        let depth = uci_go_options.depth.max(uci_go_options.mate);
+        depth.map_or(usize::MAX, |d| d).try_into().unwrap_or(isize::MAX)
     };
 
     let allocate_max_nodes = || -> usize {
@@ -197,6 +196,13 @@ mod tests {
     use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
     use crate::position::NEW_GAME_FEN;
 
+    #[test]
+    fn test_parse_position() {
+        assert!(parse_position("position startpos").is_some());
+        assert!(parse_position("position fen r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0").is_some());
+        assert!(parse_position("position startpos moves e2e4 e7e5").is_some());
+        assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
+    }
     #[test]
     fn test_update_position() {
         let position = Position::from(NEW_GAME_FEN);
@@ -259,5 +265,76 @@ mod tests {
         assert_eq!(uci_go_options.ponder, true);
         assert_eq!(uci_go_options.infinite, true);
         assert_eq!(uci_go_options.search_moves, Some(vec!(RawChessMove::new(sq!("e2"), sq!("e4"), None), RawChessMove::new(sq!("e7"), sq!("e5"), None))));
+    }
+
+    #[test]
+    fn test_create_search_params_time_white() {
+        let command = "go wtime 1000 btime 1100 winc 200 binc 400".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, 333);
+        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+    #[test]
+    fn test_create_search_params_time_black() {
+        let command = "go wtime 1000 btime 1100 winc 200 binc 400".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::Black);
+        assert_eq!(search_params.allocated_time_millis, 366);
+        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+    #[test]
+    fn test_create_search_params_time_white_with_moves_to_go() {
+        let command = "go wtime 10000 btime 1100 winc 200 binc 400 movestogo 10".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis,1100);
+        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+    #[test]
+    fn test_create_search_params_time_white_with_move_time() {
+        let command = "go wtime 10000 btime 1100 winc 200 binc 400 movetime 1234".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, 1234);
+        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+    #[test]
+    fn test_create_search_params_depth() {
+        let command = "go depth 3".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.max_depth, 3);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+    #[test]
+    fn test_create_search_params_depth_with_mate() {
+        let command = "go depth 3 mate 5".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.max_depth, 5);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+
+        let command = "go depth 10 mate 5".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.max_depth, 10);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+    #[test]
+    fn test_create_search_params_nodes() {
+        let command = "go nodes 1001".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_nodes, 1001);
     }
 }

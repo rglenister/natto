@@ -24,6 +24,7 @@ use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
 use crate::position::Position;
+use crate::search::search;
 use crate::uci::UciGoOptions;
 
 enum UciCommand {
@@ -116,9 +117,9 @@ fn main() {
                 UciCommand::Position(position_str) => {
                     position = uci::parse_position(&input);
                     if let Some(ref pos) = position {
-                        info!("uci set position to: {}", fen::write(&pos.clone()));
+                        info!("uci set position to [{}] from input [{}]", fen::write(&pos), &input);
                     } else {
-                        error!("failed to parse position: {}", &input)
+                        error!("failed to parse position from input [{}]", &input)
                     }
                 }
 
@@ -133,7 +134,7 @@ fn main() {
 
                         let stop_flag = Arc::clone(&stop_flag);
                         search_handle = Some(thread::spawn(move || {
-                            perform_search(stop_flag);
+                            search(&position.unwrap(), &search_params, stop_flag);
                         }));
                     } else {
                         error!("cannot search because the position has not been set");
@@ -156,17 +157,17 @@ fn main() {
 }
 
 /// Simulated search function that checks for stop signals.
-fn perform_search(stop_flag: Arc<AtomicBool>) {
-    for depth in 1..=10 {
-        if stop_flag.load(Ordering::Relaxed) {
-            println!("Search terminated early at depth {}", depth);
-            return;
-        }
-        println!("Searching at depth {}", depth);
-        thread::sleep(Duration::from_secs(1)); // Simulate deep search
-    }
-    println!("Best move: e2e4"); // Placeholder best move
-}
+// fn perform_search(stop_flag: Arc<AtomicBool>) {
+//     for depth in 1..=10 {
+//         if stop_flag.load(Ordering::Relaxed) {
+//             println!("Search terminated early at depth {}", depth);
+//             return;
+//         }
+//         println!("Searching at depth {}", depth);
+//         thread::sleep(Duration::from_secs(1)); // Simulate deep search
+//     }
+//     println!("Best move: e2e4"); // Placeholder best move
+// }
 
 fn setup_logging() -> Result<(), fern::InitError> {
     dotenv().ok();
