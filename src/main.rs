@@ -19,7 +19,7 @@ pub mod move_formatter;
 pub mod piece_score_tables;
 
 use fern::Dispatch;
-use log::{info, debug, warn, error};
+use log::{info, debug, warn, error, LevelFilter, trace};
 use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
@@ -55,6 +55,8 @@ impl UciCommand {
 
 fn main() {
     setup_logging().expect("Failed to initialize logging");
+//    log_test_messages();
+
     info!("Chess engine started");
 
     let (tx, rx) = mpsc::channel(); // Channel for UCI commands
@@ -158,6 +160,18 @@ fn main() {
 
 fn setup_logging() -> Result<(), fern::InitError> {
     dotenv().ok();
+
+    let default_log_level = LevelFilter::Error;
+    let log_level = env::var("LOGLEVEL").unwrap_or_else(|_| default_log_level.to_string());
+    let log_level = match log_level.to_lowercase().as_str() {
+        "trace" => LevelFilter::Trace,
+        "debug" => LevelFilter::Debug,
+        "info" => LevelFilter::Info,
+        "warn" => LevelFilter::Warn,
+        "error" => LevelFilter::Error,
+        _ => default_log_level,
+    };
+
     Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -167,9 +181,17 @@ fn setup_logging() -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(log::LevelFilter::Debug)  // Set the default log level
+        .level(log_level)  // Set the default log level
         .chain(std::io::stdout())        // Log to the console
-        .chain(fern::log_file(env::var("LOGFILE").unwrap_or_else(|_| "engine.log".to_string()))?) // Log to a file
+        .chain(fern::log_file(env::var("LOGFILE").unwrap_or_else(|_| "natto.log".to_string()))?) // Log to a file
         .apply()?;
     Ok(())
+}
+
+fn log_test_messages() {
+    trace!("trace message");
+    debug!("debug message");
+    info!("info message");
+    warn!("warn message");
+    error!("error message");
 }
