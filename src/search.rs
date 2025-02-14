@@ -53,7 +53,7 @@ impl SearchParams {
 
 impl Display for SearchResults {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "score: {} bestline: {}", self.score, self.best_line.clone().into_iter().join(", "))
+        write!(f, "score: {} depth: {} bestline: {}", self.score, self.depth, self.best_line.clone().into_iter().join(", "))
     }
 }
 
@@ -64,6 +64,9 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
     for iteration_max_depth in 0..=search_params.max_depth {
         search_results = do_search(&position,&vec!(), 0, iteration_max_depth, search_params, -MAXIMUM_SCORE, MAXIMUM_SCORE, stop_flag.clone());
         eprintln!("{}", search_results);
+        if search_results.score.abs() > MAXIMUM_SCORE - iteration_max_depth {
+            break;
+        }
     }
     search_results
 }
@@ -80,6 +83,7 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
                 next_result.score = -next_result.score;
                 if next_result.score > best_search_results.score {
                     best_search_results.score = next_result.score;
+                    best_search_results.depth = next_result.depth;
                     best_search_results.best_line = next_result.best_line;
                 }
                 alpha = alpha.max(next_result.score);
@@ -284,7 +288,6 @@ mod tests {
         assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
     }
 
-
     #[test]
     fn test_mate_in_four() {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
@@ -295,6 +298,20 @@ mod tests {
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
         assert_eq!(search_results.score, MAXIMUM_SCORE - 7);
+    }
+
+    #[test]
+    fn test_mate_in_three_fischer() {
+        let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 7, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
+        println!("Node count (mate in 3) = {}", node_count());
+        println!("best line = {:?}", format_moves(&search_results.best_line));
+        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
+        println!("search_results = {}", search_results);
+        assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
+//        assert_eq!()
     }
 
     #[test]

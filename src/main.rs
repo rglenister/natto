@@ -156,19 +156,6 @@ fn main() {
     input_thread.join().unwrap(); // Ensure input thread finishes
 }
 
-/// Simulated search function that checks for stop signals.
-// fn perform_search(stop_flag: Arc<AtomicBool>) {
-//     for depth in 1..=10 {
-//         if stop_flag.load(Ordering::Relaxed) {
-//             println!("Search terminated early at depth {}", depth);
-//             return;
-//         }
-//         println!("Searching at depth {}", depth);
-//         thread::sleep(Duration::from_secs(1)); // Simulate deep search
-//     }
-//     println!("Best move: e2e4"); // Placeholder best move
-// }
-
 fn setup_logging() -> Result<(), fern::InitError> {
     dotenv().ok();
     Dispatch::new()
