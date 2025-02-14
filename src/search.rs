@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, LazyLock, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use itertools::Itertools;
+use log::{debug, info};
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor;
 use crate::board::PieceType::{King, Knight, Pawn, Queen};
@@ -36,6 +37,7 @@ pub struct SearchResults {
     pub best_line: Vec<ChessMove>,
 }
 
+#[derive(Clone, Debug)]
 pub struct SearchParams {
     pub allocated_time_millis: usize,
     pub max_depth: isize,
@@ -43,7 +45,6 @@ pub struct SearchParams {
 }
 
 impl SearchParams {
-    pub const DEFAULT_MOVE_TIME_MILLIS: usize = 10000;
     pub const DEFAULT_NUMBER_OF_MOVES_TO_GO : usize = 20;
 
     pub fn new(allocated_time_millis: usize, max_depth: isize, max_nodes: usize) -> SearchParams {
@@ -62,9 +63,15 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
     reset_node_counter();
     let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!() };
     for iteration_max_depth in 0..=search_params.max_depth {
-        search_results = do_search(&position,&vec!(), 0, iteration_max_depth, search_params, -MAXIMUM_SCORE, MAXIMUM_SCORE, stop_flag.clone());
-        eprintln!("{}", search_results);
-        if search_results.score.abs() > MAXIMUM_SCORE - iteration_max_depth {
+        let iteration_search_results = do_search(&position,&vec!(), 0, iteration_max_depth, search_params, -MAXIMUM_SCORE, MAXIMUM_SCORE, stop_flag.clone());
+        if !stop_flag.load(Ordering::Relaxed) {
+            debug!("{}", iteration_search_results);
+            search_results = iteration_search_results;
+            if search_results.score.abs() >= MAXIMUM_SCORE - iteration_max_depth {
+                info!("Found mate at depth {}", iteration_max_depth);
+                break;
+            }
+        } else {
             break;
         }
     }
@@ -73,6 +80,10 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
 
 fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, search_params: &SearchParams, mut alpha: isize, beta: isize, stop_flag: Arc<AtomicBool>) -> SearchResults {
     increment_node_counter();
+    if used_allocated_move_time(search_params) {
+        stop_flag.store(true, Ordering::Relaxed);
+        return SearchResults { score: 0, depth, best_line: vec!() };
+    }
     if depth < max_depth {
         let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.clone() };
         let moves = generate(position);
@@ -150,8 +161,15 @@ fn write_uci_info(results: &SearchResults, depth: isize) {
     eprintln!("info depth {} score {} nodes {} nps {} time {}", depth, results.score, node_count(), stats.nodes_per_second, stats.elapsed_time.as_secs());
 }
 
-fn increment_node_counter() {
-    NODE_COUNTER.read().unwrap().increment();
+fn used_allocated_move_time(search_params: &SearchParams) -> bool {
+    let stats = node_counter_stats();
+    stats.elapsed_time.as_millis() > search_params.allocated_time_millis.try_into().unwrap()
+}
+
+fn increment_node_counter() -> NodeCountStats {
+    let node_counter = NODE_COUNTER.read().unwrap();
+    node_counter.increment();
+    node_counter_stats()
 }
 
 fn reset_node_counter() {

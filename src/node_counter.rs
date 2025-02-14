@@ -25,8 +25,8 @@ impl NodeCounter {
     pub(crate) fn new() -> Self {
         NodeCounter {  node_counter: AtomicUsize::new(0), start_time: Instant::now() }
     }
-    pub(crate) fn increment(&self) {
-        self.node_counter.fetch_add(1, Ordering::Relaxed);
+    pub(crate) fn increment(&self) -> usize {
+        self.node_counter.fetch_add(1, Ordering::Relaxed)
     }
 
     pub fn node_count(&self) -> usize {

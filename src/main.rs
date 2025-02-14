@@ -1,3 +1,6 @@
+extern crate core;
+
+use core::fmt;
 use std::io::{self, BufRead};
 use std::sync::{mpsc, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,6 +26,7 @@ use log::{info, debug, warn, error, LevelFilter, trace};
 use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
+use crate::chess_move::convert_chess_move_to_raw;
 use crate::position::Position;
 use crate::search::search;
 use crate::uci::UciGoOptions;
@@ -60,8 +64,8 @@ fn main() {
     info!("Chess engine started");
 
     let (tx, rx) = mpsc::channel(); // Channel for UCI commands
-    let stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
-    let quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
+    let search_stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
+    let main_loop_quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
 
     let mut position: Option<Position> = None;
 
@@ -72,6 +76,7 @@ fn main() {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
                 let line = line.unwrap();
+                info!("Received from stdin: {}", line);
                 if tx.send(line).is_err() {
                     break; // Stop if main thread is gone
                 }
@@ -81,23 +86,25 @@ fn main() {
 
     let mut search_handle: Option<thread::JoinHandle<()>> = None; // Track search thread
 
-    while !quit_flag.load(Ordering::Relaxed) {
+    while !main_loop_quit_flag.load(Ordering::Relaxed) {
         if let Ok(input) = rx.recv() {
             let command = UciCommand::from_input(&input);
             match command {
                 UciCommand::Stop => {
-                    println!("Stopping search...");
-                    stop_flag.store(true, Ordering::Relaxed);
                     if let Some(handle) = search_handle.take() {
+                        info!("Stopping search...");
+                        search_stop_flag.store(true, Ordering::Relaxed);
                         handle.join().unwrap(); // Ensure search thread stops
+                        info!("Search stopped");
+                    } else {
+                        info!("Not currently searching");
                     }
-
                 }
 
                 UciCommand::Quit => {
-                    println!("Shutting down...");
-                    stop_flag.store(true, Ordering::Relaxed);
-                    quit_flag.store(true, Ordering::Relaxed);
+                    info!("UCI Quit command received. Shutting down...");
+                    search_stop_flag.store(true, Ordering::Relaxed);
+                    main_loop_quit_flag.store(true, Ordering::Relaxed);
                 }
 
                 UciCommand::Uci => {
@@ -126,36 +133,41 @@ fn main() {
                 }
 
                 UciCommand::Go(go_options_string) => {
-                    if position.is_some() {
+                    if let Some(pos) = position {
                         let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                         debug!("info string Setting up go - option = {:?}", uci_go_options);
 
-                        let search_params = uci::create_search_params(&uci_go_options, position.clone().unwrap().side_to_move());
+                        let search_params = uci::create_search_params(&uci_go_options, pos.side_to_move());
+                        debug!("info search params = {:?}", search_params);
                         debug!("Starting search...");
-                        stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
+                        search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
-                        let stop_flag = Arc::clone(&stop_flag);
+                        let stop_flag = Arc::clone(&search_stop_flag);
                         search_handle = Some(thread::spawn(move || {
-                            search(&position.unwrap(), &search_params, stop_flag);
+                            let search_results = search(&pos, &search_params, stop_flag);
+                            let best_move: String = search_results.best_line.first()
+                                .map_or("0000".to_string(), |cm| convert_chess_move_to_raw(cm).to_string());
+                            println!("Bestmove {}", best_move);
                         }));
                     } else {
-                        error!("cannot search because the position has not been set");
+                        error!("Cannot initiate search because the position has not been set");
                     }
                 }
 
                 UciCommand::None => {
-                    error!("invalid UCI command");
+                    error!("invalid UCI command: {:?}", input);
                 }
             }
         }
     }
     if let Some(handle) = search_handle {
-        handle.join().unwrap(); // Ensure search finishes cleanly
+        handle.join().unwrap();
+        info!("Search thread has stopped");
+    } else {
+        info!("Search thread is not running");
     }
 
-
-    debug!("Engine exited cleanly.");
-    input_thread.join().unwrap(); // Ensure input thread finishes
+    info!("Engine exited cleanly.");
 }
 
 fn setup_logging() -> Result<(), fern::InitError> {

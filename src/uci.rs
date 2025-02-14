@@ -151,7 +151,7 @@ fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
     })
 }
 
-pub fn create_search_params(uci_go_options: &UciGoOptions, side_to_move: PieceColor) -> SearchParams{
+pub fn create_search_params(uci_go_options: &UciGoOptions, side_to_move: PieceColor) -> SearchParams {
     let allocate_move_time_millis = || -> Option<usize> {
         if uci_go_options.move_time.is_some() {
             uci_go_options.move_time
@@ -182,7 +182,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, side_to_move: PieceCo
     };
 
     SearchParams {
-        allocated_time_millis: allocate_move_time_millis().map_or(SearchParams::DEFAULT_MOVE_TIME_MILLIS, |mtm| mtm),
+        allocated_time_millis: allocate_move_time_millis().map_or(usize::MAX, |mtm| mtm),
         max_depth: allocate_max_depth(),
         max_nodes: allocate_max_nodes()
     }
@@ -268,6 +268,16 @@ mod tests {
     }
 
     #[test]
+    fn test_create_search_params_with_no_go_params() {
+        let command = "go".to_string();
+        let uci_go_options = parse_uci_go_options(Some(command));
+        let search_params = create_search_params(&uci_go_options, PieceColor::White);
+        assert_eq!(search_params.allocated_time_millis, usize::MAX);
+        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_nodes, usize::MAX);
+    }
+
+    #[test]
     fn test_create_search_params_time_white() {
         let command = "go wtime 1000 btime 1100 winc 200 binc 400".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
@@ -308,7 +318,7 @@ mod tests {
         let command = "go depth 3".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, PieceColor::White);
-        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.allocated_time_millis, usize::MAX);
         assert_eq!(search_params.max_depth, 3);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
@@ -317,14 +327,14 @@ mod tests {
         let command = "go depth 3 mate 5".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, PieceColor::White);
-        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.allocated_time_millis, usize::MAX);
         assert_eq!(search_params.max_depth, 5);
         assert_eq!(search_params.max_nodes, usize::MAX);
 
         let command = "go depth 10 mate 5".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, PieceColor::White);
-        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.allocated_time_millis, usize::MAX);
         assert_eq!(search_params.max_depth, 10);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
@@ -333,7 +343,7 @@ mod tests {
         let command = "go nodes 1001".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, PieceColor::White);
-        assert_eq!(search_params.allocated_time_millis, SearchParams::DEFAULT_MOVE_TIME_MILLIS);
+        assert_eq!(search_params.allocated_time_millis, usize::MAX);
         assert_eq!(search_params.max_depth, isize::MAX);
         assert_eq!(search_params.max_nodes, 1001);
     }

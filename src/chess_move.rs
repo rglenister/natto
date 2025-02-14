@@ -69,7 +69,7 @@ impl fmt::Display for ChessMove {
     }
 }
 fn write_default(from: usize, to: usize, capture: bool) -> String {
-    format!("{}{}{}", format_square(from), if capture { 'x' } else { '-' }, format_square(to),)
+    format!("{}{}{}", format_square(from), if capture { 'x' } else { '-' }, format_square(to))
 }
 
 #[derive(Debug, PartialEq, Eq)]
