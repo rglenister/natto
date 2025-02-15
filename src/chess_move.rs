@@ -62,7 +62,7 @@ impl fmt::Display for ChessMove {
         match self {
             BasicMove {base_move} => write!(f, "{}", write_default(base_move.from, base_move.to, base_move.capture)),
             EnPassantMove {base_move, capture_square: _ } => write!(f, "{}{}", write_default(base_move.from, base_move.to, base_move.capture), "e.p"),
-            PromotionMove  {base_move,promote_to} => write!(f, "{}{}", write_default(base_move.from, base_move.to, base_move.capture), promote_to),
+            PromotionMove  {base_move, promote_to} => write!(f, "{}{}", write_default(base_move.from, base_move.to, base_move.capture), promote_to),
             CastlingMove {base_move: _ , board_side} => write!(f, "{}", if *board_side == KingSide {"0-0"} else {"0-0-0"}),
         }
 

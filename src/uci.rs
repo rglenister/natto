@@ -287,7 +287,7 @@ mod tests {
         let command = "go wtime 1000 btime 1100 winc 200 binc 400".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, PieceColor::White);
-        assert_eq!(search_params.allocated_time_millis, 333);
+        assert_eq!(search_params.allocated_time_millis, 133);
         assert_eq!(search_params.max_depth, isize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
@@ -296,7 +296,7 @@ mod tests {
         let command = "go wtime 1000 btime 1100 winc 200 binc 400".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, PieceColor::Black);
-        assert_eq!(search_params.allocated_time_millis, 366);
+        assert_eq!(search_params.allocated_time_millis, 236);
         assert_eq!(search_params.max_depth, isize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }

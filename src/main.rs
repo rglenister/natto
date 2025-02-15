@@ -109,15 +109,11 @@ fn main() {
                 }
 
                 UciCommand::Uci => {
-                    let response = "id name natto\nid author Richard Glenister\nuciok";
-                    println!("{}", response);
-                    info!("{}", response);
+                    uci::send_to_gui("id name natto\nid author Richard Glenister\nuciok".to_string());
                 }
 
                 UciCommand::IsReady => {
-                    let response = "readyok";
-                    println!("{}", response);
-                    info!("{}", response);
+                    uci::send_to_gui("readyok".to_string());
                 }
 
                 UciCommand::UciNewGame => {
@@ -150,11 +146,11 @@ fn main() {
                                 .first()
                                 .map(|cm| convert_chess_move_to_raw(cm));
                             if let Some(best_move) = best_move {
-                                println!("bestmove {}", best_move);
+                                uci::send_to_gui(format!("bestmove {}", best_move));
                             } else if search_results.depth == 0 {
                                 match search_results.game_status {
-                                    Checkmate => { uci::send_to_gui("info score mate 0"); }
-                                    Stalemate => { uci::send_to_gui("info score 0"); }
+                                    Checkmate => { uci::send_to_gui("info score mate 0".to_string()); }
+                                    Stalemate => { uci::send_to_gui("info score 0".to_string()); }
                                     _ => ()
                                 }
                             }
