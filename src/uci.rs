@@ -92,7 +92,7 @@ pub(crate) fn parse_position(input: &str) -> Option<Position> {
             None
         }
     } else {
-        error!("Unable to parse position: {}", input);
+        error!("UCI unable to parse position: {}", input);
         None
     }
 }
@@ -158,7 +158,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, side_to_move: PieceCo
         } else {
             let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
             let inc_per_move_millis: usize = uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
-            let remaining_number_of_moves_to_go: usize = uci_go_options.moves_to_go.map_or(1, |moves_to_go| moves_to_go);
+            let remaining_number_of_moves_to_go: usize = uci_go_options.moves_to_go.map_or(30, |moves_to_go| moves_to_go);
 
             let base_time = remaining_time_millis / remaining_number_of_moves_to_go;
             // Add a portion of the increment (50% here)
@@ -186,6 +186,11 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, side_to_move: PieceCo
         max_depth: allocate_max_depth(),
         max_nodes: allocate_max_nodes()
     }
+}
+
+pub fn send_to_gui(data: String) {
+    println!("{}", data);
+    info!("UCI Protocol: sending to GUI: {}", data);
 }
 
 #[cfg(test)]

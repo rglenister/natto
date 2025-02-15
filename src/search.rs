@@ -8,7 +8,7 @@ use crate::board::PieceColor;
 use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::chess_move::ChessMove;
 use crate::game::{Game, GameStatus};
-use crate::game::GameStatus::InProgress;
+use crate::game::GameStatus::{Checkmate, InProgress, Stalemate};
 use crate::move_generator::{generate, king_attacks_finder};
 use crate::node_counter::NodeCountStats;
 use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
@@ -35,6 +35,7 @@ pub struct SearchResults {
     pub score: isize,
     pub depth: isize,
     pub best_line: Vec<ChessMove>,
+    pub game_status: GameStatus,
 }
 
 #[derive(Clone, Debug)]
@@ -54,21 +55,27 @@ impl SearchParams {
 
 impl Display for SearchResults {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "score: {} depth: {} bestline: {}", self.score, self.depth, self.best_line.clone().into_iter().join(", "))
+        write!(f, "score: {} depth: {} bestline: {} game_status: {:?}", self.score, self.depth, self.best_line.clone().into_iter().join(", "), self.game_status)
     }
 }
 
 
 pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>) -> SearchResults {
     reset_node_counter();
-    let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!() };
+    let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!(), game_status: GameStatus::InProgress };
     for iteration_max_depth in 0..=search_params.max_depth {
         let iteration_search_results = do_search(&position,&vec!(), 0, iteration_max_depth, search_params, -MAXIMUM_SCORE, MAXIMUM_SCORE, stop_flag.clone());
         if !stop_flag.load(Ordering::Relaxed) {
-            debug!("{}", iteration_search_results);
+            debug!("Search results for depth {}: {}", iteration_max_depth, iteration_search_results);
+            let nps = node_counter_stats().nodes_per_second;
+            println!("info nps {}", nps);
+            info!("info nps {}", nps);
             search_results = iteration_search_results;
-            if search_results.score.abs() >= MAXIMUM_SCORE - iteration_max_depth {
+            if search_results.game_status == Checkmate {
                 info!("Found mate at depth {}", iteration_max_depth);
+                break;
+            } else if search_results.game_status == Stalemate {
+                info!("Found stalemate at depth {}", iteration_max_depth);
                 break;
             }
         } else {
@@ -82,20 +89,20 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
     increment_node_counter();
     if used_allocated_move_time(search_params) {
         stop_flag.store(true, Ordering::Relaxed);
-        return SearchResults { score: 0, depth, best_line: vec!() };
+        return SearchResults { score: 0, depth, best_line: vec!(), game_status: GameStatus::InProgress };
     }
     if depth < max_depth {
-        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.clone() };
+        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.clone(), game_status: GameStatus::InProgress };
         let moves = generate(position);
+        let mut has_legal_move = false;
         for chess_move in moves {
             if let Some(mut next_result) = position.make_move(&chess_move)
                     .map(|(pos, cm)| do_search(&pos, &add_item(&current_line, &cm), depth + 1, max_depth, search_params, -beta, -alpha, stop_flag.clone())) {
 
+                has_legal_move = true;
                 next_result.score = -next_result.score;
                 if next_result.score > best_search_results.score {
-                    best_search_results.score = next_result.score;
-                    best_search_results.depth = next_result.depth;
-                    best_search_results.best_line = next_result.best_line;
+                    best_search_results = next_result.clone();
                 }
                 alpha = alpha.max(next_result.score);
                 if alpha >= beta || (depth >= 2 && stop_flag.load(Ordering::Relaxed)) {
@@ -103,13 +110,13 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
                 }
             }
         };
-        if best_search_results.score == -MAXIMUM_SCORE {
-           return SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.clone()}.clone();
+        if !has_legal_move {
+           return score_position(position, &current_line, depth);
         }
 //        write_uci_info(&best_search_results, depth);
         return best_search_results;
     } else {
-        return score_position(position, &current_line, depth);
+        return score_position(&position, &current_line, depth);
     }
     fn add_item(line: &Vec<ChessMove>, cm: &ChessMove) -> Vec<ChessMove> {
         let mut appended_line = line.clone();
@@ -119,18 +126,15 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
 }
 
 fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isize) -> SearchResults {
-    if king_attacks_finder(position, position.side_to_move()) == 0 {
-        return SearchResults {score: score_pieces(position), depth, best_line: current_line.clone()};
-    }
     let game = Game::new(position);
     if game.get_game_status() != InProgress {
-        if game.get_game_status() == GameStatus::Checkmate {
-            SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.clone()}
+        if game.get_game_status() == Checkmate {
+            SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.clone(), game_status: Checkmate }
         } else {
-            SearchResults {score: score_pieces(position), depth, best_line: current_line.clone()}
+            SearchResults {score: 0, depth, best_line: current_line.clone(), game_status: Stalemate }
         }
     } else {
-        SearchResults {score: score_pieces(position), depth, best_line: current_line.clone()}
+        SearchResults {score: score_pieces(position), depth, best_line: current_line.clone(), game_status: InProgress }
     }
 }
 
@@ -261,6 +265,15 @@ mod tests {
         let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 0, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mated already) = {}", node_count());
         assert_eq!(search_results.score, -MAXIMUM_SCORE);
+    }
+
+    #[test]
+    fn test_already_stalemated() {
+        let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 0, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
+        println!("Node count (mated already) = {}", node_count());
+        assert_eq!(search_results.score, 0);
     }
 
     #[test]

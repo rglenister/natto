@@ -27,6 +27,7 @@ use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
 use crate::chess_move::convert_chess_move_to_raw;
+use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::position::Position;
 use crate::search::search;
 use crate::uci::UciGoOptions;
@@ -135,19 +136,28 @@ fn main() {
                 UciCommand::Go(go_options_string) => {
                     if let Some(pos) = position {
                         let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
-                        debug!("info string Setting up go - option = {:?}", uci_go_options);
+                        debug!("go options = {:?}", uci_go_options);
 
                         let search_params = uci::create_search_params(&uci_go_options, pos.side_to_move());
-                        debug!("info search params = {:?}", search_params);
+                        debug!("search params = {:?}", search_params);
                         debug!("Starting search...");
                         search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
                         let stop_flag = Arc::clone(&search_stop_flag);
                         search_handle = Some(thread::spawn(move || {
                             let search_results = search(&pos, &search_params, stop_flag);
-                            let best_move: String = search_results.best_line.first()
-                                .map_or("0000".to_string(), |cm| convert_chess_move_to_raw(cm).to_string());
-                            println!("Bestmove {}", best_move);
+                            let best_move = search_results.best_line
+                                .first()
+                                .map(|cm| convert_chess_move_to_raw(cm));
+                            if let Some(best_move) = best_move {
+                                println!("bestmove {}", best_move);
+                            } else if search_results.depth == 0 {
+                                match search_results.game_status {
+                                    Checkmate => { uci::send_to_gui("info score mate 0"); }
+                                    Stalemate => { uci::send_to_gui("info score 0"); }
+                                    _ => ()
+                                }
+                            }
                         }));
                     } else {
                         error!("Cannot initiate search because the position has not been set");
