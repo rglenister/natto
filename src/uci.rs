@@ -19,7 +19,7 @@ use std::time::Duration;
 
 include!("util/generated_macro.rs");
 
-static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position (startpos|fen ([^*]+))[ ]*(moves (.*))?$").unwrap());
+static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
 static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
 #[derive(Clone)]
@@ -76,7 +76,7 @@ pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptio
 
 pub(crate) fn parse_position(input: &str) -> Option<Position> {
     fn load_moves(position: &Position, captures: &Captures) -> Option<Position> {
-        captures.get(4).map_or(Some(*position), |mvs| {
+        captures.get(3).map_or(Some(*position), |mvs| {
             update_position(*position, mvs.as_str().to_string())
         })
     }
@@ -206,6 +206,7 @@ mod tests {
         assert!(parse_position("position startpos").is_some());
         assert!(parse_position("position fen r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0").is_some());
         assert!(parse_position("position startpos moves e2e4 e7e5").is_some());
+        assert!(parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5").is_some());
         assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
     }
     #[test]
