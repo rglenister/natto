@@ -18,7 +18,7 @@ pub enum GameStatus {
 
 pub struct Game {
     pub position: Position,
-    legal_moves: Vec<ChessMove>,
+    has_legal_move: bool,
     check_count: usize,
 }
 
@@ -29,13 +29,13 @@ impl Game {
     ) -> Self {
         let game = Self {
             position: position.clone(),
-            legal_moves: move_generator::generate(&position).into_iter().filter(|cm| position.make_move(&cm).is_some()).collect::<Vec<_>>(),
+            has_legal_move: move_generator::has_legal_move(&position),//.into_iter().find(|cm| position.make_move(&cm).is_some()).is_some(),
             check_count: move_generator::king_attacks_finder(position, position.side_to_move()).count_ones() as usize,
         };
         game
     }
     pub fn get_game_status(&self) -> GameStatus {
-        match (self.legal_moves.is_empty(), self.check_count > 0) {
+        match (!self.has_legal_move, self.check_count > 0) {
             (true, true) => GameStatus::Checkmate,
             (true, false) => GameStatus::Stalemate,
             _ => GameStatus::InProgress
@@ -49,11 +49,6 @@ impl Game {
         self.check_count
     }
 
-    pub fn get_legal_moves(&self) -> Vec<ChessMove> {
-        let moves = move_generator::generate(&self.position);
-        let moves2 = moves.into_iter().filter(|cm| self.position.make_move(cm).is_some()).collect();
-        moves2
-    }
 }
 
 #[cfg(test)]
@@ -70,8 +65,8 @@ mod tests {
         assert_eq!(game.is_check(), true);
         assert_eq!(game.check_count(), 2);
         assert_eq!(game.get_game_status(), GameStatus::InProgress);
-        assert_eq!(game.legal_moves.len(), 1);
-        assert_eq!(game.legal_moves[0], BasicMove { base_move: {BaseMove::new(sq!("h8"), sq!("g8"), false)}})
+        assert_eq!(game.has_legal_move, true);
+//        assert_eq!(game.legal_moves[0], BasicMove { base_move: {BaseMove::new(sq!("h8"), sq!("g8"), false)}})
     }
 
     #[test]
@@ -82,7 +77,7 @@ mod tests {
         assert_eq!(game.is_check(), true);
         assert_eq!(game.check_count(), 1);
         assert_eq!(game.get_game_status(), GameStatus::Checkmate);
-        assert_eq!(game.legal_moves.len(), 0);
+        assert_eq!(game.has_legal_move, false);
     }
 
     #[test]
@@ -93,6 +88,6 @@ mod tests {
         assert_eq!(game.is_check(), false);
         assert_eq!(game.check_count(), 0);
         assert_eq!(game.get_game_status(), GameStatus::Stalemate);
-        assert_eq!(game.legal_moves.len(), 0);
+        assert_eq!(game.has_legal_move, false);
     }
 }
