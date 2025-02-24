@@ -80,7 +80,10 @@ pub(crate) fn parse_position(input: &str) -> Option<GameHistory> {
     fn create_game_history(position: &Position, captures: &Captures) -> Option<GameHistory> {
         captures.get(3)
             .map_or(Some(vec!()), |m| { replay_moves(position, m.as_str().to_string()) })
-            .map(|moves| GameHistory { given_position: *position, position_move_pairs: Some(moves) } )
+            .map(|moves| GameHistory {
+                given_position: if !moves.is_empty() { moves.last().unwrap().0 } else {*position},
+                position_move_pairs: Some(moves)
+            })
     }
 
     if let Some(captures) = UCI_POSITION_REGEX.captures(input) {

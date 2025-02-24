@@ -81,6 +81,9 @@ pub fn write(position: &Position) -> String {
         if position.castling_rights()[0][1] { output.push_str("Q"); }
         if position.castling_rights()[1][0] { output.push_str("k"); }
         if position.castling_rights()[1][1] { output.push_str("q"); }
+        if output.is_empty() {
+            output.push_str("-");
+        }
         output
     }
 }
