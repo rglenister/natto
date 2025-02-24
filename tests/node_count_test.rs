@@ -1,10 +1,9 @@
 use std::error::Error;
 use std::fs;
-use chess_engine::position::Position;
 use serde_derive::Deserialize;
 use serial_test::serial;
 use chess_engine::{fen, node_counter};
-use chess_engine::position::NEW_GAME_FEN;
+use chess_engine::position::{Position, NEW_GAME_FEN};
 
 #[derive(Deserialize, Debug)]
 

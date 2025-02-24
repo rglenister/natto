@@ -342,7 +342,6 @@ mod tests {
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
         println!("search_results = {}", search_results);
         assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
-//        assert_eq!()
     }
 
     #[test]

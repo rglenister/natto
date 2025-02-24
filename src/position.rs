@@ -1,3 +1,5 @@
+use std::error::Error;
+use std::fmt;
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor};
 use crate::chess_move::{ChessMove, RawChessMove};
@@ -5,6 +7,7 @@ use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{King, Pawn, Rook};
+use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::move_generator::{king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
 
@@ -34,6 +37,12 @@ impl From<&Position> for Position {
     }
 }
 
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", self.board.to_string(), fen::write(self))
+    }
+}
+
 impl Position {
     pub(crate) fn new(
         board: BitBoard,
@@ -53,9 +62,6 @@ impl Position {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        format!("{} {:?} {:?} {} {} {}", self.board.to_string(), self.side_to_move, self.castling_rights, self. en_passant_capture_square.unwrap_or(0), self.half_move_clock, self.full_move_number)
-    }
     pub fn new_game() -> Position {
         Position::from(NEW_GAME_FEN)
     }
@@ -93,12 +99,8 @@ impl Position {
     }
 
     pub fn make_raw_move(&self, raw_move: &RawChessMove) -> Option<(Self, ChessMove)> {
-        let moves = util::find_generated_move(move_generator::generate(self), raw_move.from, raw_move.to, raw_move.promote_to);
-        if moves.len() == 1 {
-            self.make_move(&moves[0])
-        } else {
-            None
-        }
+        let chess_move = util::find_generated_move(move_generator::generate(self), raw_move);
+        self.make_move(&chess_move?)
     }
 
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<(Self, ChessMove)> {

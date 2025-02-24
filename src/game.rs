@@ -16,6 +16,13 @@ pub enum GameStatus {
     Checkmate
 }
 
+//#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
+pub struct GameHistory {
+    pub(crate) given_position: Position,
+    pub(crate) position_move_pairs: Option<Vec<(Position, ChessMove)>>,
+}
+
 pub struct Game {
     pub position: Position,
     has_legal_move: bool,
@@ -29,7 +36,7 @@ impl Game {
     ) -> Self {
         let game = Self {
             position: position.clone(),
-            has_legal_move: move_generator::has_legal_move(&position),//.into_iter().find(|cm| position.make_move(&cm).is_some()).is_some(),
+            has_legal_move: move_generator::has_legal_move(&position),
             check_count: move_generator::king_attacks_finder(position, position.side_to_move()).count_ones() as usize,
         };
         game

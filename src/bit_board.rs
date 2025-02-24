@@ -1,4 +1,7 @@
+use std::fmt;
+use std::fmt::Write;
 use strum::IntoEnumIterator;
+use crate::position::Position;
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
 use crate::board::PieceType::{King, Pawn};
 
@@ -174,7 +177,26 @@ impl Board for BitBoard {
     }
 }
 
-
+impl fmt::Display for BitBoard {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for row in (0..8).rev() {
+            for col in 0..8 {
+                let square_index = row * 8 + col;
+                let piece = &self.get_piece(square_index);
+                match piece {
+                    Some(piece) => {
+                        write!(f, "{}", format_args!("{}  ", piece.to_char())).expect("");
+                    }
+                    None => {
+                        let _ = write!(f, "-  ");
+                    }
+                }
+            }
+            f.write_char('\n').unwrap()
+        }
+        Ok(())
+    }
+}
 #[cfg(test)]
 mod tests {
     use crate::board::PieceType::{Bishop, Knight, Queen, Rook};

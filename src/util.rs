@@ -2,7 +2,7 @@ use std::ops::Add;
 use crate::board;
 use crate::board::{PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
-use crate::chess_move::ChessMove;
+use crate::chess_move::{ChessMove, RawChessMove};
 
 mod sq_macro_generator;
 mod generated_macro;
@@ -93,15 +93,17 @@ pub fn filter_moves_by_from_square(moves: Vec<ChessMove>, from_square: usize) ->
     }).collect::<Vec<ChessMove>>()
 }
 
-pub fn find_generated_move(moves: Vec<ChessMove>, from_square: usize, to_square: usize, promote_to_option: Option<PieceType>) -> Vec<ChessMove> {
-    moves.into_iter().filter(|chess_move | {
+pub fn find_generated_move(moves: Vec<ChessMove>, raw_chess_move: &RawChessMove) -> Option<ChessMove> {
+    let results = moves.into_iter().filter(|chess_move | {
         match chess_move {
-            ChessMove::BasicMove { base_move, .. } => { base_move.from == from_square && base_move.to == to_square }
-            ChessMove::EnPassantMove { base_move, .. } => { base_move.from == from_square && base_move.to == to_square }
-            ChessMove::PromotionMove { base_move, promote_to, .. } => { let _ = base_move.from == from_square && base_move.to == to_square; Some(promote_to) == promote_to_option.as_ref() }
-            ChessMove::CastlingMove { base_move, .. } => { base_move.from == from_square && base_move.to == to_square }
+            ChessMove::BasicMove { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
+            ChessMove::EnPassantMove { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
+            ChessMove::PromotionMove { base_move, promote_to, .. } => { let _ = base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to; Some(promote_to) == raw_chess_move.promote_to.as_ref() }
+            ChessMove::CastlingMove { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
         }
-    }).collect::<Vec<ChessMove>>()
+    }).collect::<Vec<ChessMove>>();
+    if results.len() > 1 { panic!("Duplicate moves found") }
+    results.into_iter().next()
 }
 
 #[cfg(test)]
@@ -193,9 +195,8 @@ mod tests {
         let mut moves: Vec<ChessMove> = vec![];
         moves.push(BasicMove {base_move: { BaseMove { from: 1, to: 2, capture: false, score: 0 } }});
         moves.push(BasicMove {base_move: { BaseMove {from: 3, to: 4, capture: false, score: 0 }}});
-        let matched_moves = find_generated_move(moves, 1, 2, None);
-        assert_eq!(matched_moves.len(), 1);
-        assert_eq!(*matched_moves.get(0).unwrap(), BasicMove {base_move: BaseMove {from: 1, to: 2, capture: false, score: 0}});
+        let matched_move = find_generated_move(moves, &RawChessMove::new(1, 2, None));
+        assert_eq!(matched_move.unwrap(), BasicMove {base_move: BaseMove {from: 1, to: 2, capture: false, score: 0}});
     }
 
     #[test]
@@ -206,9 +207,8 @@ mod tests {
         moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Queen });
         moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Rook });
         moves.push(PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Knight });
-        let matched_moves = find_generated_move(moves, 3, 9, Some(Rook));
-        assert_eq!(matched_moves.len(), 1);
-        assert_eq!(*matched_moves.get(0).unwrap(), PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Rook });
+        let matched_move = find_generated_move(moves, &RawChessMove::new(3, 9, Some(Rook)));
+        assert_eq!(matched_move.unwrap(), PromotionMove {base_move: { BaseMove{ from: 3, to: 9, capture: false, score: 0 }}, promote_to: Rook });
     }
 }
 

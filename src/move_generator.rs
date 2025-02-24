@@ -1,3 +1,4 @@
+use crate::position::Position;
 use std::cell::RefCell;
 use std::option::Option;
 use std::collections::HashMap;
@@ -10,7 +11,6 @@ use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chess_move::{BaseMove, ChessMove};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
-use crate::position::Position;
 use crate::{bit_board, util};
 use crate::util::on_board;
 
@@ -407,8 +407,15 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::chess_move::ChessMove::CastlingMove;
+    use crate::move_generator::generate;
+
+    use super::*;
+
     use crate::board::BoardSide::{KingSide, QueenSide};
     use crate::chess_move::BaseMove;
+    use crate::fen;
     use super::*;
 
     /// Verifies that a knight in a corner square can move to the expected squares

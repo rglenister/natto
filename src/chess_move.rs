@@ -24,7 +24,6 @@ impl BaseMove {
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone, Copy)]
 pub enum ChessMove {
-//    #[default]
     BasicMove {
         base_move: BaseMove,
     },

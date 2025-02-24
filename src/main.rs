@@ -27,6 +27,7 @@ use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
 use crate::chess_move::convert_chess_move_to_raw;
+use crate::game::GameHistory;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::position::Position;
 use crate::search::search;
@@ -68,7 +69,7 @@ fn main() {
     let search_stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
     let main_loop_quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
 
-    let mut position: Option<Position> = None;
+    let mut game_history: Option<GameHistory> = None;
 
     // Spawn input-handling thread
     let input_thread = {
@@ -117,31 +118,31 @@ fn main() {
                 }
 
                 UciCommand::UciNewGame => {
-                    position = None;
+                    game_history = None;
                 }
 
                 UciCommand::Position(position_str) => {
-                    position = uci::parse_position(&input);
-                    if let Some(ref pos) = position {
-                        info!("uci set position to [{}] from input [{}]", fen::write(&pos), &input);
+                    game_history = uci::parse_position(&input);
+                    if let Some(ref gh) = game_history {
+                        info!("uci set position to [{}] from input [{}]", fen::write(&gh.given_position), &input);
                     } else {
                         error!("failed to parse position from input [{}]", &input)
                     }
                 }
 
                 UciCommand::Go(go_options_string) => {
-                    if let Some(pos) = position {
+                    if let Some(gh) = game_history.clone() {
                         let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                         debug!("go options = {:?}", uci_go_options);
 
-                        let search_params = uci::create_search_params(&uci_go_options, pos.side_to_move());
+                        let search_params = uci::create_search_params(&uci_go_options, gh.given_position.side_to_move());
                         debug!("search params = {:?}", search_params);
                         debug!("Starting search...");
                         search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
                         let stop_flag = Arc::clone(&search_stop_flag);
                         search_handle = Some(thread::spawn(move || {
-                            let search_results = search(&pos, &search_params, stop_flag);
+                            let search_results = search(&gh.given_position, &search_params, stop_flag);
                             let best_move = search_results.best_line
                                 .first()
                                 .map(|cm| convert_chess_move_to_raw(cm));

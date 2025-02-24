@@ -1,5 +1,6 @@
 use std::{io, thread};
 use std::collections::HashMap;
+use std::error::Error;
 use std::io::BufRead;
 use std::process::exit;
 use std::sync::{mpsc, Arc};
@@ -9,13 +10,14 @@ use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use crate::{board, fen, util};
-use crate::chess_move::{convert_chess_move_to_raw, RawChessMove};
+use crate::chess_move::{convert_chess_move_to_raw, ChessMove, RawChessMove};
 use crate::position::{Position, NEW_GAME_FEN};
 use crate::board::{Board, PieceColor};
 use crate::board::PieceColor::{Black, White};
 use crate::search::{search, SearchParams};
 
 use std::time::Duration;
+use crate::game::GameHistory;
 
 include!("util/generated_macro.rs");
 
@@ -74,20 +76,20 @@ pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptio
     uci_go_options
 }
 
-pub(crate) fn parse_position(input: &str) -> Option<Position> {
-    fn load_moves(position: &Position, captures: &Captures) -> Option<Position> {
-        captures.get(3).map_or(Some(*position), |mvs| {
-            update_position(*position, mvs.as_str().to_string())
-        })
+pub(crate) fn parse_position(input: &str) -> Option<GameHistory> {
+    fn create_game_history(position: &Position, captures: &Captures) -> Option<GameHistory> {
+        captures.get(3)
+            .map_or(Some(vec!()), |m| { replay_moves(position, m.as_str().to_string()) })
+            .map(|moves| GameHistory { given_position: *position, position_move_pairs: Some(moves) } )
     }
 
     if let Some(captures) = UCI_POSITION_REGEX.captures(input) {
         if &captures[1] == "startpos" {
-            let new_game_position = Position::from(NEW_GAME_FEN);
-            load_moves(&new_game_position, &captures)
+            let new_game_position = Position::new_game();
+            create_game_history(&new_game_position, &captures)
         } else if let Some(fen) = captures.get(2) {
-            let fen_position = Position::from(fen.as_str());
-            load_moves(&fen_position, &captures)
+            let fen_position = Position::try_from(fen.as_str()).unwrap();
+            create_game_history(&fen_position, &captures)
         } else {
             None
         }
@@ -97,25 +99,15 @@ pub(crate) fn parse_position(input: &str) -> Option<Position> {
     }
 }
 
-
-fn update_position(position: Position, moves: String) -> Option<Position> {
-    let raw_chess_moves = moves_string_to_raw_moves(moves)?;
-    let positions = replay_moves(&position, raw_chess_moves)?;
-    let last_position: Position = positions.last()?.clone();
-    Some(last_position)
-}
-
-fn replay_moves(position: &Position, raw_moves: Vec<RawChessMove>) -> Option<Vec<Position>> {
-    let result: Option<Vec<Position>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<Position>, rm: &RawChessMove| {
-        let current_position = if !acc.is_empty() { &acc.last().unwrap().clone()} else { position };
-        let next_position = current_position.make_raw_move(rm);
-        match next_position {
-            Some((next_position, _cm)) => {
-                acc.push(next_position);
-                Some(acc)
-            },
-            None  => None
+fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, ChessMove)>> {
+    let raw_moves = moves_string_to_raw_moves(raw_moves_string)?;
+    let result: Option<Vec<(Position, ChessMove)>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, ChessMove)>, rm: &RawChessMove| {
+        let current_position = if !acc.is_empty() { &acc.last().unwrap().0.clone()} else { position };
+        if let next_position = current_position.make_raw_move(rm)? {
+            acc.push(next_position);
+            return Some(acc);
         }
+        None
     });
     result
 }
@@ -199,7 +191,6 @@ mod tests {
     use super::*;
     use crate::board::PieceColor::{Black, White};
     use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
-    use crate::position::NEW_GAME_FEN;
 
     #[test]
     fn test_parse_position() {
@@ -208,24 +199,7 @@ mod tests {
         assert!(parse_position("position startpos moves e2e4 e7e5").is_some());
         assert!(parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5").is_some());
         assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
-    }
-    #[test]
-    fn test_update_position() {
-        let position = Position::from(NEW_GAME_FEN);
-        let last_position = update_position(position, "e2e4 e7e5".to_string()).unwrap();
-        let board = last_position.board();
-        assert_eq!(board.get_piece(sq!("e2")), None);
-        assert_eq!(board.get_piece(sq!("e4")), Some(Piece {piece_type: Pawn, piece_color: White}));
-        assert_eq!(board.get_piece(sq!("e7")), None);
-        assert_eq!(board.get_piece(sq!("e5")),Some(Piece {piece_type: Pawn, piece_color: Black}));
-    }
-
-
-    #[test]
-    fn test_update_position_with_illegal_move() {
-        let position = Position::from(NEW_GAME_FEN);
-        let last_position = update_position(position, "e2e4 e8e5".to_string());
-        assert!(last_position.is_none());
+        assert!(parse_position("position startpos moves e2e3 e7e5 b1c3 d7d5 a2a4 f8a3 b2a3 b8c6 f1b5 d8h4 c3d5 h4f2 e1f2    c8g1").is_none());
     }
 
     #[test]

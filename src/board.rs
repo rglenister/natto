@@ -87,6 +87,7 @@ impl PieceType {
     }
 }
 
+
 pub trait Board {
 
     fn new() -> Self where Self: Sized;
@@ -98,26 +99,6 @@ pub trait Board {
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece>;
 
     fn clear(&mut self);
-
-    fn to_string(&self) -> String {
-        let mut s = String::new();
-        for row in (0..8).rev() {
-            for col in 0..8 {
-                let square_index = row * 8 + col;
-                let piece = &self.get_piece(square_index);
-                match piece {
-                    Some(piece) => {
-                        write!(s, "{}", format_args!("{}  ", piece.to_char())).expect("");
-                    }
-                    None => {
-                        let _ = write!(s, "-  ");
-                    }
-                }
-            }
-            s.write_char('\n').unwrap()
-        }
-        s
-    }
 }
 
 #[cfg(test)]
