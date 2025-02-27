@@ -6,7 +6,7 @@ use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
-use crate::board::{BoardSide, PieceColor, PieceType};
+use crate::board::{Board, BoardSide, PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chess_move::{BaseMove, ChessMove};
@@ -394,6 +394,15 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
     attacking_squares
 }
 
+pub fn is_en_passant_capture_possible(position: &Position) -> bool {
+    if let Some(en_passant_capture_square) = position.en_passant_capture_square() {
+        position.board().bitboard_by_color_and_piece_type(position.side_to_move(), Pawn) &
+                PAWN_ATTACKS_TABLE[&position.side_to_move()][en_passant_capture_square] != 0
+    } else {
+        false
+    }
+}
+
 fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: i32) -> u64 {
     let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
     let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
@@ -407,6 +416,7 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::board::Board;
     use super::*;
     use crate::chess_move::ChessMove::CastlingMove;
     use crate::move_generator::generate;
@@ -582,6 +592,21 @@ mod tests {
         assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(26, 18, false)});
     }
 
+    #[test]
+    fn test_is_en_passant_capture_possible() {
+        let fen = "4k3/8/8/4PpP1/8/8/8/4K3 w - - 0 1";
+        let position = Position::from(fen);
+        assert_eq!(is_en_passant_capture_possible(&position), false);
+
+        let fen = "4k3/8/8/4PpP1/8/8/8/4K3 w - f6 0 1";
+        let position = Position::from(fen);
+        assert_eq!(is_en_passant_capture_possible(&position), true);
+
+        let fen = "4k3/8/8/5p2/8/8/8/4K3 w - f6 0 1";
+        let position = Position::from(fen);
+        assert_eq!(is_en_passant_capture_possible(&position), false);
+    }
+
     /// White pawns can capture en passant
     #[test]
     fn test_white_pawns_can_capture_en_passant() {
@@ -590,6 +615,7 @@ mod tests {
         let all_moves = generate(&position);
 
         assert_eq!(all_moves.len(), 9);
+        assert_eq!(is_en_passant_capture_possible(&position), true);
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 36);
         assert_eq!(moves.len(), 2);
         assert_eq!(*moves.get(0).unwrap(), EnPassantMove { base_move: BaseMove::new(36, 45, true), capture_square: 37});
@@ -609,6 +635,7 @@ mod tests {
         let all_moves = generate(&position);
 
         assert_eq!(all_moves.len(), 9);
+        assert_eq!(is_en_passant_capture_possible(&position), true);
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 28);
         assert_eq!(moves.len(), 2);
         assert_eq!(*moves.get(0).unwrap(), EnPassantMove { base_move: BaseMove::new(28, 21, true), capture_square: 29});

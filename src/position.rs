@@ -59,7 +59,7 @@ static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
     PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table }
 });
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq)]
 pub struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
@@ -88,20 +88,12 @@ impl fmt::Display for Position {
     }
 }
 
-impl Hash for Position {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        // For hashing the board state, iterate over rows and squares.
-        // for row in self.board.iter() {
-        //     for square in row.iter() {
-        //         square.hash(state); // Field `Option<Piece>` implements `Hash`
-        //     }
-        // }
-        //
-        // // Include other fields in hashing.
-        // self.side_to_move.hash(state);
-        // self.castling_rights.hash(state);
-        // self.en_passant_square.hash(state);
-        // Add any other fields that define the uniqueness of the position
+impl PartialEq for Position {
+    fn eq(&self, other: &Self) -> bool {
+        self.board == other.board &&
+        self.side_to_move == other.side_to_move &&
+        self.castling_rights == other.castling_rights &&
+        move_generator::is_en_passant_capture_possible(self) != move_generator::is_en_passant_capture_possible(other)
     }
 }
 
@@ -114,23 +106,17 @@ impl Position {
         half_move_clock: usize,
         full_move_number: usize,
     ) -> Self {
-        let mut result = Self {
+        let mut position = Self {
             board,
             side_to_move,
             castling_rights: Position::create_castling_rights(fen_castling_rights.clone()),
             en_passant_capture_square,
             half_move_clock,
             full_move_number,
-            hash_code: 0,
+            hash_code: 0
         };
-        let mut initial_hash_code: u64 = 0;
-        board.process_pieces(|piece_color, piece_type, square_index | {
-            initial_hash_code ^= POSITION_HASHES.board_hashes_table[piece_color as usize][piece_type as usize][square_index];
-        });
-        initial_hash_code ^= side_to_move as u64;
-
-        initial_hash_code ^= result.castling_rights_as_u64();
-        result
+        position.hash_code = position.create_initial_hash();
+        position
     }
 
 
@@ -177,6 +163,20 @@ impl Position {
         self.full_move_number
     }
 
+    fn create_initial_hash(&self) -> u64 {
+        let mut initial_hash: u64 = 0;
+
+        self.board.process_pieces(|piece_color, piece_type, square_index| {
+            initial_hash ^= POSITION_HASHES.board_hashes_table[piece_color as usize][piece_type as usize][square_index];
+        });
+        initial_hash ^= POSITION_HASHES.side_to_move_hashes_table[self.side_to_move as usize];
+
+        initial_hash ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
+        if move_generator::is_en_passant_capture_possible(&self) {
+            initial_hash ^= self.en_passant_capture_square.unwrap_or(0) as u64;
+        }
+        initial_hash
+    }
 
     fn put_piece(&mut self, square_index: usize, piece: Piece) {
         self.board.put_piece(square_index, piece);
