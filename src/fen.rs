@@ -37,7 +37,9 @@ pub fn parse(fen: String) -> Position {
             halfmove_clock,
             fullmove_number
         )
-    } else { panic!("{}", format!("Could not parse fen {}", fen)); }
+    } else {
+        panic!("{}", format!("Could not parse fen {}", fen));
+    }
 }
 
 pub fn write(position: &Position) -> String {

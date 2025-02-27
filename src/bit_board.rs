@@ -1,13 +1,14 @@
 use std::fmt;
 use std::fmt::Write;
 use strum::IntoEnumIterator;
-use crate::position::Position;
 use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
 use crate::board::PieceType::{King, Pawn};
+use crate::util::process_bits;
 
 include!("util/generated_macro.rs");
 
 #[derive(Clone, Debug, Copy)]
+#[derive(PartialEq, Eq)]
 pub struct BitBoard {
     bit_boards: [[u64; 6]; 2],
 }
@@ -112,6 +113,18 @@ impl BitBoard {
             }
         }
         false
+    }
+
+    pub fn process_pieces<F>(&self, mut func: F) -> ()
+    where F: FnMut(PieceColor, PieceType, usize) -> (), {
+        for piece_color in PieceColor::iter() {
+            for piece_type in PieceType::iter() {
+                let bitboard = self.bitboard_by_color_and_piece_type(piece_color, piece_type);
+                process_bits(bitboard, |square_index| {
+                    func(piece_color, piece_type, square_index.try_into().unwrap());
+                });
+            }
+        }
     }
 
     pub fn row(square_index: usize) -> usize {
@@ -330,5 +343,18 @@ mod tests {
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         bit_board.remove_piece(59);
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
+    }
+
+    #[test]
+    fn test_equals() {
+        let mut bit_board1: BitBoard = BitBoard::new();
+        let mut bit_board2: BitBoard = BitBoard::new();
+        assert_eq!(bit_board1, bit_board2);
+
+        bit_board1.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
+        assert_ne!(bit_board1, bit_board2);
+
+        bit_board2.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
+        assert_eq!(bit_board1, bit_board2);
     }
 }

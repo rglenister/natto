@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use once_cell::sync::Lazy;
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor};
@@ -12,59 +13,50 @@ use crate::board::PieceType::{King, Pawn, Rook};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::move_generator::{king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
-use rand::Rng;
+use rand::{rng, Rng};
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
 include!("util/generated_macro.rs");
 
-const NUM_SQUARES: usize = 64;
-const NUM_PIECE_TYPES: usize = 6;
-const NUM_COLORS: usize = 2;
-const NUM_CASTLING_STATES: usize = 16;
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 struct PositionHashes {
-    board_hashes_table: [[[u64; NUM_SQUARES]; NUM_PIECE_TYPES]; NUM_COLORS],
-    castling_hashes_table: [u64; NUM_CASTLING_STATES],
-    side_to_move_hashes_table: [u64; NUM_COLORS],
+    pub board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS],
+    pub castling_hashes_table: [u64; PositionHashes::NUM_CASTLING_STATES],
+    pub side_to_move_hashes_table: [u64; PositionHashes::NUM_COLORS],
 }
+impl PositionHashes {
+    const NUM_SQUARES: usize = 64;
+    const NUM_PIECE_TYPES: usize = 6;
+    const NUM_COLORS: usize = 2;
+    const NUM_CASTLING_STATES: usize = 16;
+}
+
 static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
-    fn generate_board_hashes_table(rng: &mut Xoshiro256PlusPlus) -> [[[u64; NUM_SQUARES]; NUM_PIECE_TYPES]; NUM_COLORS] {
-        let mut table: [[[u64; NUM_SQUARES]; NUM_PIECE_TYPES]; NUM_COLORS] = [[[0; NUM_SQUARES]; NUM_PIECE_TYPES]; NUM_COLORS];
-        for color in 0..NUM_COLORS {
-            for piece_type in 0..NUM_PIECE_TYPES {
-                for square in 0..NUM_SQUARES {
-                    table[color][piece_type][square] = rng.random::<u64>();
-                }
+    let seed: u64 = 49;
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
+
+    let mut board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS] = [[[0; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS];
+    for color in 0..PositionHashes::NUM_COLORS {
+        for piece_type in 0..PositionHashes::NUM_PIECE_TYPES {
+            for square in 0..PositionHashes::NUM_SQUARES {
+                board_hashes_table[color][piece_type][square] = rng.random::<u64>();
             }
         }
-        table
     }
 
-    fn generate_castling_hashes_table(rng: &mut Xoshiro256PlusPlus) -> [u64; NUM_CASTLING_STATES] {
-        let mut table: [u64; NUM_CASTLING_STATES] = [0; NUM_CASTLING_STATES];
-        for state in 0..NUM_CASTLING_STATES {
-            table[state] = rng.random::<u64>();
-        }
-        table
+    let mut castling_hashes_table: [u64; PositionHashes::NUM_CASTLING_STATES] = [0; PositionHashes::NUM_CASTLING_STATES];
+    for state in 0..PositionHashes::NUM_CASTLING_STATES {
+        castling_hashes_table[state] = rng.random::<u64>();
     }
 
-    fn generate_side_to_move_hashes_table(rng: &mut Xoshiro256PlusPlus) -> [u64; NUM_COLORS] {
-        let mut table: [u64; NUM_COLORS] = [0; NUM_COLORS];
-        for i in 0..NUM_COLORS {
-            table[i] = rng.random::<u64>();
-        }
-        table
+    let mut side_to_move_hashes_table: [u64; PositionHashes::NUM_COLORS] = [0; PositionHashes::NUM_COLORS];
+    for state in 0..PositionHashes::NUM_COLORS {
+        side_to_move_hashes_table[state] = rng.random::<u64>();
     }
 
-    let seed: u64 = 53;
-    let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
-    PositionHashes {
-        board_hashes_table: generate_board_hashes_table(&mut rng),
-        castling_hashes_table: generate_castling_hashes_table(&mut rng),
-        side_to_move_hashes_table: generate_side_to_move_hashes_table(&mut rng)
-    }
+    PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table }
 });
 
 #[derive(Copy, Clone, Debug)]
@@ -75,6 +67,7 @@ pub struct Position {
     en_passant_capture_square: Option<usize>,
     half_move_clock: usize,
     full_move_number: usize,
+    hash_code: u64,
 }
 
 impl From<&str> for Position {
@@ -95,6 +88,23 @@ impl fmt::Display for Position {
     }
 }
 
+impl Hash for Position {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // For hashing the board state, iterate over rows and squares.
+        // for row in self.board.iter() {
+        //     for square in row.iter() {
+        //         square.hash(state); // Field `Option<Piece>` implements `Hash`
+        //     }
+        // }
+        //
+        // // Include other fields in hashing.
+        // self.side_to_move.hash(state);
+        // self.castling_rights.hash(state);
+        // self.en_passant_square.hash(state);
+        // Add any other fields that define the uniqueness of the position
+    }
+}
+
 impl Position {
     pub(crate) fn new(
         board: BitBoard,
@@ -104,14 +114,23 @@ impl Position {
         half_move_clock: usize,
         full_move_number: usize,
     ) -> Self {
-        Self {
+        let mut result = Self {
             board,
             side_to_move,
-            castling_rights: Position::create_castling_rights(fen_castling_rights),
+            castling_rights: Position::create_castling_rights(fen_castling_rights.clone()),
             en_passant_capture_square,
             half_move_clock,
             full_move_number,
-        }
+            hash_code: 0,
+        };
+        let mut initial_hash_code: u64 = 0;
+        board.process_pieces(|piece_color, piece_type, square_index | {
+            initial_hash_code ^= POSITION_HASHES.board_hashes_table[piece_color as usize][piece_type as usize][square_index];
+        });
+        initial_hash_code ^= side_to_move as u64;
+
+        initial_hash_code ^= result.castling_rights_as_u64();
+        result
     }
 
 
@@ -139,11 +158,11 @@ impl Position {
         self.castling_rights.clone()
     }
 
-    pub fn castling_rights_as_usize(&self) -> usize {
-        ((self.castling_rights[White as usize][KingSide as usize] as usize) << 0) |
-        ((self.castling_rights[White as usize][QueenSide as usize] as usize) << 1) |
-        ((self.castling_rights[Black as usize][KingSide as usize] as usize) << 2) |
-        ((self.castling_rights[Black as usize][QueenSide as usize] as usize) << 3)
+    pub fn castling_rights_as_u64(&self) -> u64 {
+        ((self.castling_rights[White as usize][KingSide as usize] as u64) << 0) |
+        ((self.castling_rights[White as usize][QueenSide as usize] as u64) << 1) |
+        ((self.castling_rights[Black as usize][KingSide as usize] as u64) << 2) |
+        ((self.castling_rights[Black as usize][QueenSide as usize] as u64) << 3)
     }
 
     pub fn en_passant_capture_square(&self) -> Option<usize> {
@@ -156,6 +175,27 @@ impl Position {
 
     pub fn full_move_number(&self) -> usize {
         self.full_move_number
+    }
+
+
+    fn put_piece(&mut self, square_index: usize, piece: Piece) {
+        self.board.put_piece(square_index, piece);
+    }
+
+    fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
+        let piece = self.board.remove_piece(square_index);
+        if let Some(piece) = piece {
+            self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][square_index];
+            Some(piece)
+        } else {
+            None
+        }
+    }
+
+    fn move_piece(&mut self, from_square_index: usize, to: usize) {
+        let piece = self.board.remove_piece(from_square_index).unwrap();
+        self.board.put_piece(to, piece.clone());
+        self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][to];
     }
 
     pub fn make_raw_move(&self, raw_move: &RawChessMove) -> Option<(Self, ChessMove)> {
@@ -354,7 +394,7 @@ mod tests {
         let position = Position::from(fen);
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_usize(), 15);
+        assert_eq!(position.castling_rights_as_u64(), 15);
 
         let moves = generate(&position);
         let castling_moves: Vec<_> =
@@ -364,7 +404,7 @@ mod tests {
         assert_eq!(positions.len(), 2);
         assert_eq!(positions[0].0.castling_rights[White as usize], [false, false]);
         assert_eq!(positions[1].0.castling_rights[White as usize], [false, false]);
-        assert_eq!(positions[1].0.castling_rights_as_usize(), 12);
+        assert_eq!(positions[1].0.castling_rights_as_u64(), 12);
     }
 
     #[test]
@@ -373,14 +413,14 @@ mod tests {
         let position = Position::from(fen);
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_usize(), 15);
+        assert_eq!(position.castling_rights_as_u64(), 15);
         let moves = generate(&position);
         let king_moves: Vec<_> = util::filter_moves_by_from_square(moves,sq!("e1"));
         assert_eq!(king_moves.len(), 7);
         let new_position = position.make_move(&king_moves[0]).unwrap();
         assert_eq!(new_position.0.castling_rights[White as usize], [false, false]);
         assert_eq!(new_position.0.castling_rights[Black as usize], [true, true]);
-        assert_eq!(new_position.0.castling_rights_as_usize(), 12);
+        assert_eq!(new_position.0.castling_rights_as_u64(), 12);
     }
     #[test]
     fn test_castling_rights_lost_after_moving_rook() {
@@ -392,12 +432,12 @@ mod tests {
         let position_2 = position_1.make_raw_move(&RawChessMove::new(sq!("a1"), sq!("a2"), None)).unwrap();
         assert_eq!(position_2.0.castling_rights[White as usize], [true, false]);
         assert_eq!(position_2.0.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position_2.0.castling_rights_as_usize(), 13);
+        assert_eq!(position_2.0.castling_rights_as_u64(), 13);
 
         let position_3 = position_1.make_raw_move(&RawChessMove::new(sq!("h1"), sq!("h2"), None)).unwrap();
         assert_eq!(position_3.0.castling_rights[White as usize], [false, true]);
         assert_eq!(position_3.0.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position_3.0.castling_rights_as_usize(), 14);
+        assert_eq!(position_3.0.castling_rights_as_u64(), 14);
     }
 
     #[test]

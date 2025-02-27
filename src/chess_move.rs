@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::position::Position;
 use crate::board::{BoardSide, PieceType};
 use crate::board::BoardSide::KingSide;
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
@@ -52,8 +53,8 @@ impl ChessMove {
     }
 }
 
-pub fn format_moves(moves: &Vec<ChessMove>) -> String {
-    moves.iter().map(|m| m.to_string()).collect::<Vec<_>>().join(", ")
+pub fn format_moves(moves: &Vec<(Position, ChessMove)>) -> String {
+    moves.iter().map(|m| m.1.to_string()).collect::<Vec<_>>().join(", ")
 }
 
 impl fmt::Display for ChessMove {

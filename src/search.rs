@@ -34,7 +34,7 @@ const MAXIMUM_SCORE: isize = 100000;
 pub struct SearchResults {
     pub score: isize,
     pub depth: isize,
-    pub best_line: Vec<ChessMove>,
+    pub best_line: Vec<(Position, ChessMove)>,
     pub game_status: GameStatus,
 }
 
@@ -55,7 +55,7 @@ impl SearchParams {
 
 impl Display for SearchResults {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "score: {} depth: {} bestline: {} game_status: {:?}", self.score, self.depth, self.best_line.clone().into_iter().join(", "), self.game_status)
+        write!(f, "score: {} depth: {} bestline: {} game_status: {:?}", self.score, self.depth, self.best_line.clone().into_iter().map(|pm| pm.1).join(", "), self.game_status)
     }
 }
 
@@ -85,7 +85,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
     search_results
 }
 
-fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, max_depth: isize, search_params: &SearchParams, mut alpha: isize, beta: isize, stop_flag: Arc<AtomicBool>) -> SearchResults {
+fn do_search(position: &Position, current_line: &Vec<(Position, ChessMove)>, depth: isize, max_depth: isize, search_params: &SearchParams, mut alpha: isize, beta: isize, stop_flag: Arc<AtomicBool>) -> SearchResults {
     increment_node_counter();
     if used_allocated_move_time(search_params) {
         stop_flag.store(true, Ordering::Relaxed);
@@ -97,7 +97,7 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
         let mut has_legal_move = false;
         for chess_move in moves {
             if let Some(mut next_result) = position.make_move(&chess_move)
-                    .map(|(pos, cm)| do_search(&pos, &add_item(&current_line, &cm), depth + 1, max_depth, search_params, -beta, -alpha, stop_flag.clone())) {
+                    .map(|(pos, cm)| do_search(&pos, &add_item(&current_line, &(pos, cm)), depth + 1, max_depth, search_params, -beta, -alpha, stop_flag.clone())) {
 
                 has_legal_move = true;
                 next_result.score = -next_result.score;
@@ -118,14 +118,14 @@ fn do_search(position: &Position, current_line: &Vec<ChessMove>, depth: isize, m
     } else {
         return score_position(&position, &current_line, depth);
     }
-    fn add_item(line: &Vec<ChessMove>, cm: &ChessMove) -> Vec<ChessMove> {
+    fn add_item(line: &Vec<(Position, ChessMove)>, cm: &(Position, ChessMove)) -> Vec<(Position, ChessMove)> {
         let mut appended_line = line.clone();
         appended_line.push(*cm);
         appended_line
     }
 }
 
-fn score_position(position: &Position, current_line: &Vec<ChessMove>, depth: isize) -> SearchResults {
+fn score_position(position: &Position, current_line: &Vec<(Position, ChessMove)>, depth: isize) -> SearchResults {
     let game = Game::new(position);
     if game.get_game_status() != InProgress {
         if game.get_game_status() == Checkmate {
@@ -300,7 +300,7 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 3, max_nodes: usize::MAX}, Arc::new(AtomicBool::new(false)));
         println!("Node count (mate in 2) = {}", node_count());
-        println!("{}", search_results.best_line[0]);
+        println!("{}", search_results.best_line[0].1);
         println!("best line = {:?}", format_moves(&search_results.best_line));
         println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
         println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));

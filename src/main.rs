@@ -145,7 +145,7 @@ fn main() {
                             let search_results = search(&gh.given_position, &search_params, stop_flag);
                             let best_move = search_results.best_line
                                 .first()
-                                .map(|cm| convert_chess_move_to_raw(cm));
+                                .map(|cm| convert_chess_move_to_raw(&cm.1));
                             if let Some(best_move) = best_move {
                                 uci::send_to_gui(format!("bestmove {}", best_move));
                             } else if search_results.depth == 0 {
