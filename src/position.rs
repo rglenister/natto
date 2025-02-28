@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use log::error;
 use once_cell::sync::Lazy;
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor};
@@ -11,7 +12,7 @@ use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{King, Pawn, Rook};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
-use crate::move_generator::{king_attacks_finder, square_attacks_finder};
+use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
 use rand::{rng, Rng};
 use rand_xoshiro::rand_core::SeedableRng;
@@ -25,6 +26,7 @@ struct PositionHashes {
     pub board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS],
     pub castling_hashes_table: [u64; PositionHashes::NUM_CASTLING_STATES],
     pub side_to_move_hashes_table: [u64; PositionHashes::NUM_COLORS],
+    pub en_passant_capture_square_hashes_table: [u64; PositionHashes::NUM_SQUARES],
 }
 impl PositionHashes {
     const NUM_SQUARES: usize = 64;
@@ -56,7 +58,12 @@ static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
         side_to_move_hashes_table[state] = rng.random::<u64>();
     }
 
-    PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table }
+    let mut en_passant_capture_square_hashes_table: [u64; PositionHashes::NUM_SQUARES] = [0; PositionHashes::NUM_SQUARES];
+    for square in 0..PositionHashes::NUM_SQUARES {
+        en_passant_capture_square_hashes_table[square] = rng.random::<u64>();
+    }
+
+    PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table, en_passant_capture_square_hashes_table }
 });
 
 #[derive(Copy, Clone, Debug, Eq)]
@@ -93,7 +100,7 @@ impl PartialEq for Position {
         self.board == other.board &&
         self.side_to_move == other.side_to_move &&
         self.castling_rights == other.castling_rights &&
-        move_generator::is_en_passant_capture_possible(self) != move_generator::is_en_passant_capture_possible(other)
+        is_en_passant_capture_possible(self) != is_en_passant_capture_possible(other)
     }
 }
 
@@ -137,7 +144,7 @@ impl Position {
     }
 
     pub fn opposing_side(&self) -> PieceColor {
-        if self.side_to_move == PieceColor::White {PieceColor::Black} else {PieceColor::White}
+        if self.side_to_move == White {Black} else {White}
     }
 
     pub fn castling_rights(&self) -> [[bool; 2]; 2] {
@@ -164,22 +171,28 @@ impl Position {
     }
 
     fn create_initial_hash(&self) -> u64 {
-        let mut initial_hash: u64 = 0;
-
-        self.board.process_pieces(|piece_color, piece_type, square_index| {
-            initial_hash ^= POSITION_HASHES.board_hashes_table[piece_color as usize][piece_type as usize][square_index];
-        });
+        let mut initial_hash: u64 = self.get_board_hash();
         initial_hash ^= POSITION_HASHES.side_to_move_hashes_table[self.side_to_move as usize];
-
         initial_hash ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
-        if move_generator::is_en_passant_capture_possible(&self) {
-            initial_hash ^= self.en_passant_capture_square.unwrap_or(0) as u64;
+
+        if is_en_passant_capture_possible(&self) {
+            initial_hash ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
         }
         initial_hash
     }
 
+    fn get_board_hash(&self) -> u64 {
+        let mut result: u64 = 0;
+        self.board.process_pieces(|piece_color, piece_type, square_index| {
+            result ^= POSITION_HASHES.board_hashes_table[piece_color as usize][piece_type as usize][square_index];
+        });
+        result
+    }
+
     fn put_piece(&mut self, square_index: usize, piece: Piece) {
-        self.board.put_piece(square_index, piece);
+        self.remove_piece(square_index);
+        self.board.put_piece(square_index, piece.clone());
+        self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][square_index];
     }
 
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
@@ -192,10 +205,10 @@ impl Position {
         }
     }
 
-    fn move_piece(&mut self, from_square_index: usize, to: usize) {
-        let piece = self.board.remove_piece(from_square_index).unwrap();
-        self.board.put_piece(to, piece.clone());
-        self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][to];
+    fn move_piece(&mut self, from_square_index: usize, to_square_index: usize) -> Piece {
+        let piece = self.remove_piece(from_square_index).unwrap();
+        self.put_piece(to_square_index, piece.clone());
+        piece
     }
 
     pub fn make_raw_move(&self, raw_move: &RawChessMove) -> Option<(Self, ChessMove)> {
@@ -205,40 +218,39 @@ impl Position {
 
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<(Self, ChessMove)> {
         let mut new_position = self.clone();
+
         new_position.en_passant_capture_square = None;
 
         match chess_move {
-            ChessMove::BasicMove { base_move } => {
+            BasicMove { base_move } => {
                 do_basic_move(&mut new_position, base_move.from, base_move.to, base_move.capture);
             }
-            ChessMove::EnPassantMove { base_move, capture_square: _ } => {
+            EnPassantMove { base_move, capture_square: _ } => {
                 do_basic_move(&mut new_position, base_move.from, base_move.to, true);
                 let forward_pawn_increment: i32 = if self.side_to_move == White {-8} else {8};
-                new_position.board.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
+                new_position.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
             }
-            ChessMove::CastlingMove { base_move, board_side } => {
+            CastlingMove { base_move, board_side } => {
                 let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                 if king_attacks_finder(&mut new_position, self.side_to_move) == 0 &&
                             square_attacks_finder(&new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
                     do_basic_move(&mut new_position, base_move.from, base_move.to, false);
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
-                    let rook = new_position.board.remove_piece(castling_meta_data.rook_from_square).unwrap();
-                    new_position.board.put_piece(castling_meta_data.rook_to_square, rook);
+                    new_position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
                     new_position.castling_rights[self.side_to_move as usize] = [false, false];
                 } else {
                     return None;
                 }
             }
-            ChessMove::PromotionMove { base_move, promote_to } => {
-                new_position.board.remove_piece(base_move.from);
-                new_position.board.put_piece(base_move.to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
+            PromotionMove { base_move, promote_to } => {
+                new_position.remove_piece(base_move.from);
+                new_position.put_piece(base_move.to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
             }
         }
+
         fn do_basic_move(new_position: &mut Position, from: usize, to: usize, capture: bool) {
-            let piece = new_position.board.remove_piece(from).unwrap();
+            let piece = new_position.move_piece(from, to);
             let piece_type = piece.piece_type;
-            let _captured_piece = new_position.board.remove_piece(to);
-            new_position.board.put_piece(to, piece);
             if piece_type == Pawn && distance(from as i32, to as i32) == 2 {
                 new_position.en_passant_capture_square = Some((from + to) / 2);
             } else if piece_type == King && from == KING_HOME_SQUARE[new_position.side_to_move() as usize] {
@@ -258,12 +270,32 @@ impl Position {
         }
 
         if king_attacks_finder(&mut new_position, self.side_to_move()) == 0 {
+            // it's a valid move because it doesn't leave the side making the move in check
             new_position.side_to_move = if self.side_to_move == White {
                 Black
             } else {
                 new_position.full_move_number += 1;
                 White
             };
+            new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[White as usize];
+            new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[Black as usize];
+
+            if new_position.castling_rights != self.castling_rights {
+                new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
+                new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[new_position.castling_rights_as_u64() as usize];
+            }
+            // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
+            if is_en_passant_capture_possible(&self) {
+                // remove the old en passant from the hash if an en passant capture could be made
+                new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
+            }
+            if is_en_passant_capture_possible(&new_position) {
+                // add the new en passant square to the hash if an en passant capture can actually be made
+                new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
+            }
+            if new_position.hash_code != new_position.create_initial_hash() {
+                panic!("Hash code mismatch after move: {}", chess_move);
+            }
             Some((new_position, chess_move.clone()))
         } else {
             None
