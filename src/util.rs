@@ -105,7 +105,7 @@ pub fn find_generated_move(moves: Vec<ChessMove>, raw_chess_move: &RawChessMove)
         match chess_move {
             ChessMove::BasicMove { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
             ChessMove::EnPassantMove { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
-            ChessMove::PromotionMove { base_move, promote_to, .. } => { let _ = base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to; Some(promote_to) == raw_chess_move.promote_to.as_ref() }
+            ChessMove::PromotionMove { base_move, promote_to, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to && Some(promote_to) == raw_chess_move.promote_to.as_ref() }
             ChessMove::CastlingMove { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
         }
     }).collect::<Vec<ChessMove>>();

@@ -245,6 +245,7 @@ impl Position {
             PromotionMove { base_move, promote_to } => {
                 new_position.remove_piece(base_move.from);
                 new_position.put_piece(base_move.to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
+                new_position.half_move_clock = 0;
             }
         }
 
@@ -286,11 +287,11 @@ impl Position {
             }
             // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
             if is_en_passant_capture_possible(&self) {
-                // remove the old en passant from the hash if an en passant capture could be made
+                // remove the old en passant from the hash only if an en passant capture could be made because it won't have been added to the hash
                 new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
             }
             if is_en_passant_capture_possible(&new_position) {
-                // add the new en passant square to the hash if an en passant capture can actually be made
+                // add the new en passant square to the hash only if an en passant capture can actually be made
                 new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
             }
             if new_position.hash_code != new_position.create_initial_hash() {
@@ -323,6 +324,7 @@ mod tests {
     use crate::bit_board::BitBoard;
     use super::*;
     use crate::board::{BoardSide, PieceColor};
+    use crate::board::PieceType::Queen;
     use crate::chess_move::ChessMove::CastlingMove;
     use crate::move_generator::generate;
 
@@ -500,5 +502,21 @@ mod tests {
         assert_eq!(position_7.0.half_move_clock, 2);
         let position_8 = position_7.0.make_raw_move(&RawChessMove::new(sq!("f3"), sq!("g5"), None)).unwrap();
         assert_eq!(position_8.0.half_move_clock, 0);
+    }
+
+    #[test]
+    fn test_promotion_move_resets_half_move_counter() {
+        let fen = "7k/4P3/8/8/8/8/5p2/K3N3 b - - 10 1";
+        let position_1 = Position::from(fen);
+        assert_eq!(position_1.half_move_clock, 10);
+
+        // non capture promotion
+        let position_2 =  position_1.make_raw_move(&RawChessMove::new(sq!("f2"), sq!("f1"), Some(Queen))).unwrap();
+        assert_eq!(position_2.0.half_move_clock, 0);
+
+        // capturing promotion
+        let position_3 =  position_1.make_raw_move(&RawChessMove::new(sq!("f2"), sq!("e1"), Some(Queen))).unwrap();
+        assert_eq!(position_3.0.half_move_clock, 0);
+
     }
 }
