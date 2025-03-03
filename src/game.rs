@@ -1,4 +1,3 @@
-use crate::chess_move::ChessMove;
 use crate::move_generator;
 use crate::position::Position;
 
@@ -11,16 +10,7 @@ pub enum GameStatus {
     DrawnByFiftyMoveRule,
     DrawnByThreefoldRepetition,
     Stalemate,
-    TimeControl,
-    Resignation,
     Checkmate
-}
-
-//#[derive(Copy, Clone, Debug)]
-#[derive(Clone, Debug)]
-pub struct GameHistory {
-    pub(crate) given_position: Position,
-    pub(crate) position_move_pairs: Option<Vec<(Position, ChessMove)>>,
 }
 
 pub struct Game {
@@ -45,8 +35,20 @@ impl Game {
         match (!self.has_legal_move, self.check_count > 0) {
             (true, true) => GameStatus::Checkmate,
             (true, false) => GameStatus::Stalemate,
-            _ => GameStatus::InProgress
+            _ => {
+                if self.position.half_move_clock() >= 50 {
+                    GameStatus::DrawnByFiftyMoveRule
+                } else if self.has_three_fold_repetition() {
+                    GameStatus::DrawnByThreefoldRepetition
+                } else {
+                    GameStatus::InProgress
+                }
+            }
         }
+    }
+
+    pub fn has_three_fold_repetition(&self) -> bool {
+        false
     }
     pub fn is_check(&self) -> bool {
         self.check_count >= 1
@@ -61,9 +63,6 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess_move::BaseMove;
-    use crate::chess_move::ChessMove::BasicMove;
-
     #[test]
     fn test_double_check() {
         let fen = "2r2q1k/5pp1/4p1N1/8/1bp5/5P1R/6P1/2R4K b - - 0 1";

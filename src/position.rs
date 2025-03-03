@@ -100,7 +100,7 @@ impl PartialEq for Position {
         self.board == other.board &&
         self.side_to_move == other.side_to_move &&
         self.castling_rights == other.castling_rights &&
-        is_en_passant_capture_possible(self) != is_en_passant_capture_possible(other)
+        is_en_passant_capture_possible(self) == is_en_passant_capture_possible(other)
     }
 }
 
@@ -168,6 +168,10 @@ impl Position {
 
     pub fn full_move_number(&self) -> usize {
         self.full_move_number
+    }
+
+    pub fn hash_code(&self) -> u64 {
+        self.hash_code
     }
 
     fn create_initial_hash(&self) -> u64 {

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::ops::Add;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -157,8 +159,17 @@ pub fn parse_move(raw_move_string: String) -> Option<RawChessMove> {
     })
 }
 
+pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (Position, usize)> {
+    let mut repeat_position_counts: HashMap<u64, (Position, usize)> = HashMap::new();
+    for position in positions {
+        repeat_position_counts.entry(position.hash_code()).or_insert((position.clone(), 0)).1 += 1;
+    }
+    repeat_position_counts
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::position::NEW_GAME_FEN;
     use crate::bit_board::BitBoard;
     use crate::board::{Board, Piece, PieceType};
     use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
@@ -287,6 +298,21 @@ mod tests {
         assert_eq!(parse_move("a1b1k".to_string()), None);
         assert_eq!(parse_move("".to_string()), None);
         assert_eq!(parse_move("i8h8".to_string()), None);
+    }
+
+    #[test]
+    fn test_repeat_position_counts() {
+        let position_1 = Position::from(NEW_GAME_FEN);
+        let position_2 = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e4"), None)).unwrap().0;
+        let position_3 = Position::from(NEW_GAME_FEN);
+        let repeat_position_counts = create_repeat_position_counts(vec!(position_1, position_2, position_3));
+
+        assert_eq!(position_1, position_3);
+        assert_eq!(position_1.hash_code(), position_3.hash_code());
+        assert_eq!(repeat_position_counts.iter().count(), 2);
+        assert_eq!(repeat_position_counts[&position_1.hash_code()], (position_1, 2));
+        assert_eq!(repeat_position_counts[&position_2.hash_code()], (position_2, 1));
+
     }
 }
 

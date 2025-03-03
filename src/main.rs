@@ -27,7 +27,7 @@ use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
 use crate::chess_move::convert_chess_move_to_raw;
-use crate::game::GameHistory;
+use uci::GameHistory;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::position::Position;
 use crate::search::search;
@@ -135,7 +135,7 @@ fn main() {
                         let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                         debug!("go options = {:?}", uci_go_options);
 
-                        let search_params = uci::create_search_params(&uci_go_options, gh.given_position.side_to_move());
+                        let search_params = uci::create_search_params(&uci_go_options, &gh);
                         debug!("search params = {:?}", search_params);
                         debug!("Starting search...");
                         search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
