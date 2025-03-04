@@ -49,6 +49,16 @@ pub struct SearchParams {
     pub repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
 }
 
+impl Display for SearchParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "allocated_time_millis: {} max_depth: {} max_nodes: {} repeat_position_counts: {}",
+               self.allocated_time_millis,
+               self.max_depth,
+               self.max_nodes,
+               self.repeat_position_counts.as_ref().map_or("None".to_string(),|m| format!("contains {} position(s)", m.len()))
+        )
+    }
+}
 impl SearchParams {
     pub const DEFAULT_NUMBER_OF_MOVES_TO_GO : usize = 20;
 
@@ -63,7 +73,11 @@ impl SearchParams {
 
 impl Display for SearchResults {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "score: {} depth: {} bestline: {} game_status: {:?}", self.score, self.depth, self.best_line.clone().into_iter().map(|pm| pm.1).join(", "), self.game_status)
+        write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
+               self.score,
+               self.depth,
+               self.best_line.clone().into_iter().map(|pm| pm.1).join(", "),
+               self.game_status)
     }
 }
 
@@ -108,7 +122,7 @@ fn do_search(position: &Position, current_line: &Vec<(Position, ChessMove)>, dep
                 // there isn't a checkmate or a stalemate
                 has_legal_move = true;
                 let repeat_position_count = get_repeat_position_count(&next_position.0, current_line, search_params.repeat_position_counts.as_ref());
-                if repeat_position_count >= 1 {
+                if repeat_position_count >= 2 {
                     return SearchResults { score: 0, depth, best_line: vec!(), game_status: DrawnByThreefoldRepetition };
                 }
                 let mut next_result = do_search(&next_position.0, &add_item(&current_line, &next_position), depth + 1, max_depth, search_params, -beta, -alpha, stop_flag.clone());
@@ -151,7 +165,8 @@ fn get_repeat_position_count(current_position: &Position, current_line: &Vec<(Po
             result += 1;
         }
     }
-    result += historic_repeat_position_counts.map(|historic_repeat_position_counts| historic_repeat_position_counts.get(&position_hash).map(|(_, count)| *count).unwrap_or(0)).unwrap_or(0);
+    result += historic_repeat_position_counts.map(|historic_repeat_position_counts| historic_repeat_position_counts.get(&position_hash)
+        .map(|(_, count)| *count).unwrap_or(0)).unwrap_or(0);
     result
 }
 
@@ -398,12 +413,23 @@ mod tests {
 
     #[test]
     fn test_losing_side_plays_for_draw() {
-        let uci_position = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1 moves g8f6 g1f3 f6g8 f3g1 g8f6 g1f3 f6g8 f3g1";
-        let game_history = uci::parse_position(uci_position).unwrap();
-        let go_options = uci::parse_uci_go_options(Some("depth 3".to_string()));
-        let search_params = uci::create_search_params(&go_options, &game_history);
-        let drawn_position_search_results = search(&game_history.given_position, &search_params, Arc::new(AtomicBool::new(false)));
+        let uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+        let uci_position = uci::parse_position(uci_position_str).unwrap();
+        let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
+        let search_params = uci::create_search_params(&uci_go_options, &uci_position);
+        let drawn_position_search_results = search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)));
         assert_eq!(drawn_position_search_results.game_status, DrawnByThreefoldRepetition);
         assert_eq!(drawn_position_search_results.score, 0);
+    }
+
+    #[test]
+    fn test_winning_side_does_not_play_for_draw() {
+        let uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1 f6g8";
+        let uci_position = uci::parse_position(uci_position_str).unwrap();
+        let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
+        let search_params = uci::create_search_params(&uci_go_options, &uci_position);
+        let non_drawn_position_search_results = search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)));
+        assert_eq!(non_drawn_position_search_results.game_status, InProgress);
+        assert_eq!(non_drawn_position_search_results.score, 100);
     }
 }

@@ -27,7 +27,7 @@ use chrono::Local;
 use dirs::home_dir;
 use dotenv::dotenv;
 use crate::chess_move::convert_chess_move_to_raw;
-use uci::GameHistory;
+use uci::UciPosition;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::position::Position;
 use crate::search::search;
@@ -69,7 +69,7 @@ fn main() {
     let search_stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
     let main_loop_quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
 
-    let mut game_history: Option<GameHistory> = None;
+    let mut game_history: Option<UciPosition> = None;
 
     // Spawn input-handling thread
     let input_thread = {
@@ -136,7 +136,7 @@ fn main() {
                         debug!("go options = {:?}", uci_go_options);
 
                         let search_params = uci::create_search_params(&uci_go_options, &gh);
-                        debug!("search params = {:?}", search_params);
+                        debug!("search params = {}", search_params);
                         debug!("Starting search...");
                         search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
