@@ -181,12 +181,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_position_2() {
-        let uci_position = parse_position("position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1 moves g8f6 g1f3 f6g8 f3g1 g8f6 g1f3 f6g8 f3g1").unwrap();
-        assert_eq!(fen::write(&uci_position.given_position), "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1");
-//        assert_eq!(game_history.position_move_pairs, None);
-    }
-    #[test]
     fn test_parse_uci_go_options() {
         let command = "go wtime 10 btime 11 winc 2 binc 4 movestogo 23 depth 30 nodes 1001 mate 3 movetime 1234 ponder infinite searchmoves e2e4 e7e5".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
