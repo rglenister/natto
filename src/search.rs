@@ -473,13 +473,29 @@ mod tests {
         let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 49 76";
         let in_progress_position: Position = Position::from(fen);
         let in_progress_search_results = search(&in_progress_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)));
-        assert_eq!(in_progress_search_results.game_status, InProgress);
-        assert_eq!(in_progress_search_results.score, 260);
+        assert_eq!(in_progress_search_results.best_line_moves_as_string(), "".to_string());
+        test_eq(
+            &in_progress_search_results,
+            &SearchResults {
+                score: 260,
+                depth: 0,
+                best_line: vec![],
+                game_status: InProgress,
+            }
+        );
 
         let drawn_position = in_progress_position.make_raw_move(&RawChessMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
         let drawn_position_search_results = search(&drawn_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)));
-        assert_eq!(drawn_position_search_results.game_status, DrawnByFiftyMoveRule);
-        assert_eq!(drawn_position_search_results.score, 0);
+        assert_eq!(drawn_position_search_results.best_line_moves_as_string(), "".to_string());
+        test_eq(
+            &drawn_position_search_results,
+            &SearchResults {
+                score: 0,
+                depth: 0,
+                best_line: vec![],
+                game_status: DrawnByFiftyMoveRule,
+            }
+        );
     }
 
     #[test]
@@ -489,10 +505,16 @@ mod tests {
         let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
         let search_params = uci::create_search_params(&uci_go_options, &uci_position);
         let drawn_position_search_results = search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)));
-        assert_eq!(drawn_position_search_results.best_line.len(), 1);
-        assert_eq!(drawn_position_search_results.best_line[0].1, BasicMove { base_move: BaseMove { from: sq!("f6"), to: sq!("g8"), capture: false, score: 0 } });
-        assert_eq!(drawn_position_search_results.game_status, DrawnByThreefoldRepetition);
-        assert_eq!(drawn_position_search_results.score, 0);
+        assert_eq!(drawn_position_search_results.best_line_moves_as_string(), "f6-g8".to_string());
+        test_eq(
+            &drawn_position_search_results,
+            &SearchResults {
+                score: 0,
+                depth: 0,
+                best_line: vec![],
+                game_status: DrawnByThreefoldRepetition,
+            }
+        );
     }
 
     #[test]
@@ -502,10 +524,16 @@ mod tests {
         let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
         let search_params = uci::create_search_params(&uci_go_options, &uci_position);
         let drawn_position_search_results = search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)));
-        assert_eq!(drawn_position_search_results.best_line.len(), 1);
-        assert_ne!(drawn_position_search_results.best_line[0].1, BasicMove { base_move: BaseMove { from: sq!("f6"), to: sq!("g8"), capture: false, score: 0 } });
-        assert_eq!(drawn_position_search_results.game_status, InProgress);
-        assert_eq!(drawn_position_search_results.score, 980);
+        assert_eq!(drawn_position_search_results.best_line_moves_as_string(), "b8-c6".to_string());
+        test_eq(
+            &drawn_position_search_results,
+            &SearchResults {
+                score: 980,
+                depth: 1,
+                best_line: vec![],
+                game_status: InProgress,
+            }
+        );
     }
 
     #[test]
@@ -514,8 +542,15 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)));
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(",");
-        assert_eq!(search_results.best_line.len(), 5);
-        assert_eq!(best_line, "♘g6-f8+,♚h7-h8,♘f8-g6+,♚h8-h7,♘g6-f8+");
-        assert_eq!(search_results.score, 0);
+        assert_eq!(search_results.best_line_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: 0,
+                depth: 4,
+                best_line: vec![],
+                game_status: DrawnByThreefoldRepetition,
+            }
+        );
     }
 }
