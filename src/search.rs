@@ -16,7 +16,7 @@ use crate::move_generator::generate;
 use crate::node_counter::NodeCountStats;
 use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
-use crate::util;
+use crate::{uci, util};
 
 include!("util/generated_macro.rs");
 
@@ -33,7 +33,7 @@ pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
 const MAXIMUM_SCORE: isize = 100000;
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchResults {
     pub score: isize,
     pub depth: isize,
@@ -76,8 +76,17 @@ impl Display for SearchResults {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.score,
                self.depth,
-               self.best_line.clone().into_iter().map(|pm| pm.1).join(", "),
+               self.best_line_moves().into_iter().join(", "),
                self.game_status)
+    }
+}
+
+impl SearchResults {
+    fn best_line_moves(&self) -> Vec<ChessMove> {
+        self.best_line.clone().into_iter().map(|pm| pm.1).collect()
+    }
+    fn best_line_moves_as_string(&self) -> String {
+        self.best_line_moves().iter().join(",")
     }
 }
 
@@ -90,8 +99,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
         if !stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, iteration_search_results);
             let nps = node_counter_stats().nodes_per_second;
-            println!("info nps {}", nps);
-            info!("info nps {}", nps);
+            uci::send_to_gui(format!("info nps {}", nps));
             search_results = iteration_search_results;
             match search_results.game_status {
                 Checkmate => {
@@ -107,7 +115,16 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
     search_results
 }
 
-fn do_search(position: &Position, current_line: &Vec<(Position, ChessMove)>, depth: isize, max_depth: isize, search_params: &SearchParams, mut alpha: isize, beta: isize, stop_flag: Arc<AtomicBool>) -> SearchResults {
+fn do_search(
+    position: &Position,
+    current_line: &Vec<(Position, ChessMove)>,
+    depth: isize,
+    max_depth: isize,
+    search_params: &SearchParams,
+    mut alpha: isize,
+    beta: isize,
+    stop_flag: Arc<AtomicBool>,
+) -> SearchResults {
     increment_node_counter();
     if used_allocated_move_time(search_params) {
         stop_flag.store(true, Ordering::Relaxed);
@@ -242,6 +259,12 @@ mod tests {
     use super::*;
     use crate::search::{search, MAXIMUM_SCORE};
 
+    fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
+        assert_eq!(search_results.score, expected.score);
+        assert_eq!(search_results.depth, expected.depth);
+        assert_eq!(search_results.game_status, expected.game_status);
+    }
+
     #[test]
     fn test_score_pieces() {
         let position: Position = Position::from(NEW_GAME_FEN);
@@ -308,8 +331,15 @@ mod tests {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mated already) = {}", node_count());
-        assert_eq!(search_results.score, -MAXIMUM_SCORE);
+        assert_eq!(
+            search_results,
+            SearchResults {
+                score: -100_000,
+                depth: 0,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -317,8 +347,15 @@ mod tests {
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mated already) = {}", node_count());
-        assert_eq!(search_results.score, 0);
+        assert_eq!(
+            search_results,
+            SearchResults {
+                score: 0,
+                depth: 0,
+                best_line: vec![],
+                game_status: Stalemate,
+            }
+        );
     }
 
     #[test]
@@ -326,8 +363,16 @@ mod tests {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mate in 1) = {}", node_count());
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
+        assert_eq!(search_results.best_line_moves_as_string(), "f3xf7".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 1,
+                depth: 1,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -335,8 +380,16 @@ mod tests {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mate in 1) = {}", node_count());
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 1);
+        assert_eq!(search_results.best_line_moves_as_string(), "f3xf7".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 1,
+                depth: 1,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -344,12 +397,16 @@ mod tests {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mate in 2) = {}", node_count());
-        println!("{}", search_results.best_line[0].1);
-        println!("best line = {:?}", format_moves(&search_results.best_line));
-        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
-        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 3);
+        assert_eq!(search_results.best_line_moves_as_string(), "f5-g6,h7xg6,c2xg6".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 3,
+                depth: 3,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -357,11 +414,16 @@ mod tests {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mate in 3) = {}", node_count());
-        println!("best line = {:?}", format_moves(&search_results.best_line));
-        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
+        assert_eq!(search_results.best_line_moves_as_string(), "f6-a6,f7-f6,e5xf6,g8-g7,a6xa8".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 5,
+                depth: 5,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -369,11 +431,16 @@ mod tests {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mate in 4) = {}", node_count());
-        println!("best line = {:?}", format_moves(&search_results.best_line));
-        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 7);
+        assert_eq!(search_results.best_line_moves_as_string(), "g3-g6,f7xg6,d5-g8,h7-h8,g8-f7,h8-h7,f5xg6".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 7,
+                depth: 7,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -381,12 +448,16 @@ mod tests {
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)));
-        println!("Node count (mate in 3) = {}", node_count());
-        println!("best line = {:?}", format_moves(&search_results.best_line));
-        println!("best line++ = {}", move_formatter::SHORT_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", "));
-        println!("search_results = {}", search_results);
-        assert_eq!(search_results.score, MAXIMUM_SCORE - 5);
+        assert_eq!(search_results.best_line_moves_as_string(), "f1-c4,e4-e5,d1-d5,e5-f6,d5-g5".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 5,
+                depth: 5,
+                best_line: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -394,7 +465,6 @@ mod tests {
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)));
-        println!("best line++ = {}", move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(","));
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
 
@@ -444,7 +514,6 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)));
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(",");
-        println!("best line++ = {}", best_line);
         assert_eq!(search_results.best_line.len(), 5);
         assert_eq!(best_line, "♘g6-f8+,♚h7-h8,♘f8-g6+,♚h8-h7,♘g6-f8+");
         assert_eq!(search_results.score, 0);

@@ -297,6 +297,12 @@ where F: FnMut(&ChessMove) -> Option<()> {
     Some(())
 }
 
+// rewrite of generate_pawn_moves()
+fn generate_pawn_moves_2<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()> {
+    None
+}
+
+
 fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()>
 where F: FnMut(&ChessMove) -> Option<()> {
     let opposition_pieces_bitboard = position.board().bitboard_by_color(position.opposing_side());
