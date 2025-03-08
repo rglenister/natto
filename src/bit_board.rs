@@ -57,12 +57,12 @@ const ROOK_HOME_SQUARE_MASKS: [[u64; 2]; 2] =
 const CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] =
     [
         [
-            1 << sq!("f1") | 1 << sq!("g1"),
-            1 << sq!("b1") | 1 << sq!("c1") | 1 << sq!("d1")
+            (1 << sq!("f1")) | (1 << sq!("g1")),
+            (1 << sq!("b1")) | (1 << sq!("c1")) | (1 << sq!("d1"))
         ],
         [
-            1 << sq!("f8") | 1 << sq!("g8"),
-            1 << sq!("b8") | 1 << sq!("c8") | 1 << sq!("d8")
+            (1 << sq!("f8")) | (1 << sq!("g8")),
+            (1 << sq!("b8")) | (1 << sq!("c8")) | (1 << sq!("d8"))
         ]
     ];
 
@@ -106,17 +106,17 @@ impl BitBoard {
         if (king_bitboard & king_home_square_mask) != 0 {
             let rook_home_square_mask = ROOK_HOME_SQUARE_MASKS[side_to_move as usize][*board_side as usize];
             let rook_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::Rook);
-            if rook_bitboard & rook_home_square_mask != 0 {
-                if CASTLING_EMPTY_SQUARE_MASKS[side_to_move as usize][*board_side as usize] & self.bitboard_all_pieces() == 0 {
-                    return true
-                }
-            }
+
+
+            if rook_bitboard & rook_home_square_mask != 0 && CASTLING_EMPTY_SQUARE_MASKS[side_to_move as usize][*board_side as usize] & self.bitboard_all_pieces() == 0 {
+                return true; 
+            } 
         }
         false
     }
 
-    pub fn process_pieces<F>(&self, mut func: F) -> ()
-    where F: FnMut(PieceColor, PieceType, usize) -> (), {
+    pub fn process_pieces<F>(&self, mut func: F)
+    where F: FnMut(PieceColor, PieceType, usize), {
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
                 let bitboard = self.bitboard_by_color_and_piece_type(piece_color, piece_type);

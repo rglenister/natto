@@ -1,12 +1,9 @@
 extern crate core;
 
-use core::fmt;
 use std::io::{self, BufRead};
 use std::sync::{mpsc, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{env, thread};
-use std::time::Duration;
-use crate::bit_board::BitBoard;
 pub mod fen;
 pub mod node_counter;
 pub mod board;
@@ -24,12 +21,10 @@ pub mod piece_score_tables;
 use fern::Dispatch;
 use log::{info, debug, warn, error, LevelFilter, trace};
 use chrono::Local;
-use dirs::home_dir;
 use dotenv::dotenv;
 use crate::chess_move::convert_chess_move_to_raw;
 use uci::UciPosition;
 use crate::game::GameStatus::{Checkmate, Stalemate};
-use crate::position::Position;
 use crate::search::search;
 use crate::uci::UciGoOptions;
 
@@ -69,10 +64,10 @@ fn main() {
     let search_stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
     let main_loop_quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
 
-    let mut game_history: Option<UciPosition> = None;
+    let mut uci_position: Option<UciPosition> = None;
 
     // Spawn input-handling thread
-    let input_thread = {
+    let _input_thread = {
         let tx = tx.clone();
         thread::spawn(move || {
             let stdin = io::stdin();
@@ -118,31 +113,31 @@ fn main() {
                 }
 
                 UciCommand::UciNewGame => {
-                    game_history = None;
+                    uci_position = None;
                 }
 
-                UciCommand::Position(position_str) => {
-                    game_history = uci::parse_position(&input);
-                    if let Some(ref gh) = game_history {
-                        info!("uci set position to [{}] from input [{}]", fen::write(&gh.given_position), &input);
+                UciCommand::Position(_position_str) => {
+                    uci_position = uci::parse_position(&input);
+                    if let Some(ref uci_pos) = uci_position {
+                        info!("uci set position to [{}] from input [{}]", fen::write(&uci_pos.given_position), &input);
                     } else {
                         error!("failed to parse position from input [{}]", &input)
                     }
                 }
 
-                UciCommand::Go(go_options_string) => {
-                    if let Some(gh) = game_history.clone() {
+                UciCommand::Go(_go_options_string) => {
+                    if let Some(uci_pos) = uci_position.clone() {
                         let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                         debug!("go options = {:?}", uci_go_options);
 
-                        let search_params = uci::create_search_params(&uci_go_options, &gh);
+                        let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
                         debug!("search params = {}", search_params);
                         debug!("Starting search...");
                         search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
                         let stop_flag = Arc::clone(&search_stop_flag);
                         search_handle = Some(thread::spawn(move || {
-                            let search_results = search(&gh.given_position, &search_params, stop_flag);
+                            let search_results = search(&uci_pos.given_position, &search_params, stop_flag);
                             let best_move = search_results.best_line
                                 .first()
                                 .map(|cm| convert_chess_move_to_raw(&cm.1));
@@ -208,6 +203,7 @@ fn setup_logging() -> Result<(), fern::InitError> {
 }
 
 fn log_test_messages() {
+    info!("Logging test messages from trace to error");
     trace!("trace message");
     debug!("debug message");
     info!("info message");

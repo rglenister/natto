@@ -24,12 +24,11 @@ impl Game {
     pub(crate) fn new(
         position: &Position,
     ) -> Self {
-        let game = Self {
-            position: position.clone(),
-            has_legal_move: move_generator::has_legal_move(&position),
+        Self {
+            position: *position,
+            has_legal_move: move_generator::has_legal_move(position),
             check_count: move_generator::king_attacks_finder(position, position.side_to_move()).count_ones() as usize,
-        };
-        game
+        }
     }
     pub fn get_game_status(&self) -> GameStatus {
         match (!self.has_legal_move, self.check_count > 0) {

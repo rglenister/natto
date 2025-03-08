@@ -51,6 +51,17 @@ impl ChessMove {
                 | CastlingMove { base_move, ..} => &base_move,
         }
     }
+
+    pub fn set_score(&mut self, score: isize) {
+        match self {
+            BasicMove { base_move }
+                | EnPassantMove { base_move, .. }
+                | PromotionMove { base_move, .. }
+                | CastlingMove { base_move, .. } => {
+                    base_move.score = score;
+                }
+        }
+    }
 }
 
 pub fn format_moves(moves: &Vec<(Position, ChessMove)>) -> String {

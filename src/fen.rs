@@ -47,7 +47,7 @@ pub fn write(position: &Position) -> String {
                    write_board(position.board()),
                    if position.side_to_move() == White { "w" } else { "b" },
                    get_castling_rights(position),
-                   position.en_passant_capture_square().map_or("-".to_string(), |ep_square| util::format_square(ep_square)),
+                   position.en_passant_capture_square().map_or("-".to_string(), util::format_square),
                    position.half_move_clock(),
                    position.full_move_number());
 
@@ -69,7 +69,7 @@ pub fn write(position: &Position) -> String {
                 if run_length > 0 {
                     run_length.to_string() + &encode_row(remaining)
                 } else {
-                    remaining.chars().nth(0).unwrap().to_string() + &encode_row(&remaining[1..])
+                    remaining.chars().next().unwrap().to_string() + &encode_row(&remaining[1..])
                 }
             } else {
                 "".to_string()
@@ -79,12 +79,12 @@ pub fn write(position: &Position) -> String {
 
     fn get_castling_rights(position: &Position) -> String {
         let mut output = String::new();
-        if position.castling_rights()[0][0] { output.push_str("K"); }
-        if position.castling_rights()[0][1] { output.push_str("Q"); }
-        if position.castling_rights()[1][0] { output.push_str("k"); }
-        if position.castling_rights()[1][1] { output.push_str("q"); }
+        if position.castling_rights()[0][0] { output.push('K'); }
+        if position.castling_rights()[0][1] { output.push('Q'); }
+        if position.castling_rights()[1][0] { output.push('k'); }
+        if position.castling_rights()[1][1] { output.push('q'); }
         if output.is_empty() {
-            output.push_str("-");
+            output.push('-');
         }
         output
     }

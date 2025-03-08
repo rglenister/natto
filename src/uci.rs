@@ -1,23 +1,12 @@
-use std::{io, thread};
 use std::collections::HashMap;
-use std::error::Error;
-use std::io::BufRead;
-use std::process::exit;
-use std::sync::{mpsc, Arc};
-use std::sync::atomic::{AtomicBool, Ordering};
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::{debug, error, info};
+use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
-use crate::{board, fen, util};
-use crate::chess_move::{convert_chess_move_to_raw, ChessMove, RawChessMove};
-use crate::position::{Position, NEW_GAME_FEN};
-use crate::board::{Board, PieceColor};
+use crate::util;
+use crate::chess_move::{ChessMove, RawChessMove};
+use crate::position::Position;
 use crate::board::PieceColor::{Black, White};
-use crate::search::{search, SearchParams};
-
-use std::time::Duration;
-use itertools::Itertools;
+use crate::search::SearchParams;
 
 include!("util/generated_macro.rs");
 
@@ -161,7 +150,7 @@ pub fn send_to_gui(data: String) {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::Board;
+    use crate::board::PieceColor;
     use super::*;
     use crate::board::PieceColor::{Black, White};
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {

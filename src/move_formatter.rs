@@ -9,6 +9,7 @@ use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate;
 use crate::position::Position;
+use crate::search::SearchResults;
 use crate::util;
 
 include!("util/generated_macro.rs");
@@ -17,7 +18,7 @@ pub const SHORT_FORMATTER: MoveFormatter = MoveFormatter::new(ShortAlgebraic);
 pub const LONG_FORMATTER: MoveFormatter = MoveFormatter::new(LongAlgebraic);
 
 pub trait FormatMove {
-    fn format_move_list(&self, position: &Position, chess_moves: &Vec<(Position, ChessMove)>) -> Option<Vec<String>>;
+    fn format_move_list(&self, position: &Position, chess_moves: &[(Position, ChessMove)]) -> Option<Vec<String>>;
 }
 
 #[derive(Eq, Hash, PartialEq)]
@@ -51,8 +52,12 @@ pub struct GameMove {
     chess_move: ChessMove,
 }
 
+pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
+    LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(",")
+}
+
 impl FormatMove for MoveFormatter {
-    fn format_move_list(&self, position: &Position, chess_moves: &Vec<(Position, ChessMove)>) -> Option<Vec<String>> {
+    fn format_move_list(&self, position: &Position, chess_moves: &[(Position, ChessMove)]) -> Option<Vec<String>> {
         let game_moves: Option<Vec<GameMove>> = chess_moves.iter().try_fold(Vec::new(), |mut acc: Vec<GameMove>, &cm| {
             let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().game.position.clone()} else { position };
             let next_pos: Option<(Position, ChessMove)> = pos.make_raw_move(&RawChessMove::new(cm.1.get_base_move().from, cm.1.get_base_move().to, get_promote_to(cm.1)));
@@ -60,7 +65,7 @@ impl FormatMove for MoveFormatter {
                 next_pos.map(|np| acc.push(GameMove::new(Game::new(&np.0), pos, &cm.1)));
                 Some(acc)
             } else {
-                return None;
+                None
             }
         });
         game_moves.map(|gms| {
@@ -80,7 +85,7 @@ fn get_promote_to(chess_move: ChessMove) -> Option<PieceType> {
 
 impl GameMove {
     fn new(game: Game, position: &Position, chess_move: &ChessMove) -> Self {
-        GameMove { game, position: position.clone(), chess_move: *chess_move }
+        GameMove { game, position: *position, chess_move: *chess_move }
     }
 }
 
@@ -99,13 +104,13 @@ impl MoveFormatter {
     }
     fn basic_format(&self, game_move: &GameMove) -> String {
         format!("{}{}{}{}{}{}{}",
-                self.get_piece(&game_move),
-                self.get_from_square(&game_move),
-                self.get_from_to_separator(&game_move),
-                self.get_to_square(&game_move),
-                self.get_promotion_piece(&game_move),
-                self.get_en_passant_indicator(&game_move),
-                self.get_result(&game_move)
+                self.get_piece(game_move),
+                self.get_from_square(game_move),
+                self.get_from_to_separator(game_move),
+                self.get_to_square(game_move),
+                self.get_promotion_piece(game_move),
+                self.get_en_passant_indicator(game_move),
+                self.get_result(game_move)
         )
     }
     fn get_piece(&self, game_move: &GameMove) -> String {
@@ -178,7 +183,7 @@ impl MoveFormatter {
             .iter().filter(|m|
                     m.get_base_move().to == cm.get_base_move().to
                     && **m != cm
-                    && self.get_moved_piece(&game_move.position, &game_move.chess_move) == self.get_moved_piece(&game_move.position, *m))
+                    && self.get_moved_piece(&game_move.position, &game_move.chess_move) == self.get_moved_piece(&game_move.position, m))
             .collect();
 
         if other_moves_to_the_same_square.is_empty() {

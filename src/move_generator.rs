@@ -6,7 +6,7 @@ use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
-use crate::board::{Board, BoardSide, PieceColor, PieceType};
+use crate::board::{BoardSide, PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chess_move::{BaseMove, ChessMove};
@@ -127,10 +127,8 @@ fn generate_moves_for_destinations<F>(from: usize, destinations: u64, occupied_s
 where F: FnMut(&ChessMove) -> Option<()> {
     let mut quit = false;
     util::process_bits(destinations, |to: u64| {
-        if !quit && friendly_squares & 1 << to == 0 {
-            if process_move(&BasicMove { base_move: BaseMove::new(from, to as usize,occupied_squares & 1 << to != 0)}).is_none() {
-                quit = true;
-            }
+        if !quit && friendly_squares & (1 << to) == 0 && process_move(&BasicMove { base_move: BaseMove::new(from, to as usize,occupied_squares & (1 << to) != 0)}).is_none() {
+            quit = true;
         }
     });
     if !quit { Some(()) } else { None }
@@ -138,10 +136,10 @@ where F: FnMut(&ChessMove) -> Option<()> {
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
     let mut table = HashMap::new();
-    // the white table contains the attacks by white pawns on the black king
-    table.insert(&White, generate_move_table([-7, -9]));
-    // the black table contains the attacks by black pawns on the white king
-    table.insert(&Black, generate_move_table([7, 9]));
+    // the white table contains the attacks by white pawns on a square
+    table.insert(&White, generate_move_table([7, 9]));
+    // the black table contains the attacks by black pawns on a square
+    table.insert(&Black, generate_move_table([-7, -9]));
     fn generate_move_table(increments: [i32; 2]) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
         for square_index in 0..64 {
@@ -264,7 +262,7 @@ fn generate_move_bitboard(
         if on_board(source_square, destination_square) &&
             (!generating_blocking_square_mask || on_board(destination_square, destination_square + increment)) {
             let result = 1 << destination_square;
-            if sliding && blocking_pieces_bitboard & 1 << destination_square == 0 {
+            if sliding && blocking_pieces_bitboard & (1 << destination_square) == 0 {
                 result | generate_move_bitboard_for_increment(
                     destination_square,
                     blocking_pieces_bitboard,
@@ -297,81 +295,72 @@ where F: FnMut(&ChessMove) -> Option<()> {
     Some(())
 }
 
-// rewrite of generate_pawn_moves()
-fn generate_pawn_moves_2<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()> {
-    None
-}
-
-
 fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()>
 where F: FnMut(&ChessMove) -> Option<()> {
-    let opposition_pieces_bitboard = position.board().bitboard_by_color(position.opposing_side());
-    let forward_increment: i32 = if position.side_to_move() == White { 8 } else { -8 };
+    let create_moves = |from: usize, to: usize, capture: bool| -> Option<()> {
+        if BitBoard::rank(to, position.side_to_move()) != 7 {
+            if process_move.borrow_mut()(&BasicMove { base_move: BaseMove::new(from, to, capture) }).is_none() {
+                return None;
+            }
+        } else {
+            for piece_type in [Knight, Bishop, Rook, Queen] {
+                if process_move.borrow_mut()(&PromotionMove { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type }).is_none() {
+                    return None;
+                }
+            }
+        }
+        Some(())
+    };
+
     let mut quit = false;
+    let side_to_move = position.side_to_move();
+    let opposing_side = !side_to_move;
+    let opposing_side_bitboard = position.board().bitboard_by_color(opposing_side);
 
     util::process_bits(square_indexes, |square_index| {
-        let mut create_moves = |from: usize, to: usize, capture: bool| -> Option<()> {
-            if BitBoard::rank(to, position.side_to_move()) != 7 {
-                if process_move.borrow_mut()(&BasicMove { base_move: BaseMove::new(from, to, capture) }).is_none() {
-                    return None;
+
+        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index as usize];
+
+        if !quit {
+            // generate forward moves
+            let one_step_forward: u64 = if side_to_move == White { 1 << (square_index + 8) } else { 1 << (square_index - 8) };
+            if occupied_squares & one_step_forward == 0 {
+                if create_moves(square_index as usize, one_step_forward.trailing_zeros() as usize, false).is_none() {
+                    quit = true;
                 }
-            } else {
-                for piece_type in [Knight, Bishop, Rook, Queen] {
-                    if process_move.borrow_mut()(&PromotionMove { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type }).is_none() {
-                        return None;
+                if !quit && BitBoard::rank(square_index as usize, side_to_move) == 1 {
+                    let two_steps_forward = if side_to_move == White { one_step_forward << 8 } else { one_step_forward >> 8 };
+                    if (occupied_squares & two_steps_forward) == 0 && create_moves(square_index as usize, two_steps_forward.trailing_zeros() as usize, false).is_none() {
+                        quit = true;
                     }
                 }
             }
-            Some(())
-        };
-
-        let mut generate_forward_moves = |square_index: i32| -> Option<()> {
-            let one_step_forward = square_index + forward_increment;
-            if occupied_squares & 1 << one_step_forward == 0 {
-                if create_moves((square_index as usize).try_into().unwrap(), one_step_forward.try_into().unwrap(), false).is_none() {
-                    return None;
-                }
-                if BitBoard::rank(square_index.try_into().unwrap(), position.side_to_move()) == 1 && occupied_squares & (1 << one_step_forward + forward_increment) == 0 {
-                    if create_moves((square_index as usize).try_into().unwrap(), ((one_step_forward + forward_increment) as usize).try_into().unwrap(), false).is_none() {
-                        return None;
+        }
+        if !quit {
+            // generate standard captures
+            let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
+            if attacked_opposing_piece_squares != 0 {
+                util::process_bits(attacked_opposing_piece_squares, |attacked_square_index| {
+                    if create_moves(square_index as usize, attacked_square_index as usize, true).is_none() {
+                        quit = true;
+                    }
+                });
+            }
+        }
+        if !quit {
+            // generate en passant capture
+            if let Some(ep_square) = position.en_passant_capture_square() {
+                if ((1 << ep_square) & attacked_squares) != 0 {
+                    let one_step_backward: isize = if side_to_move == White { -8 } else { 8 };
+                    let ep_move = EnPassantMove { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize + one_step_backward) as usize };
+                    if process_move.borrow_mut()(&ep_move).is_none() {
+                        quit = true;
                     }
                 }
             }
-            Some(())
-        };
-
-        let generate_en_passant = |square_index: u64| -> Option<()> {
-            let ep_move = position.en_passant_capture_square()
-                .map(|sq| sq as i32 - forward_increment)
-                .filter(|ep_square| BitBoard::is_along_side(square_index.try_into().unwrap(), (*ep_square as i32).try_into().unwrap()))
-                .map(|ep_square| { EnPassantMove { base_move: { BaseMove::new(square_index as usize, (ep_square as i32 + forward_increment) as usize, true) }, capture_square: ep_square as usize } });
-            if ep_move.is_some() && process_move.borrow_mut()(&ep_move.unwrap()).is_none() {
-                None
-            } else {
-                Some(())
-            }
-        };
-
-        let is_valid_capture = |from: i32, to: i32| -> bool {
-            on_board(from, to) && opposition_pieces_bitboard & 1 << to != 0
-        };
-
-        let mut generate_standard_captures = |square_index: u64| -> Option<()> {
-            for increment in [forward_increment + 1, forward_increment - 1] {
-                let to = square_index as i32 + increment;
-                if is_valid_capture(square_index.try_into().unwrap(), to) {
-                    if create_moves((square_index as usize).try_into().unwrap(), to.try_into().unwrap(), true).is_none() {
-                        return None;
-                    }
-                }
-            }
-            Some(())
-        };
-
-        quit = generate_forward_moves(square_index as i32).is_none()
-                || generate_standard_captures(square_index).is_none()
-                || generate_en_passant(square_index).is_none()
+        }
     });
+
     if quit { None } else { Some(()) }
 }
 
@@ -392,7 +381,7 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
     attacking_squares |= non_sliding_piece_attacks(position, King, attacking_color, square_index);
     attacking_squares |= non_sliding_piece_attacks(position, Knight, attacking_color, square_index);
 
-    let pawn_attack_squares = PAWN_ATTACKS_TABLE[&attacking_color][square_index as usize];
+    let pawn_attack_squares = PAWN_ATTACKS_TABLE[&!attacking_color][square_index as usize];
     let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, Pawn);
     let attacking_pawn = pawn_attack_squares & attacking_pawns;
     attacking_squares |= attacking_pawn;
@@ -403,7 +392,7 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
 pub fn is_en_passant_capture_possible(position: &Position) -> bool {
     if let Some(en_passant_capture_square) = position.en_passant_capture_square() {
         position.board().bitboard_by_color_and_piece_type(position.side_to_move(), Pawn) &
-                PAWN_ATTACKS_TABLE[&position.side_to_move()][en_passant_capture_square] != 0
+            PAWN_ATTACKS_TABLE[&position.opposing_side()][en_passant_capture_square] != 0
     } else {
         false
     }
@@ -422,17 +411,12 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::Board;
     use super::*;
     use crate::chess_move::ChessMove::CastlingMove;
     use crate::move_generator::generate;
 
-    use super::*;
-
     use crate::board::BoardSide::{KingSide, QueenSide};
     use crate::chess_move::BaseMove;
-    use crate::fen;
-    use super::*;
 
     /// Verifies that a knight in a corner square can move to the expected squares
     #[test]
@@ -563,8 +547,8 @@ mod tests {
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 19);
         assert_eq!(moves.len(), 3);
-        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(19, 28, true)});
-        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(19, 26, true)});
+        assert_eq!(*moves.get(0).unwrap(), BasicMove { base_move: BaseMove::new(19, 26, true)});
+        assert_eq!(*moves.get(1).unwrap(), BasicMove { base_move: BaseMove::new(19, 28, true)});
         assert_eq!(*moves.get(2).unwrap(), BasicMove { base_move: BaseMove::new(19, 27, false)});
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 23);
@@ -688,15 +672,15 @@ mod tests {
         let moves = util::filter_moves_by_from_square(generate(&position), 14);
         assert_eq!(moves.len(), 12);
 
-        assert_eq!(*moves.get(0).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Queen });
+        assert_eq!(*moves.get(0).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Knight });
+        assert_eq!(*moves.get(1).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Bishop });
+        assert_eq!(*moves.get(2).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Rook });
+        assert_eq!(*moves.get(3).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Queen });
 
-        assert_eq!(*moves.get(4).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Knight });
-        assert_eq!(*moves.get(5).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Bishop });
-        assert_eq!(*moves.get(6).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Rook });
-        assert_eq!(*moves.get(7).unwrap(), PromotionMove { base_move: BaseMove::new(14, 5, true), promote_to: Queen });
+        assert_eq!(*moves.get(4).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Knight });
+        assert_eq!(*moves.get(5).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Bishop });
+        assert_eq!(*moves.get(6).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Rook });
+        assert_eq!(*moves.get(7).unwrap(), PromotionMove { base_move: BaseMove::new(14, 7, true), promote_to: Queen });
 
         assert_eq!(*moves.get(8).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Knight });
         assert_eq!(*moves.get(9).unwrap(), PromotionMove { base_move: BaseMove::new(14, 6, false), promote_to: Bishop });
@@ -800,14 +784,14 @@ mod tests {
 
     #[test]
     fn test_pawn_attacks_table() {
-        assert_eq!(PAWN_ATTACKS_TABLE[&Black][0], 1 << 9);
-        assert_eq!(PAWN_ATTACKS_TABLE[&Black][1], 1 << 8 | 1 << 10);
+        assert_eq!(PAWN_ATTACKS_TABLE[&White][0], 1 << 9);
+        assert_eq!(PAWN_ATTACKS_TABLE[&White][1], 1 << 8 | 1 << 10);
 
-        assert_eq!(PAWN_ATTACKS_TABLE[&White][63], 1 << 54);
-        assert_eq!(PAWN_ATTACKS_TABLE[&White][62], 1 << 53 | 1 << 55);
+        assert_eq!(PAWN_ATTACKS_TABLE[&Black][63], 1 << 54);
+        assert_eq!(PAWN_ATTACKS_TABLE[&Black][62], 1 << 53 | 1 << 55);
 
-        assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 22);
-        assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 38);
+        assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 22);
+        assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 38);
     }
 
 }

@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::ops::Not;
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
@@ -13,6 +13,17 @@ pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 pub enum PieceColor {
     White = 0,
     Black = 1,
+}
+
+impl Not for PieceColor {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            White => Black,
+            Black => White,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Copy)]

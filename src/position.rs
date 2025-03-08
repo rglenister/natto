@@ -1,8 +1,4 @@
-use std::collections::HashMap;
-use std::error::Error;
 use std::fmt;
-use std::hash::{Hash, Hasher};
-use log::error;
 use once_cell::sync::Lazy;
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
 use crate::board::{Board, BoardSide, Piece, PieceColor};
@@ -14,7 +10,7 @@ use crate::board::PieceType::{King, Pawn, Rook};
 use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
 use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
-use rand::{rng, Rng};
+use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
@@ -327,7 +323,7 @@ impl Position {
 mod tests {
     use crate::bit_board::BitBoard;
     use super::*;
-    use crate::board::{BoardSide, PieceColor};
+    use crate::board::PieceColor;
     use crate::board::PieceType::Queen;
     use crate::chess_move::ChessMove::CastlingMove;
     use crate::move_generator::generate;
@@ -418,11 +414,11 @@ mod tests {
     #[test]
     fn test_ep_capture_square_is_set_after_double_black_pawn_move() {
         let position_1 = Position::from(NEW_GAME_FEN);
-        let (position_2, _) = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e3"), None)).unwrap();
+        let (position_2, _cm) = position_1.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e3"), None)).unwrap();
         assert_eq!(position_2.en_passant_capture_square, None);
-        let (position_3, cm) = position_2.make_raw_move(&RawChessMove::new(sq!("a7"), sq!("a5"), None)).unwrap();
+        let (position_3, _cm) = position_2.make_raw_move(&RawChessMove::new(sq!("a7"), sq!("a5"), None)).unwrap();
         assert_eq!(position_3.en_passant_capture_square, Some(sq!("a6")));
-        let (position_4, _) = position_3.make_raw_move(&RawChessMove::new(sq!("c2"), sq!("c3"), None)).unwrap();
+        let (position_4, _cm) = position_3.make_raw_move(&RawChessMove::new(sq!("c2"), sq!("c3"), None)).unwrap();
         assert_eq!(position_4.en_passant_capture_square, None);
     }
 

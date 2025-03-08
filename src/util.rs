@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::ops::Add;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use crate::board;
-use crate::board::{PieceColor, PieceType};
+use crate::board::PieceColor;
 use crate::board::PieceColor::{Black, White};
 use crate::chess_move::{ChessMove, RawChessMove};
 use crate::position::Position;
@@ -74,8 +73,8 @@ pub fn print_bitboard(bitboard: u64) {
     println!();
 }
 
-pub fn process_bits<F>(mut bitmap: u64, mut func: F) -> ()
-where F: FnMut(u64) -> (),
+pub fn process_bits<F>(mut bitmap: u64, mut func: F)
+where F: FnMut(u64),
 {
     while bitmap != 0 {
         func(bitmap.trailing_zeros() as u64);
@@ -119,7 +118,7 @@ pub fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec
     let raw_moves = moves_string_to_raw_moves(raw_moves_string)?;
     let result: Option<Vec<(Position, ChessMove)>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, ChessMove)>, rm: &RawChessMove| {
         let current_position = if !acc.is_empty() { &acc.last().unwrap().0.clone()} else { position };
-        if let next_position = current_position.make_raw_move(rm)? {
+        if let Some(next_position) = current_position.make_raw_move(rm) {
             acc.push(next_position);
             return Some(acc);
         }
