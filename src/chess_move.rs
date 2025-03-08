@@ -64,10 +64,6 @@ impl ChessMove {
     }
 }
 
-pub fn format_moves(moves: &Vec<(Position, ChessMove)>) -> String {
-    moves.iter().map(|m| m.1.to_string()).collect::<Vec<_>>().join(", ")
-}
-
 impl fmt::Display for ChessMove {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

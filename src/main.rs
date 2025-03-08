@@ -10,13 +10,14 @@ pub mod board;
 pub mod chess_move;
 pub mod bit_board;
 pub mod position;
-pub mod util;
 pub mod uci;
+pub mod util;
 pub mod move_generator;
 pub mod search;
 pub mod game;
 pub mod move_formatter;
 pub mod piece_score_tables;
+
 
 use fern::Dispatch;
 use log::{info, debug, warn, error, LevelFilter, trace};
@@ -131,13 +132,15 @@ fn main() {
                         debug!("go options = {:?}", uci_go_options);
 
                         let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
+                        let repeat_position_counts = Some(util::create_repeat_position_counts(uci_pos.all_game_positions()));
+
                         debug!("search params = {}", search_params);
                         debug!("Starting search...");
                         search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
                         let stop_flag = Arc::clone(&search_stop_flag);
                         search_handle = Some(thread::spawn(move || {
-                            let search_results = search(&uci_pos.given_position, &search_params, stop_flag);
+                            let search_results = search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
                             let best_move = search_results.best_line
                                 .first()
                                 .map(|cm| convert_chess_move_to_raw(&cm.1));

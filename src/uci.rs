@@ -19,6 +19,17 @@ pub struct UciPosition {
     pub(crate) position_move_pairs: Option<Vec<(Position, ChessMove)>>,
 }
 
+impl UciPosition {
+    pub fn all_game_positions(&self) -> Vec<Position> {
+        let game_positions: Vec<_> = self.position_move_pairs
+            .iter()
+            .flat_map(|pairs| pairs.iter().map(|pm| pm.0.clone()))
+            .collect();
+
+        [vec!(self.given_position).as_slice(), game_positions.as_slice()].concat()
+    }
+}
+
 #[derive(Clone)]
 #[derive(Default)]
 #[derive(Debug)]
@@ -128,18 +139,10 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
         uci_go_options.nodes.map_or(usize::MAX, |nodes| nodes)
     };
 
-    let game_positions: Vec<_> = uci_position.position_move_pairs
-        .iter()
-        .flat_map(|pairs| pairs.iter().map(|pm| pm.0.clone()))
-        .collect();
-
     SearchParams {
         allocated_time_millis: allocate_move_time_millis().map_or(usize::MAX, |mtm| mtm),
         max_depth: allocate_max_depth(),
         max_nodes: allocate_max_nodes(),
-        repeat_position_counts: Some(util::create_repeat_position_counts(
-            [vec!(uci_position.given_position).as_slice(), game_positions.as_slice()].concat()
-        )),
     }
 }
 
