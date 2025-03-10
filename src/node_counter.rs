@@ -59,7 +59,7 @@ pub fn count_nodes(position: &Position, max_depth: i32) -> NodeCountStats {
     NODE_COUNTER.read().unwrap().stats()
 }
 
-fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) -> () {
+fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) {
     if depth != 0 {
         //        increment_node_counter();
     }
@@ -72,5 +72,4 @@ fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) -> () {
     } else {
         NODE_COUNTER.read().unwrap().increment();
     }
-    ()
 }

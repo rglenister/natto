@@ -29,7 +29,7 @@ static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLo
 });
 
 fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
 }
 
 pub const MAXIMUM_SEARCH_DEPTH: isize = isize::MAX;
@@ -69,7 +69,7 @@ impl Display for PositionWithSearchResults<'_> {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.search_results.score,
                self.search_results.depth,
-               LONG_FORMATTER.format_move_list(&self.position, &*self.search_results.best_line).unwrap().join(", "),
+               LONG_FORMATTER.format_move_list(self.position, &*self.search_results.best_line).unwrap().join(", "),
                self.search_results.game_status)
     }
 }
@@ -148,21 +148,17 @@ impl SearchResults {
 
 pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
-    let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate(&position));
+    let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate(position));
     let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!(), game_status: InProgress };
     for iteration_max_depth in 0..=search_params.max_depth {
-        let iteration_search_results = do_search(&position, &vec!(), 0, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        let iteration_search_results = do_search(position, &vec!(), 0, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position: &position, search_results: &iteration_search_results});
+            debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &iteration_search_results});
             let nps = node_counter_stats().nodes_per_second;
             uci::send_to_gui(format!("info nps {}", nps));
             search_results = iteration_search_results;
-            match search_results.game_status {
-                Checkmate => {
-                    info!("Found mate at depth {} - stopping search", iteration_max_depth);
-                    break;
-                }
-                _ => {}
+            if search_results.game_status == Checkmate {
+                info!("Found mate at depth {} - stopping search", iteration_max_depth);
             }
         } else {
             break;
@@ -173,7 +169,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
 
 fn do_search(
     position: &Position,
-    current_line: &Vec<(Position, ChessMove)>,
+    current_line: &[(Position, ChessMove)],
     depth: isize,
     max_depth: isize,
     search_context: &mut SearchContext,
@@ -181,20 +177,20 @@ fn do_search(
     beta: isize,
 ) -> SearchResults {
     increment_node_counter();
-    if used_allocated_move_time(&search_context.search_params) {
+    if used_allocated_move_time(search_context.search_params) {
         search_context.stop_flag.store(true, Ordering::Relaxed);
         return SearchResults { score: 0, depth, best_line: vec!(), game_status: GameStatus::InProgress };
     }
     if depth < max_depth {
-        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.clone(), game_status: GameStatus::InProgress };
+        let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.to_owned(), game_status: GameStatus::InProgress };
         let moves = if depth == 0 { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate(position) };
         let mut has_legal_move = false;
         for chess_move in moves {
             if let Some(next_position) = position.make_move(&chess_move) {
                 // there isn't a checkmate or a stalemate
                 has_legal_move = true;
-                let mut next_result: SearchResults = if get_repeat_position_count(&next_position.0, &add_item(&current_line, &next_position), search_context.repeat_position_counts.as_ref()) >= 2 {
-                    SearchResults { score: 0, depth, best_line: add_item(&current_line, &next_position), game_status: DrawnByThreefoldRepetition }
+                let next_result: SearchResults = if get_repeat_position_count(&next_position.0, &add_item(current_line, &next_position), search_context.repeat_position_counts.as_ref()) >= 2 {
+                    SearchResults { score: 0, depth, best_line: add_item(current_line, &next_position), game_status: DrawnByThreefoldRepetition }
                 } else {
                     -do_search(&next_position.0, &add_item(current_line, &next_position), depth + 1, max_depth, search_context, -beta, -alpha)
                 };
@@ -214,7 +210,7 @@ fn do_search(
 //        write_uci_info(&best_search_results, depth);
         return best_search_results;
     } else {
-        return score_position(&position, current_line, depth);
+        return score_position(position, current_line, depth);
     }
     fn add_item(line: &[(Position, ChessMove)], cm: &(Position, ChessMove)) -> Vec<(Position, ChessMove)> {
         let mut appended_line = line.to_owned();

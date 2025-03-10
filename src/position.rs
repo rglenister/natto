@@ -7,7 +7,7 @@ use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{King, Pawn, Rook};
-use crate::chess_move::ChessMove::{BasicMove, CastlingMove, EnPassantMove, PromotionMove};
+use crate::chess_move::ChessMove::{Basic, Castling, EnPassant, Promotion};
 use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
 use rand::Rng;
@@ -87,7 +87,7 @@ impl From<&Position> for Position {
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", self.board.to_string(), fen::write(self))
+        write!(f, "{} {}", self.board, fen::write(self))
     }
 }
 
@@ -144,18 +144,18 @@ impl Position {
     }
 
     pub fn castling_rights(&self) -> [[bool; 2]; 2] {
-        self.castling_rights.clone()
+        self.castling_rights
     }
 
     pub fn castling_rights_as_u64(&self) -> u64 {
-        ((self.castling_rights[White as usize][KingSide as usize] as u64) << 0) |
+        (self.castling_rights[White as usize][KingSide as usize] as u64) |
         ((self.castling_rights[White as usize][QueenSide as usize] as u64) << 1) |
         ((self.castling_rights[Black as usize][KingSide as usize] as u64) << 2) |
         ((self.castling_rights[Black as usize][QueenSide as usize] as u64) << 3)
     }
 
     pub fn en_passant_capture_square(&self) -> Option<usize> {
-        self.en_passant_capture_square.clone()
+        self.en_passant_capture_square
     }
 
     pub fn half_move_clock(&self) -> usize {
@@ -175,7 +175,7 @@ impl Position {
         initial_hash ^= POSITION_HASHES.side_to_move_hashes_table[self.side_to_move as usize];
         initial_hash ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
 
-        if is_en_passant_capture_possible(&self) {
+        if is_en_passant_capture_possible(self) {
             initial_hash ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
         }
         initial_hash
@@ -217,22 +217,22 @@ impl Position {
     }
 
     pub fn make_move(&self, chess_move: &ChessMove) -> Option<(Self, ChessMove)> {
-        let mut new_position = self.clone();
+        let mut new_position = *self;
 
         new_position.en_passant_capture_square = None;
 
         match chess_move {
-            BasicMove { base_move } => {
+            Basic { base_move } => {
                 do_basic_move(&mut new_position, base_move.from, base_move.to, base_move.capture);
             }
-            EnPassantMove { base_move, capture_square: _ } => {
+            EnPassant { base_move, capture_square: _ } => {
                 do_basic_move(&mut new_position, base_move.from, base_move.to, true);
                 let forward_pawn_increment: i32 = if self.side_to_move == White {-8} else {8};
                 new_position.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
             }
-            CastlingMove { base_move, board_side } => {
+            Castling { base_move, board_side } => {
                 let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
-                if king_attacks_finder(&mut new_position, self.side_to_move) == 0 &&
+                if king_attacks_finder(&new_position, self.side_to_move) == 0 &&
                             square_attacks_finder(&new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
                     do_basic_move(&mut new_position, base_move.from, base_move.to, false);
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
@@ -242,7 +242,7 @@ impl Position {
                     return None;
                 }
             }
-            PromotionMove { base_move, promote_to } => {
+            Promotion { base_move, promote_to } => {
                 new_position.remove_piece(base_move.from);
                 new_position.put_piece(base_move.to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
                 new_position.half_move_clock = 0;
@@ -270,10 +270,10 @@ impl Position {
             }
         }
 
-        if king_attacks_finder(&mut new_position, self.side_to_move()) == 0 {
+        if king_attacks_finder(&new_position, self.side_to_move()) == 0 {
             // it's a valid move because it doesn't leave the side making the move in check
             self.update_hash_code(chess_move, &mut new_position);
-            Some((new_position, chess_move.clone()))
+            Some((new_position, *chess_move))
         } else {
             None
         }
@@ -294,11 +294,11 @@ impl Position {
             new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[new_position.castling_rights_as_u64() as usize];
         }
         // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
-        if is_en_passant_capture_possible(&self) {
+        if is_en_passant_capture_possible(self) {
             // remove the old en passant from the hash only if an en passant capture could be made because it won't have been added to the hash
             new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
         }
-        if is_en_passant_capture_possible(&new_position) {
+        if is_en_passant_capture_possible(new_position) {
             // add the new en passant square to the hash only if an en passant capture can actually be made
             new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
         }
@@ -329,7 +329,7 @@ mod tests {
     use super::*;
     use crate::board::PieceColor;
     use crate::board::PieceType::Queen;
-    use crate::chess_move::ChessMove::CastlingMove;
+    use crate::chess_move::ChessMove::Castling;
     use crate::move_generator::generate;
 
     #[test]
@@ -390,7 +390,7 @@ mod tests {
         let position = Position::from(fen);
         let moves = generate(&position);
         let castling_moves: Vec<&ChessMove> =
-            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
+            moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
         assert_eq!(castling_moves.len(), 2);
         assert_eq!(castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).count(), 0);
     }
@@ -401,7 +401,7 @@ mod tests {
         let position = Position::from(fen);
         let moves = generate(&position);
         let castling_moves: Vec<_> =
-            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
+            moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
         assert_eq!(castling_moves.len(), 1);
         assert_eq!(castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).count(), 0);
     }
@@ -436,7 +436,7 @@ mod tests {
 
         let moves = generate(&position);
         let castling_moves: Vec<_> =
-            moves.iter().filter(|chess_move| matches!(chess_move, CastlingMove { .. })).collect();
+            moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
         assert_eq!(castling_moves.len(), 2);
         let positions: Vec<_> = castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).collect();
         assert_eq!(positions.len(), 2);

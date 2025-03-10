@@ -23,7 +23,7 @@ impl UciPosition {
     pub fn all_game_positions(&self) -> Vec<Position> {
         let game_positions: Vec<_> = self.position_move_pairs
             .iter()
-            .flat_map(|pairs| pairs.iter().map(|pm| pm.0.clone()))
+            .flat_map(|pairs| pairs.iter().map(|pm| pm.0))
             .collect();
 
         [vec!(self.given_position).as_slice(), game_positions.as_slice()].concat()
@@ -97,7 +97,7 @@ pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
             let new_game_position = Position::new_game();
             create_uci_position(&new_game_position, &captures)
         } else if let Some(fen) = captures.get(2) {
-            let fen_position = Position::try_from(fen.as_str()).unwrap();
+            let fen_position = Position::from(fen.as_str());
             create_uci_position(&fen_position, &captures)
         } else {
             None

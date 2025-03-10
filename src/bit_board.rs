@@ -71,7 +71,7 @@ impl BitBoard {
         self.bit_boards[piece_color as usize]
     }
     pub fn bitboard_all_pieces(&self) -> u64 {
-        BitBoard::bitboard_by_color(&self, PieceColor::White) | BitBoard::bitboard_by_color(&self, PieceColor::Black)
+        BitBoard::bitboard_by_color(self, PieceColor::White) | BitBoard::bitboard_by_color(self, PieceColor::Black)
     }
 
     pub fn bitboard_by_color_and_piece_type(&self, piece_color: PieceColor, piece_type: PieceType) -> u64 {
@@ -79,7 +79,7 @@ impl BitBoard {
     }
 
     pub fn bitboard_by_color(&self, piece_color: PieceColor) -> u64 {
-        self.bit_boards[piece_color as usize].iter().fold(0, |acc, x| acc | *x as u64)
+        self.bit_boards[piece_color as usize].iter().fold(0, |acc, x| acc | *x)
     }
 
     pub fn king_square(&self, piece_color: PieceColor) -> i32 {
@@ -159,7 +159,7 @@ impl Board for BitBoard {
         let mask: u64 = 1 << square_index;
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
-                if self.bit_boards[piece_color.clone() as usize][piece_type.clone() as usize] & mask != 0 {
+                if self.bit_boards[piece_color as usize][piece_type.clone() as usize] & mask != 0 {
                     return Some(Piece { piece_color, piece_type });
                 }
             }
@@ -169,15 +169,15 @@ impl Board for BitBoard {
 
     fn put_piece(&mut self, square_index: usize, piece: Piece) {
         self.remove_piece(square_index);
-        self.bit_boards[piece.piece_color.clone() as usize][piece.piece_type.clone() as usize] |= 1 << square_index;
+        self.bit_boards[piece.piece_color as usize][piece.piece_type as usize] |= 1 << square_index;
     }
 
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
         let mask: u64 = 1 << square_index;
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
-                if self.bit_boards[piece_color.clone() as usize][piece_type.clone() as usize] & mask != 0 {
-                    self.bit_boards[piece_color.clone() as usize][piece_type.clone() as usize] &= !mask;
+                if self.bit_boards[piece_color as usize][piece_type as usize] & mask != 0 {
+                    self.bit_boards[piece_color as usize][piece_type as usize] &= !mask;
                     return Some(Piece { piece_color, piece_type })
                 }
             }

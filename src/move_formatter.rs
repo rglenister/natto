@@ -4,7 +4,7 @@ use crate::board::BoardSide::KingSide;
 use crate::board::{Board, Piece, PieceType};
 use crate::board::PieceType::Pawn;
 use crate::chess_move::{ChessMove, RawChessMove};
-use crate::chess_move::ChessMove::{CastlingMove, EnPassantMove, PromotionMove};
+use crate::chess_move::ChessMove::{Castling, EnPassant, Promotion};
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate;
@@ -53,7 +53,7 @@ pub struct GameMove {
 }
 
 pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
 }
 
 impl FormatMove for MoveFormatter {
@@ -62,7 +62,7 @@ impl FormatMove for MoveFormatter {
             let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().game.position.clone()} else { position };
             let next_pos: Option<(Position, ChessMove)> = pos.make_raw_move(&RawChessMove::new(cm.1.get_base_move().from, cm.1.get_base_move().to, get_promote_to(cm.1)));
             if next_pos.is_some() {
-                next_pos.map(|np| acc.push(GameMove::new(Game::new(&np.0), pos, &cm.1)));
+                if let Some(np) = next_pos { acc.push(GameMove::new(Game::new(&np.0), pos, &cm.1)) }
                 Some(acc)
             } else {
                 None
@@ -78,7 +78,7 @@ impl FormatMove for MoveFormatter {
 
 fn get_promote_to(chess_move: ChessMove) -> Option<PieceType> {
     match chess_move {
-        PromotionMove { base_move: _ , promote_to} => Some(promote_to),
+        Promotion { base_move: _ , promote_to} => Some(promote_to),
         _ => None
     }
 }
@@ -96,7 +96,7 @@ impl MoveFormatter {
 
     fn format_move_internal(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
-            CastlingMove { base_move: _, board_side } => {
+            Castling { base_move: _, board_side } => {
                 if board_side == KingSide { "0-0".to_string() } else { "0-0-0".to_string() }
             }
             _ => self.basic_format(game_move)
@@ -153,7 +153,7 @@ impl MoveFormatter {
 
     fn get_promotion_piece(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
-            PromotionMove { base_move: _ , promote_to } => {
+            Promotion { base_move: _ , promote_to } => {
                 PIECE_CHAR_TO_UNICODE[&Piece { piece_color: game_move.position.side_to_move(), piece_type: promote_to }.to_char()].to_string()
             }
             _ => String::new()
@@ -162,7 +162,7 @@ impl MoveFormatter {
 
     fn get_en_passant_indicator(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
-            EnPassantMove {base_move: _ , capture_square: _} => {
+            EnPassant {base_move: _ , capture_square: _} => {
                 " e.p".to_string()
             }
             _ => String::new()
