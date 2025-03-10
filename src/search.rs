@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::ops::Neg;
 use std::sync::{Arc, LazyLock, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use itertools::Itertools;
@@ -17,6 +19,7 @@ use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTME
 use crate::position::Position;
 use crate::{uci, util};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
+use crate::sorted_move_list::SortedMoveList;
 
 include!("util/generated_macro.rs");
 
@@ -42,6 +45,19 @@ pub struct SearchResults {
     pub depth: isize,
     pub best_line: Vec<(Position, ChessMove)>,
     pub game_status: GameStatus,
+}
+
+impl Neg for SearchResults {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            score: -self.score,
+            depth: self.depth,
+            best_line: self.best_line,
+            game_status: self.game_status,
+        }
+    }
 }
 
 pub struct PositionWithSearchResults<'a> {
@@ -88,18 +104,21 @@ impl SearchParams {
 struct SearchContext<'a> {
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
+    sorted_root_moves: RefCell<SortedMoveList>,
     repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
 }
 
 impl SearchContext<'_> {
     pub fn new(
         search_params: &SearchParams,
-        repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
         stop_flag: Arc<AtomicBool>,
+        repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
+        moves: Vec<ChessMove>,
     ) -> SearchContext {
         SearchContext {
             search_params,
             stop_flag,
+            sorted_root_moves: RefCell::new(SortedMoveList::new(&moves)),
             repeat_position_counts,
         }
     }
@@ -121,15 +140,18 @@ impl SearchResults {
     fn best_line_moves_as_string(&self) -> String {
         self.best_line_moves().iter().join(",")
     }
+    pub fn negate_score(&mut self) {
+        self.score = -self.score;
+    }
 }
 
 
 pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
-    let search_context = SearchContext::new(search_params, repeat_position_counts, stop_flag);
-    let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!(), game_status: GameStatus::InProgress };
+    let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate(&position));
+    let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!(), game_status: InProgress };
     for iteration_max_depth in 0..=search_params.max_depth {
-        let iteration_search_results = do_search(&position, &vec!(), 0, iteration_max_depth, &search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        let iteration_search_results = do_search(&position, &vec!(), 0, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position: &position, search_results: &iteration_search_results});
             let nps = node_counter_stats().nodes_per_second;
@@ -154,7 +176,7 @@ fn do_search(
     current_line: &Vec<(Position, ChessMove)>,
     depth: isize,
     max_depth: isize,
-    search_context: &SearchContext,
+    search_context: &mut SearchContext,
     mut alpha: isize,
     beta: isize,
 ) -> SearchResults {
@@ -165,7 +187,7 @@ fn do_search(
     }
     if depth < max_depth {
         let mut best_search_results = SearchResults { score: -MAXIMUM_SCORE, depth, best_line: current_line.clone(), game_status: GameStatus::InProgress };
-        let moves = generate(position);
+        let moves = if depth == 0 { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate(position) };
         let mut has_legal_move = false;
         for chess_move in moves {
             if let Some(next_position) = position.make_move(&chess_move) {
@@ -174,9 +196,9 @@ fn do_search(
                 let mut next_result: SearchResults = if get_repeat_position_count(&next_position.0, &add_item(&current_line, &next_position), search_context.repeat_position_counts.as_ref()) >= 2 {
                     SearchResults { score: 0, depth, best_line: add_item(&current_line, &next_position), game_status: DrawnByThreefoldRepetition }
                 } else {
-                    do_search(&next_position.0, &add_item(current_line, &next_position), depth + 1, max_depth, search_context, -beta, -alpha)
+                    -do_search(&next_position.0, &add_item(current_line, &next_position), depth + 1, max_depth, search_context, -beta, -alpha)
                 };
-                next_result.score = -next_result.score;
+                if depth == 0 { search_context.sorted_root_moves.borrow_mut().update_score(&chess_move, next_result.score) };
                 if next_result.score > best_search_results.score {
                     best_search_results = next_result.clone();
                 }

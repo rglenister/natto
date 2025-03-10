@@ -26,7 +26,7 @@ impl Not for PieceColor {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Ord, PartialOrd)]
 #[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
 #[derive(Eq, Hash, PartialEq)]
@@ -40,7 +40,7 @@ pub enum PieceType {
     King
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Ord, PartialOrd)]
 #[derive(strum_macros::Display)]
 #[derive(EnumCountMacro, EnumIter)]
 #[derive(Eq, Hash, PartialEq)]

@@ -272,34 +272,38 @@ impl Position {
 
         if king_attacks_finder(&mut new_position, self.side_to_move()) == 0 {
             // it's a valid move because it doesn't leave the side making the move in check
-            new_position.side_to_move = if self.side_to_move == White {
-                Black
-            } else {
-                new_position.full_move_number += 1;
-                White
-            };
-            new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[White as usize];
-            new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[Black as usize];
-
-            if new_position.castling_rights != self.castling_rights {
-                new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
-                new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[new_position.castling_rights_as_u64() as usize];
-            }
-            // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
-            if is_en_passant_capture_possible(&self) {
-                // remove the old en passant from the hash only if an en passant capture could be made because it won't have been added to the hash
-                new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
-            }
-            if is_en_passant_capture_possible(&new_position) {
-                // add the new en passant square to the hash only if an en passant capture can actually be made
-                new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
-            }
-            if new_position.hash_code != new_position.create_initial_hash() {
-                panic!("Hash code mismatch after move: {}", chess_move);
-            }
+            self.update_hash_code(chess_move, &mut new_position);
             Some((new_position, chess_move.clone()))
         } else {
             None
+        }
+    }
+
+    fn update_hash_code(&self, chess_move: &ChessMove, new_position: &mut Position) {
+        new_position.side_to_move = if self.side_to_move == White {
+            Black
+        } else {
+            new_position.full_move_number += 1;
+            White
+        };
+        new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[White as usize];
+        new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[Black as usize];
+
+        if new_position.castling_rights != self.castling_rights {
+            new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
+            new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[new_position.castling_rights_as_u64() as usize];
+        }
+        // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
+        if is_en_passant_capture_possible(&self) {
+            // remove the old en passant from the hash only if an en passant capture could be made because it won't have been added to the hash
+            new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
+        }
+        if is_en_passant_capture_possible(&new_position) {
+            // add the new en passant square to the hash only if an en passant capture can actually be made
+            new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
+        }
+        if new_position.hash_code != new_position.create_initial_hash() {
+            panic!("Hash code mismatch after move: {}", chess_move);
         }
     }
 

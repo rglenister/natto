@@ -17,6 +17,7 @@ pub mod search;
 pub mod game;
 pub mod move_formatter;
 pub mod piece_score_tables;
+mod sorted_move_list;
 
 
 use fern::Dispatch;
