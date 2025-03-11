@@ -1,5 +1,6 @@
 extern crate core;
 
+use crate::evaluation::opening_book;
 use crate::evaluation::search;
 use std::io::{self, BufRead};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,7 +20,7 @@ pub mod move_formatter;
 pub mod evaluation;
 
 
-use crate::chess_move::convert_chess_move_to_raw;
+use crate::chess_move::{convert_chess_move_to_raw, RawChessMove};
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::uci::UciGoOptions;
 use chrono::Local;
@@ -128,32 +129,36 @@ fn main() {
 
                 UciCommand::Go(_go_options_string) => {
                     if let Some(uci_pos) = uci_position.clone() {
-                        let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
-                        debug!("go options = {:?}", uci_go_options);
+                        if let Ok(best_move) = opening_book::get_opening_move(&fen::write(&uci_pos.given_position), 1) {
+                            uci::send_to_gui(format!("bestmove {}", best_move));
+                        } else {
+                            let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
+                            debug!("go options = {:?}", uci_go_options);
 
-                        let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
-                        let repeat_position_counts = Some(util::create_repeat_position_counts(uci_pos.all_game_positions()));
+                            let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
+                            let repeat_position_counts = Some(util::create_repeat_position_counts(uci_pos.all_game_positions()));
 
-                        debug!("search params = {}", search_params);
-                        debug!("Starting search...");
-                        search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
+                            debug!("search params = {}", search_params);
+                            debug!("Starting search...");
+                            search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
-                        let stop_flag = Arc::clone(&search_stop_flag);
-                        search_handle = Some(thread::spawn(move || {
-                            let search_results = search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
-                            let best_move = search_results.best_line
-                                .first()
-                                .map(|cm| convert_chess_move_to_raw(&cm.1));
-                            if let Some(best_move) = best_move {
-                                uci::send_to_gui(format!("bestmove {}", best_move));
-                            } else if search_results.depth == 0 {
-                                match search_results.game_status {
-                                    Checkmate => { uci::send_to_gui("info score mate 0".to_string()); }
-                                    Stalemate => { uci::send_to_gui("info score 0".to_string()); }
-                                    _ => ()
+                            let stop_flag = Arc::clone(&search_stop_flag);
+                            search_handle = Some(thread::spawn(move || {
+                                let search_results = search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
+                                let best_move = search_results.best_line
+                                    .first()
+                                    .map(|cm| convert_chess_move_to_raw(&cm.1));
+                                if let Some(best_move) = best_move {
+                                    uci::send_to_gui(format!("bestmove {}", best_move));
+                                } else if search_results.depth == 0 {
+                                    match search_results.game_status {
+                                        Checkmate => { uci::send_to_gui("info score mate 0".to_string()); }
+                                        Stalemate => { uci::send_to_gui("info score 0".to_string()); }
+                                        _ => ()
+                                    }
                                 }
-                            }
-                        }));
+                            }));
+                        }
                     } else {
                         error!("Cannot initiate search because the position has not been set");
                     }
