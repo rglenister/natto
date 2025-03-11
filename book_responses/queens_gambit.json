@@ -1,0 +1,278 @@
+{
+  "white": 132128088,
+  "draws": 10332041,
+  "black": 108441109,
+  "moves": [
+    {
+      "uci": "e7e6",
+      "san": "e6",
+      "averageRating": 1715,
+      "white": 34308926,
+      "draws": 2960675,
+      "black": 29207380,
+      "game": null,
+      "opening": {
+        "eco": "D30",
+        "name": "Queen's Gambit Declined"
+      }
+    },
+    {
+      "uci": "d5c4",
+      "san": "dxc4",
+      "averageRating": 1530,
+      "white": 31711551,
+      "draws": 2203470,
+      "black": 23655598,
+      "game": null,
+      "opening": {
+        "eco": "D20",
+        "name": "Queen's Gambit Accepted"
+      }
+    },
+    {
+      "uci": "c7c6",
+      "san": "c6",
+      "averageRating": 1766,
+      "white": 24980526,
+      "draws": 2259159,
+      "black": 21748467,
+      "game": null,
+      "opening": {
+        "eco": "D10",
+        "name": "Slav Defense"
+      }
+    },
+    {
+      "uci": "g8f6",
+      "san": "Nf6",
+      "averageRating": 1629,
+      "white": 21183278,
+      "draws": 1472666,
+      "black": 17055043,
+      "game": null,
+      "opening": {
+        "eco": "D06",
+        "name": "Queen's Gambit Declined: Marshall Defense"
+      }
+    },
+    {
+      "uci": "e7e5",
+      "san": "e5",
+      "averageRating": 1712,
+      "white": 4995900,
+      "draws": 419400,
+      "black": 4639267,
+      "game": null,
+      "opening": {
+        "eco": "D08",
+        "name": "Queen's Gambit Declined: Albin Countergambit"
+      }
+    },
+    {
+      "uci": "b8c6",
+      "san": "Nc6",
+      "averageRating": 1580,
+      "white": 5176087,
+      "draws": 340891,
+      "black": 4161063,
+      "game": null,
+      "opening": {
+        "eco": "D07",
+        "name": "Queen's Gambit Declined: Chigorin Defense"
+      }
+    },
+    {
+      "uci": "c8f5",
+      "san": "Bf5",
+      "averageRating": 1635,
+      "white": 4475232,
+      "draws": 301308,
+      "black": 3738013,
+      "game": null,
+      "opening": {
+        "eco": "D06",
+        "name": "Queen's Gambit Declined: Baltic Defense"
+      }
+    },
+    {
+      "uci": "c7c5",
+      "san": "c5",
+      "averageRating": 1626,
+      "white": 3095515,
+      "draws": 244144,
+      "black": 2606323,
+      "game": null,
+      "opening": {
+        "eco": "D06",
+        "name": "Queen's Gambit Declined: Austrian Defense"
+      }
+    },
+    {
+      "uci": "c8g4",
+      "san": "Bg4",
+      "averageRating": 1694,
+      "white": 558304,
+      "draws": 31439,
+      "black": 476965,
+      "game": null,
+      "opening": null
+    },
+    {
+      "uci": "g7g6",
+      "san": "g6",
+      "averageRating": 1625,
+      "white": 417102,
+      "draws": 28941,
+      "black": 340191,
+      "game": null,
+      "opening": null
+    },
+    {
+      "uci": "c8e6",
+      "san": "Be6",
+      "averageRating": 1397,
+      "white": 339244,
+      "draws": 20180,
+      "black": 220945,
+      "game": null,
+      "opening": null
+    },
+    {
+      "uci": "b7b6",
+      "san": "b6",
+      "averageRating": 1492,
+      "white": 183923,
+      "draws": 11105,
+      "black": 124771,
+      "game": null,
+      "opening": null
+    }
+  ],
+  "recentGames": [
+    {
+      "uci": "e7e6",
+      "id": "dL2k6tid",
+      "winner": "white",
+      "speed": "rapid",
+      "mode": "rated",
+      "black": {
+        "name": "shandilyan",
+        "rating": 1858
+      },
+      "white": {
+        "name": "talsfan11",
+        "rating": 1815
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "e7e6",
+      "id": "ox2NOLKP",
+      "winner": "black",
+      "speed": "blitz",
+      "mode": "rated",
+      "black": {
+        "name": "djreedo",
+        "rating": 1362
+      },
+      "white": {
+        "name": "bassam_ali",
+        "rating": 1385
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "c7c6",
+      "id": "IuX4tSnS",
+      "winner": "black",
+      "speed": "bullet",
+      "mode": "rated",
+      "black": {
+        "name": "klausburmeister",
+        "rating": 1387
+      },
+      "white": {
+        "name": "doktorino",
+        "rating": 1429
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "c8f5",
+      "id": "pofTRwvl",
+      "winner": "white",
+      "speed": "blitz",
+      "mode": "rated",
+      "black": {
+        "name": "ztjackson",
+        "rating": 1593
+      },
+      "white": {
+        "name": "germinianox",
+        "rating": 1629
+      },
+      "year": 2025,
+      "month": "2025-01"
+    }
+  ],
+  "topGames": [
+    {
+      "uci": "g8f6",
+      "id": "O5lb0lYC",
+      "winner": "black",
+      "speed": "ultraBullet",
+      "mode": "rated",
+      "black": {
+        "name": "Zhigalko_Sergei",
+        "rating": 2837
+      },
+      "white": {
+        "name": "penguingim1",
+        "rating": 3065
+      },
+      "year": 2019,
+      "month": "2019-04"
+    },
+    {
+      "uci": "g8f6",
+      "id": "XPdHe9WA",
+      "winner": "black",
+      "speed": "ultraBullet",
+      "mode": "rated",
+      "black": {
+        "name": "Zhigalko_Sergei",
+        "rating": 2836
+      },
+      "white": {
+        "name": "penguingim1",
+        "rating": 3067
+      },
+      "year": 2019,
+      "month": "2019-04"
+    },
+    {
+      "uci": "g8f6",
+      "id": "hJbxTSaj",
+      "winner": "white",
+      "speed": "ultraBullet",
+      "mode": "rated",
+      "black": {
+        "name": "Zhigalko_Sergei",
+        "rating": 2824
+      },
+      "white": {
+        "name": "penguingim1",
+        "rating": 3078
+      },
+      "year": 2019,
+      "month": "2019-04"
+    }
+  ],
+  "opening": {
+    "eco": "D06",
+    "name": "Queen's Gambit"
+  }
+}

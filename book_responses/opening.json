@@ -1,0 +1,253 @@
+{
+  "white": 3139255446,
+  "draws": 247817606,
+  "black": 2920259519,
+  "moves": [
+    {
+      "uci": "e2e4",
+      "san": "e4",
+      "averageRating": 1605,
+      "white": 1830001859,
+      "draws": 142366883,
+      "black": 1724352573,
+      "game": null,
+      "opening": {
+        "eco": "B00",
+        "name": "King's Pawn Game"
+      }
+    },
+    {
+      "uci": "d2d4",
+      "san": "d4",
+      "averageRating": 1677,
+      "white": 796691509,
+      "draws": 64419868,
+      "black": 718311479,
+      "game": null,
+      "opening": {
+        "eco": "A40",
+        "name": "Queen's Pawn Game"
+      }
+    },
+    {
+      "uci": "g1f3",
+      "san": "Nf3",
+      "averageRating": 1778,
+      "white": 113865935,
+      "draws": 9736775,
+      "black": 99300027,
+      "game": null,
+      "opening": {
+        "eco": "A04",
+        "name": "Zukertort Opening"
+      }
+    },
+    {
+      "uci": "c2c4",
+      "san": "c4",
+      "averageRating": 1751,
+      "white": 104330563,
+      "draws": 8595731,
+      "black": 92639119,
+      "game": null,
+      "opening": {
+        "eco": "A10",
+        "name": "English Opening"
+      }
+    },
+    {
+      "uci": "e2e3",
+      "san": "e3",
+      "averageRating": 1560,
+      "white": 66465310,
+      "draws": 4929149,
+      "black": 68320181,
+      "game": null,
+      "opening": {
+        "eco": "A00",
+        "name": "Van't Kruijs Opening"
+      }
+    },
+    {
+      "uci": "g2g3",
+      "san": "g3",
+      "averageRating": 1701,
+      "white": 54489060,
+      "draws": 4280792,
+      "black": 49897850,
+      "game": null,
+      "opening": {
+        "eco": "A00",
+        "name": "Hungarian Opening"
+      }
+    },
+    {
+      "uci": "b2b3",
+      "san": "b3",
+      "averageRating": 1748,
+      "white": 49367205,
+      "draws": 3635746,
+      "black": 44883649,
+      "game": null,
+      "opening": {
+        "eco": "A01",
+        "name": "Nimzo-Larsen Attack"
+      }
+    },
+    {
+      "uci": "d2d3",
+      "san": "d3",
+      "averageRating": 1661,
+      "white": 28267067,
+      "draws": 2170217,
+      "black": 28538475,
+      "game": null,
+      "opening": {
+        "eco": "A00",
+        "name": "Mieses Opening"
+      }
+    },
+    {
+      "uci": "f2f4",
+      "san": "f4",
+      "averageRating": 1732,
+      "white": 28918747,
+      "draws": 2219728,
+      "black": 27244432,
+      "game": null,
+      "opening": {
+        "eco": "A02",
+        "name": "Bird Opening"
+      }
+    },
+    {
+      "uci": "b1c3",
+      "san": "Nc3",
+      "averageRating": 1662,
+      "white": 19079867,
+      "draws": 1455553,
+      "black": 18154065,
+      "game": null,
+      "opening": {
+        "eco": "A00",
+        "name": "Van Geet Opening"
+      }
+    },
+    {
+      "uci": "b2b4",
+      "san": "b4",
+      "averageRating": 1683,
+      "white": 13732770,
+      "draws": 1003956,
+      "black": 12008663,
+      "game": null,
+      "opening": {
+        "eco": "A00",
+        "name": "Polish Opening"
+      }
+    },
+    {
+      "uci": "c2c3",
+      "san": "c3",
+      "averageRating": 1668,
+      "white": 9804253,
+      "draws": 721792,
+      "black": 9694062,
+      "game": null,
+      "opening": {
+        "eco": "A00",
+        "name": "Saragossa Opening"
+      }
+    }
+  ],
+  "recentGames": [
+    {
+      "uci": "b2b3",
+      "id": "obNWKWwz",
+      "winner": "black",
+      "speed": "rapid",
+      "mode": "rated",
+      "black": {
+        "name": "anto_oker",
+        "rating": 1786
+      },
+      "white": {
+        "name": "ulahop",
+        "rating": 1779
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "e2e4",
+      "id": "OhlfDhPo",
+      "winner": "white",
+      "speed": "rapid",
+      "mode": "rated",
+      "black": {
+        "name": "adilsonamaro",
+        "rating": 1411
+      },
+      "white": {
+        "name": "vgvyufyufyu",
+        "rating": 1371
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "e2e4",
+      "id": "ChddG0Zj",
+      "winner": "white",
+      "speed": "rapid",
+      "mode": "rated",
+      "black": {
+        "name": "MAK1711",
+        "rating": 1170
+      },
+      "white": {
+        "name": "CheVitaDiMerda",
+        "rating": 1162
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "d2d4",
+      "id": "4QZhi7oY",
+      "winner": "black",
+      "speed": "rapid",
+      "mode": "rated",
+      "black": {
+        "name": "grozny_franek",
+        "rating": 2012
+      },
+      "white": {
+        "name": "ajaru",
+        "rating": 2048
+      },
+      "year": 2025,
+      "month": "2025-01"
+    }
+  ],
+  "topGames": [
+    {
+      "uci": "g2g3",
+      "id": "n4lVdQ8D",
+      "winner": null,
+      "speed": "classical",
+      "mode": "rated",
+      "black": {
+        "name": "yobot_v2",
+        "rating": 2847
+      },
+      "white": {
+        "name": "raspfish",
+        "rating": 2828
+      },
+      "year": 2024,
+      "month": "2024-09"
+    }
+  ],
+  "opening": null
+}

@@ -1,0 +1,244 @@
+{
+  "white": 47491686,
+  "draws": 2740972,
+  "black": 40177479,
+  "moves": [
+    {
+      "uci": "e5f4",
+      "san": "exf4",
+      "averageRating": 1625,
+      "white": 19729697,
+      "draws": 1128009,
+      "black": 16320033,
+      "game": null,
+      "opening": {
+        "eco": "C33",
+        "name": "King's Gambit Accepted"
+      }
+    },
+    {
+      "uci": "b8c6",
+      "san": "Nc6",
+      "averageRating": 1611,
+      "white": 11253040,
+      "draws": 631625,
+      "black": 9659478,
+      "game": null,
+      "opening": {
+        "eco": "C30",
+        "name": "King's Gambit Declined: Queen's Knight Defense"
+      }
+    },
+    {
+      "uci": "d7d6",
+      "san": "d6",
+      "averageRating": 1606,
+      "white": 6262507,
+      "draws": 380639,
+      "black": 5098155,
+      "game": null,
+      "opening": null
+    },
+    {
+      "uci": "d7d5",
+      "san": "d5",
+      "averageRating": 1783,
+      "white": 3906451,
+      "draws": 282864,
+      "black": 4073934,
+      "game": null,
+      "opening": {
+        "eco": "C31",
+        "name": "King's Gambit Declined: Falkbeer Countergambit"
+      }
+    },
+    {
+      "uci": "f8c5",
+      "san": "Bc5",
+      "averageRating": 1686,
+      "white": 1635045,
+      "draws": 93318,
+      "black": 1562683,
+      "game": null,
+      "opening": {
+        "eco": "C30",
+        "name": "King's Gambit Declined: Classical Variation"
+      }
+    },
+    {
+      "uci": "g8f6",
+      "san": "Nf6",
+      "averageRating": 1583,
+      "white": 1630989,
+      "draws": 82155,
+      "black": 1378659,
+      "game": null,
+      "opening": {
+        "eco": "C30",
+        "name": "King's Gambit Declined: Petrov's Defense"
+      }
+    },
+    {
+      "uci": "f7f6",
+      "san": "f6",
+      "averageRating": 1393,
+      "white": 963576,
+      "draws": 40709,
+      "black": 538028,
+      "game": null,
+      "opening": null
+    },
+    {
+      "uci": "d8h4",
+      "san": "Qh4+",
+      "averageRating": 1533,
+      "white": 684959,
+      "draws": 36291,
+      "black": 525015,
+      "game": null,
+      "opening": {
+        "eco": "C30",
+        "name": "King's Gambit Declined: Keene's Defense"
+      }
+    },
+    {
+      "uci": "d8f6",
+      "san": "Qf6",
+      "averageRating": 1497,
+      "white": 430686,
+      "draws": 17576,
+      "black": 305328,
+      "game": null,
+      "opening": {
+        "eco": "C30",
+        "name": "King's Gambit Declined: Norwalde Variation"
+      }
+    },
+    {
+      "uci": "f7f5",
+      "san": "f5",
+      "averageRating": 1582,
+      "white": 363041,
+      "draws": 18714,
+      "black": 287477,
+      "game": null,
+      "opening": {
+        "eco": "C30",
+        "name": "King's Gambit Declined: Panteldakis Countergambit"
+      }
+    },
+    {
+      "uci": "f8d6",
+      "san": "Bd6",
+      "averageRating": 1436,
+      "white": 183572,
+      "draws": 7510,
+      "black": 103412,
+      "game": null,
+      "opening": null
+    },
+    {
+      "uci": "d8e7",
+      "san": "Qe7",
+      "averageRating": 1500,
+      "white": 119795,
+      "draws": 5673,
+      "black": 84415,
+      "game": null,
+      "opening": null
+    }
+  ],
+  "recentGames": [
+    {
+      "uci": "b8c6",
+      "id": "679a6h5N",
+      "winner": "black",
+      "speed": "classical",
+      "mode": "rated",
+      "black": {
+        "name": "ShIvEn2015",
+        "rating": 1621
+      },
+      "white": {
+        "name": "AndreKot",
+        "rating": 1619
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "b8c6",
+      "id": "yUwhMPRI",
+      "winner": "black",
+      "speed": "blitz",
+      "mode": "rated",
+      "black": {
+        "name": "saicharan_volvo",
+        "rating": 1543
+      },
+      "white": {
+        "name": "strazak123",
+        "rating": 1495
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "b8c6",
+      "id": "H4osEKkh",
+      "winner": "white",
+      "speed": "blitz",
+      "mode": "rated",
+      "black": {
+        "name": "sitix05",
+        "rating": 1505
+      },
+      "white": {
+        "name": "P03_X",
+        "rating": 1633
+      },
+      "year": 2025,
+      "month": "2025-01"
+    },
+    {
+      "uci": "b8c6",
+      "id": "Ribc1GO3",
+      "winner": "black",
+      "speed": "blitz",
+      "mode": "rated",
+      "black": {
+        "name": "Bilal_Chaudhry",
+        "rating": 1704
+      },
+      "white": {
+        "name": "Wildfinn",
+        "rating": 1707
+      },
+      "year": 2025,
+      "month": "2025-01"
+    }
+  ],
+  "topGames": [
+    {
+      "uci": "e5f4",
+      "id": "TgbAiDlX",
+      "winner": "white",
+      "speed": "rapid",
+      "mode": "rated",
+      "black": {
+        "name": "Invisible-Gamer",
+        "rating": 2578
+      },
+      "white": {
+        "name": "Pritom-Saha",
+        "rating": 3149
+      },
+      "year": 2024,
+      "month": "2024-01"
+    }
+  ],
+  "opening": {
+    "eco": "C30",
+    "name": "King's Gambit"
+  }
+}
