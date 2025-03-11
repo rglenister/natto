@@ -1,7 +1,7 @@
-use std::ops::Not;
-use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+use std::ops::Not;
+use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 
@@ -114,8 +114,8 @@ pub trait Board {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::{Piece, PieceType::*};
     use crate::board::PieceColor::*;
+    use crate::board::{Piece, PieceType::*};
 
     #[test]
     fn test_piece_to_char() {

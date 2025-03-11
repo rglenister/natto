@@ -1,18 +1,18 @@
-use crate::position::Position;
-use std::cell::RefCell;
-use std::option::Option;
-use std::collections::HashMap;
-use bitintr::{Pdep, Pext};
-use once_cell::sync::Lazy;
-use strum::IntoEnumIterator;
 use crate::bit_board::BitBoard;
-use crate::board::{BoardSide, PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::chess_move::{BaseMove, ChessMove};
+use crate::board::{BoardSide, PieceColor, PieceType};
 use crate::chess_move::ChessMove::{Basic, Castling, EnPassant, Promotion};
-use crate::{bit_board, util};
+use crate::chess_move::{BaseMove, ChessMove};
+use crate::position::Position;
 use crate::util::on_board;
+use crate::{bit_board, util};
+use bitintr::{Pdep, Pext};
+use once_cell::sync::Lazy;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::option::Option;
+use strum::IntoEnumIterator;
 
 include!("util/generated_macro.rs");
 

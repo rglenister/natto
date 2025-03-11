@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::position::Position;
 use crate::move_generator::generate;
-use std::time::{Duration, Instant};
+use crate::position::Position;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, RwLock};
+use std::time::{Duration, Instant};
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();

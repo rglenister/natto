@@ -1,18 +1,18 @@
-use std::fmt;
-use once_cell::sync::Lazy;
 use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
-use crate::board::{Board, BoardSide, Piece, PieceColor};
-use crate::chess_move::{ChessMove, RawChessMove};
-use crate::{fen, move_generator, util};
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{King, Pawn, Rook};
+use crate::board::{Board, BoardSide, Piece, PieceColor};
 use crate::chess_move::ChessMove::{Basic, Castling, EnPassant, Promotion};
+use crate::chess_move::{ChessMove, RawChessMove};
 use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::distance;
+use crate::{fen, move_generator, util};
+use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+use std::fmt;
 
 include!("util/generated_macro.rs");
 
@@ -325,8 +325,8 @@ impl Position {
 }
 #[cfg(test)]
 mod tests {
-    use crate::bit_board::BitBoard;
     use super::*;
+    use crate::bit_board::BitBoard;
     use crate::board::PieceColor;
     use crate::board::PieceType::Queen;
     use crate::chess_move::ChessMove::Castling;

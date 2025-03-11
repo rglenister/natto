@@ -1,12 +1,12 @@
-use std::collections::HashMap;
+use crate::board::PieceColor::{Black, White};
+use crate::chess_move::{ChessMove, RawChessMove};
+use crate::position::Position;
+use crate::evaluation::search::SearchParams;
+use crate::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
-use crate::util;
-use crate::chess_move::{ChessMove, RawChessMove};
-use crate::position::Position;
-use crate::board::PieceColor::{Black, White};
-use crate::search::SearchParams;
+use std::collections::HashMap;
 
 include!("util/generated_macro.rs");
 
@@ -153,8 +153,8 @@ pub fn send_to_gui(data: String) {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::PieceColor;
     use super::*;
+    use crate::board::PieceColor;
     use crate::board::PieceColor::{Black, White};
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {
         let white_to_move = Position::new_game();

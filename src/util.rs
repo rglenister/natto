@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use std::ops::Add;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use crate::board;
 use crate::board::PieceColor;
 use crate::board::PieceColor::{Black, White};
 use crate::chess_move::{ChessMove, RawChessMove};
 use crate::position::Position;
+use once_cell::sync::Lazy;
+use regex::Regex;
+use std::collections::HashMap;
+use std::ops::Add;
 
 mod sq_macro_generator;
 mod generated_macro;
@@ -168,13 +168,13 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
 
 #[cfg(test)]
 mod tests {
-    use crate::position::NEW_GAME_FEN;
+    use super::*;
     use crate::bit_board::BitBoard;
-    use crate::board::{Board, Piece, PieceType};
     use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
+    use crate::board::{Board, Piece, PieceType};
     use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::{Basic, Promotion};
-    use super::*;
+    use crate::position::NEW_GAME_FEN;
 
     #[test]
     fn test_bit_indexes() {

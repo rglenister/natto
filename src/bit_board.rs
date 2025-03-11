@@ -1,9 +1,9 @@
+use crate::board::PieceType::{King, Pawn};
+use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
+use crate::util::process_bits;
 use std::fmt;
 use std::fmt::Write;
 use strum::IntoEnumIterator;
-use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
-use crate::board::PieceType::{King, Pawn};
-use crate::util::process_bits;
 
 include!("util/generated_macro.rs");
 
@@ -212,9 +212,9 @@ impl fmt::Display for BitBoard {
 }
 #[cfg(test)]
 mod tests {
-    use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
+    use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
 
     #[test]
     fn test_get_from_empty_square() {

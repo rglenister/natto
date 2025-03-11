@@ -1,27 +1,27 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::ops::Neg;
-use std::sync::{Arc, LazyLock, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
-use itertools::Itertools;
-use log::{debug, info};
-use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor;
 use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::chess_move::ChessMove;
-use crate::game::{Game, GameStatus};
 use crate::game::GameStatus::{Checkmate, InProgress, Stalemate};
+use crate::game::{Game, GameStatus};
+use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate;
 use crate::node_counter::NodeCountStats;
-use crate::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
+use crate::evaluation::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
+use crate::evaluation::sorted_move_list::SortedMoveList;
 use crate::{uci, util};
-use crate::move_formatter::{FormatMove, LONG_FORMATTER};
-use crate::sorted_move_list::SortedMoveList;
+use itertools::Itertools;
+use log::{debug, info};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::ops::Neg;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, RwLock};
+use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 
-include!("util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
     let node_counter = crate::node_counter::NodeCounter::new();
@@ -300,13 +300,13 @@ fn node_counter_stats() -> NodeCountStats {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::chess_move::RawChessMove;
     use crate::game::GameStatus::DrawnByFiftyMoveRule;
-    use crate::{move_formatter, uci};
-    use crate::move_formatter::{format_move_list, FormatMove, LONG_FORMATTER};
+    use crate::move_formatter::{format_move_list, FormatMove};
     use crate::position::NEW_GAME_FEN;
-    use super::*;
-    use crate::search::{search, MAXIMUM_SCORE};
+    use crate::evaluation::search::{search, MAXIMUM_SCORE};
+    use crate::{move_formatter, uci};
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);

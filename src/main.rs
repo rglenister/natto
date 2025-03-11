@@ -1,8 +1,9 @@
 extern crate core;
 
+use crate::evaluation::search;
 use std::io::{self, BufRead};
-use std::sync::{mpsc, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 use std::{env, thread};
 pub mod fen;
 pub mod node_counter;
@@ -13,22 +14,20 @@ pub mod position;
 pub mod uci;
 pub mod util;
 pub mod move_generator;
-pub mod search;
 pub mod game;
 pub mod move_formatter;
-pub mod piece_score_tables;
-mod sorted_move_list;
+pub mod evaluation;
 
 
-use fern::Dispatch;
-use log::{info, debug, warn, error, LevelFilter, trace};
+use crate::chess_move::convert_chess_move_to_raw;
+use crate::game::GameStatus::{Checkmate, Stalemate};
+use crate::uci::UciGoOptions;
 use chrono::Local;
 use dotenv::dotenv;
-use crate::chess_move::convert_chess_move_to_raw;
+use fern::Dispatch;
+use log::{debug, error, info, trace, warn, LevelFilter};
+use evaluation::search::search;
 use uci::UciPosition;
-use crate::game::GameStatus::{Checkmate, Stalemate};
-use crate::search::search;
-use crate::uci::UciGoOptions;
 
 enum UciCommand {
     Uci,
@@ -200,7 +199,7 @@ fn setup_logging() -> Result<(), fern::InitError> {
             ))
         })
         .level(log_level)  // Set the default log level
-        .chain(std::io::stdout())        // Log to the console
+        .chain(std::io::stderr())        // Log to the console
         .chain(fern::log_file(env::var("LOGFILE").unwrap_or_else(|_| "natto.log".to_string()))?) // Log to a file
         .apply()?;
     Ok(())
