@@ -11,9 +11,10 @@ pub const MAXIMUM_BOOK_DEPTH: usize = 8;
 pub fn get_opening_move(fen: &str, depth: usize) -> Result<RawChessMove, String> {
     if depth <= MAXIMUM_BOOK_DEPTH {
         let opening_moves = fetch_opening_moves(fen).map_err(|e| e.to_string())?; // Calls the corrected synchronous function
-        weighted_random_move(&opening_moves)
+        let mv = weighted_random_move(&opening_moves)
             .and_then(|mv| util::parse_move(mv))
-            .ok_or_else(|| "Unable to parse move string".to_string())
+            .ok_or_else(|| "Unable to parse move string".to_string());
+        mv
     } else {
         Err(format!("Depth {} is too high", depth))
     }

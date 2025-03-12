@@ -29,6 +29,9 @@ use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use evaluation::search::search;
 use uci::UciPosition;
+use crate::move_generator::generate;
+use crate::position::Position;
+use crate::util::find_generated_move;
 
 enum UciCommand {
     Uci,
@@ -84,6 +87,21 @@ fn main() {
     };
 
     let mut search_handle: Option<thread::JoinHandle<()>> = None; // Track search thread
+    fn get_opening_move(position: &Position) -> Option<RawChessMove> {
+        let fen = fen::write(&position);
+        debug!("getting opening book move for position: {}", fen);
+        let result = opening_book::get_opening_move(&fen, 1);
+        if let Ok(best_move) = result {
+            debug!("opening book retuned move: {}", best_move);
+            if find_generated_move(generate(position), &best_move).is_some() {
+                return Some(best_move)
+            }
+            error!("Opening move not found in generated moves: {}", best_move);
+        } else {
+            error!("Opening move not found in opening book: {}", result.err().unwrap());
+        }
+        None
+    }
 
     while !main_loop_quit_flag.load(Ordering::Relaxed) {
         if let Ok(input) = rx.recv() {
@@ -126,10 +144,11 @@ fn main() {
                         error!("failed to parse position from input [{}]", &input)
                     }
                 }
+                
 
                 UciCommand::Go(_go_options_string) => {
                     if let Some(uci_pos) = uci_position.clone() {
-                        if let Ok(best_move) = opening_book::get_opening_move(&fen::write(&uci_pos.given_position), 1) {
+                        if let Some(best_move) = get_opening_move(&uci_pos.given_position) {
                             uci::send_to_gui(format!("bestmove {}", best_move));
                         } else {
                             let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
