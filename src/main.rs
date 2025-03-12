@@ -87,22 +87,6 @@ fn main() {
     };
 
     let mut search_handle: Option<thread::JoinHandle<()>> = None; // Track search thread
-    fn get_opening_move(position: &Position) -> Option<RawChessMove> {
-        let fen = fen::write(&position);
-        debug!("getting opening book move for position: {}", fen);
-        let result = opening_book::get_opening_move(&fen, 1);
-        if let Ok(best_move) = result {
-            debug!("opening book retuned move: {}", best_move);
-            if find_generated_move(generate(position), &best_move).is_some() {
-                return Some(best_move)
-            }
-            error!("Opening move not found in generated moves: {}", best_move);
-        } else {
-            error!("Opening move not found in opening book: {}", result.err().unwrap());
-        }
-        None
-    }
-
     while !main_loop_quit_flag.load(Ordering::Relaxed) {
         if let Ok(input) = rx.recv() {
             let command = UciCommand::from_input(&input);
@@ -197,6 +181,22 @@ fn main() {
     }
 
     info!("Engine exited cleanly.");
+}
+
+fn get_opening_move(position: &Position) -> Option<RawChessMove> {
+    let fen = fen::write(&position);
+    debug!("getting opening book move for position: {}", fen);
+    let result = opening_book::get_opening_move(&fen);
+    if let Ok(best_move) = result {
+        debug!("opening book retuned move: {}", best_move);
+        if find_generated_move(generate(position), &best_move).is_some() {
+            return Some(best_move)
+        }
+        error!("Opening move {} not found in generated moves for fen {}", best_move, fen);
+    } else {
+        info!("Opening move not found in opening book for fen {} : {}", fen, result.err().unwrap());
+    }
+    None
 }
 
 fn setup_logging() -> Result<(), fern::InitError> {
