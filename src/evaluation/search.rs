@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_50_move_rule_is_recognised() {
-        let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 49 76";
+        let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 99 76";
         let in_progress_position: Position = Position::from(fen);
         let in_progress_search_results = search(&in_progress_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(in_progress_search_results.best_line_moves_as_string(), "".to_string());
@@ -577,6 +577,28 @@ mod tests {
             &win_search_results,
             &SearchResults {
                 score: 1000,
+                depth: 1,
+                best_line: vec![],
+                game_status: InProgress,
+            }
+        );
+    }
+    #[test]
+    fn test_li_chess_game() {
+        let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4";
+        fn test_draw(uci_position_str: &str) -> SearchResults {
+            let uci_position = uci::parse_position(uci_position_str).unwrap();
+            let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
+            let search_params = uci::create_search_params(&uci_go_options, &uci_position);
+            let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
+            search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
+        }
+        let drawn_search_results = test_draw(uci_position_str);
+//        assert_eq!(drawn_search_results.best_line_moves_as_string(), "g4-h4");
+        test_eq(
+            &drawn_search_results,
+            &SearchResults {
+                score: 660,
                 depth: 1,
                 best_line: vec![],
                 game_status: InProgress,
