@@ -70,13 +70,14 @@ fn get_opening_move(position: &Position) -> Result<RawChessMove, ErrorKind> {
     }
 }
 
-fn map_castling_move_to_uci_format(move_string: &str) -> String {
-    let mut map = HashMap::new();
-    map.insert("e1h1", "e1g1");
-    map.insert("e1a1", "e1c1");
-    map.insert("e8h8", "e8g8");
-    map.insert("e8a8", "e8c8");
-    map.get(move_string).map(|&s| s.to_string()).unwrap_or_else(|| move_string.to_string())   
+fn map_castling_move_to_uci_format(move_string: &str) -> &str {
+    match move_string {
+        "e1h1" => "e1g1",
+        "e1a1" => "e1c1",
+        "e8h8" => "e8g8",
+        "e8a8" => "e8c8",
+        _ => move_string,       
+    }
 }
 
 #[derive(Serialize, Deserialize)]
