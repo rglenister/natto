@@ -585,16 +585,17 @@ mod tests {
     }
     #[test]
     fn test_li_chess_game() {
-        let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4";
+        // https://lichess.org/RZTYaEbP#87
+        let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
         fn test_draw(uci_position_str: &str) -> SearchResults {
             let uci_position = uci::parse_position(uci_position_str).unwrap();
-            let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
+            let uci_go_options = uci::parse_uci_go_options(Some("depth 2".to_string()));
             let search_params = uci::create_search_params(&uci_go_options, &uci_position);
             let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
             search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
         }
         let drawn_search_results = test_draw(uci_position_str);
-//        assert_eq!(drawn_search_results.best_line_moves_as_string(), "g4-h4");
+        assert_eq!(drawn_search_results.best_line_moves_as_string(), "h2xh8");
         test_eq(
             &drawn_search_results,
             &SearchResults {

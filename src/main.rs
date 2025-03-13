@@ -27,8 +27,10 @@ use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
+use evaluation::opening_book::ErrorKind;
 use evaluation::search::search;
 use uci::UciPosition;
+use crate::evaluation::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::move_generator::generate;
 use crate::position::Position;
 use crate::util::find_generated_move;
@@ -68,6 +70,7 @@ fn main() {
     let (tx, rx) = mpsc::channel(); // Channel for UCI commands
     let search_stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
     let main_loop_quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
+    let mut opening_book: LiChessOpeningBook = LiChessOpeningBook::new();
 
     let mut uci_position: Option<UciPosition> = None;
 
@@ -117,6 +120,7 @@ fn main() {
                 }
 
                 UciCommand::UciNewGame => {
+                    opening_book = LiChessOpeningBook::new();
                     uci_position = None;
                 }
 
@@ -128,13 +132,15 @@ fn main() {
                         error!("failed to parse position from input [{}]", &input)
                     }
                 }
-                
 
                 UciCommand::Go(_go_options_string) => {
                     if let Some(uci_pos) = uci_position.clone() {
-                        if let Some(best_move) = get_opening_move(&uci_pos.given_position) {
-                            uci::send_to_gui(format!("bestmove {}", best_move));
+                        info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
+                        let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
+                        if opening_move.is_ok() {
+                            uci::send_to_gui(format!("bestmove {}", opening_move.unwrap()));
                         } else {
+                            error!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
                             let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                             debug!("go options = {:?}", uci_go_options);
 
@@ -181,22 +187,6 @@ fn main() {
     }
 
     info!("Engine exited cleanly.");
-}
-
-fn get_opening_move(position: &Position) -> Option<RawChessMove> {
-    let fen = fen::write(&position);
-    debug!("getting opening book move for position: {}", fen);
-    let result = opening_book::get_opening_move(&fen);
-    if let Ok(best_move) = result {
-        debug!("opening book retuned move: {}", best_move);
-        if find_generated_move(generate(position), &best_move).is_some() {
-            return Some(best_move)
-        }
-        error!("Opening move {} not found in generated moves for fen {}", best_move, fen);
-    } else {
-        info!("Opening move not found in opening book for fen {} : {}", fen, result.err().unwrap());
-    }
-    None
 }
 
 fn setup_logging() -> Result<(), fern::InitError> {
