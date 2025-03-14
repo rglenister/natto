@@ -136,7 +136,7 @@ fn parse_move(move_string: &str) -> Result<RawChessMove, ErrorKind> {
 }
 
 fn validate_move(position: &Position, raw_chess_move: RawChessMove) -> Result<ChessMove, ErrorKind> {
-    find_generated_move(generate(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move: raw_chess_move })
+    find_generated_move(generate(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
 }
 
 #[cfg(test)]

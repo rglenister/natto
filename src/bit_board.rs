@@ -67,6 +67,9 @@ const CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] =
     ];
 
 impl BitBoard {
+    pub fn all_bitboards(&self) -> [[u64; 6]; 2] {
+        self.bit_boards
+    }
     pub fn bitboards_for_color(&self, piece_color: PieceColor) -> [u64; 6] {
         self.bit_boards[piece_color as usize]
     }
@@ -125,6 +128,14 @@ impl BitBoard {
                 });
             }
         }
+    }
+    
+    pub fn get_piece_counts(&self) -> [[usize; 6]; 2] {
+        let mut counts: [[usize; 6]; 2] = [[0; 6]; 2];
+        self.process_pieces(|piece_color, piece_type, square_index| {
+            counts[piece_color as usize][piece_type as usize] += 1;
+        });
+        counts
     }
 
     pub fn row(square_index: usize) -> usize {

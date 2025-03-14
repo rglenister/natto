@@ -2,7 +2,7 @@ use crate::bit_board::BitBoard;
 use crate::board::PieceColor;
 use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::chess_move::ChessMove;
-use crate::game::GameStatus::{Checkmate, InProgress, Stalemate};
+use crate::game::GameStatus::{Checkmate, DrawnByInsufficientMaterial, InProgress, Stalemate};
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate;
@@ -240,12 +240,14 @@ fn get_repeat_position_count(current_position: &Position, current_line: &[(Posit
 
 fn score_position(position: &Position, current_line: &[(Position, ChessMove)], depth: isize) -> SearchResults {
     let game = Game::new(position);
-    match game.get_game_status() {
-        InProgress => { SearchResults {score: score_pieces(position), depth, best_line: current_line.to_owned(), game_status: InProgress }}
-        Checkmate => { SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.to_owned(), game_status: Checkmate }}
-        Stalemate => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status: Stalemate }}
-        DrawnByFiftyMoveRule => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status: DrawnByFiftyMoveRule }}
-        DrawnByThreefoldRepetition => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status: DrawnByThreefoldRepetition }}
+    let game_status = game.get_game_status();
+    match game_status {
+        InProgress => { SearchResults {score: score_pieces(position), depth, best_line: current_line.to_owned(), game_status }}
+        Checkmate => { SearchResults {score: depth - MAXIMUM_SCORE, depth, best_line: current_line.to_owned(), game_status }}
+        Stalemate => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status }}
+        DrawnByFiftyMoveRule => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status }}
+        DrawnByThreefoldRepetition => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status }}
+        DrawnByInsufficientMaterial => { SearchResults {score: 0, depth, best_line: current_line.to_owned(), game_status }}
     }
 }
 
