@@ -159,6 +159,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
             search_results = iteration_search_results;
             if search_results.game_status == Checkmate {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
+                break;
             }
         } else {
             break;

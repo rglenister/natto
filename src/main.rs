@@ -138,9 +138,10 @@ fn main() {
                         info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
                         let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
                         if opening_move.is_ok() {
+                            debug!("got move from opening book");
                             uci::send_to_gui(format!("bestmove {}", opening_move.unwrap()));
                         } else {
-                            error!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
+                            info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
                             let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                             debug!("go options = {:?}", uci_go_options);
 
