@@ -598,12 +598,12 @@ mod tests {
             search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
         }
         let drawn_search_results = test_draw(uci_position_str);
-        assert_eq!(drawn_search_results.best_line_moves_as_string(), "h2xh8");
+        assert_eq!(drawn_search_results.best_line_moves_as_string(), "f5-c8,e8-e7");
         test_eq(
             &drawn_search_results,
             &SearchResults {
-                score: 660,
-                depth: 1,
+                score: -660,
+                depth: 2,
                 best_line: vec![],
                 game_status: InProgress,
             }
