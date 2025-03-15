@@ -142,8 +142,16 @@ impl BitBoard {
         square_index / 8
     }
 
-    pub fn col(square_index: usize) -> usize {
+    pub fn column(square_index: usize) -> usize {
         square_index % 8
+    }
+    
+    pub fn color(square_index: usize) -> PieceColor {
+        if BitBoard::row(square_index) & 1 != BitBoard::column(square_index) & 1 {
+            PieceColor::White
+        } else {
+            PieceColor::Black
+        }
     }
 
     pub fn rank(square_index: usize, piece_color: PieceColor) -> usize {
@@ -367,5 +375,15 @@ mod tests {
 
         bit_board2.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
         assert_eq!(bit_board1, bit_board2);
+    }
+
+    #[test]
+    fn test_color() {
+        assert_eq!(BitBoard::color(0), PieceColor::Black);
+        assert_eq!(BitBoard::color(1), PieceColor::White);
+        assert_eq!(BitBoard::color(8), PieceColor::White);
+        assert_eq!(BitBoard::color(9), PieceColor::Black);
+        assert_eq!(BitBoard::color(17), PieceColor::White);
+        assert_eq!(BitBoard::color(63), PieceColor::Black);
     }
 }

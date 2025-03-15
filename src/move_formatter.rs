@@ -190,7 +190,7 @@ impl MoveFormatter {
             String::new()
         } else {
             let algebraic = util::format_square(cm.get_base_move().from);
-            if other_moves_to_the_same_square.iter().filter(|m| BitBoard::col(m.get_base_move().from) == BitBoard::col(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+            if other_moves_to_the_same_square.iter().filter(|m| BitBoard::column(m.get_base_move().from) == BitBoard::column(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
                 algebraic.chars().nth(0).unwrap().to_string()
             } else if other_moves_to_the_same_square.iter().filter(|m| BitBoard::row(m.get_base_move().from) == BitBoard::row(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
                 algebraic.chars().nth(1).unwrap().to_string()

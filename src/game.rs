@@ -2,7 +2,8 @@ use strum::IntoEnumIterator;
 use crate::board::{PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
-use crate::move_generator;
+use crate::{move_generator, util};
+use crate::bit_board::BitBoard;
 use crate::position::Position;
 
 include!("util/generated_macro.rs");
@@ -65,16 +66,24 @@ impl Game {
     }
 
     pub fn has_insufficient_material(&self) -> bool {
-        let board = self.position.board();
+        fn has_bishops_on_same_color_squares(all_bitboards: [u64; 6]) -> bool {
+            let mut i = 0;
+            let mut square_indexes = [0; 2];
+            util::process_bits(all_bitboards[Bishop as usize], |square_index| {
+                square_indexes[i] = square_index;
+                i += 1;
+            });
+            BitBoard::color(square_indexes[0] as usize) == BitBoard::color(square_indexes[1] as usize)
+        }
+
+        let all_bitboards = self.position.board().all_bitboards();
         for piece_color in PieceColor::iter() {
-            let bitboards_for_color = board.bitboards_for_color(piece_color);
             for piece_type in [Pawn, Rook, Queen] {
-                if bitboards_for_color[piece_type as usize] != 0 {
+                if all_bitboards[piece_color as usize][piece_type as usize] != 0 {
                     return false;
                 }
             }
         }
-        let all_bitboards = board.all_bitboards();
         let white_bishop_count = u64::count_ones(all_bitboards[White as usize][Bishop as usize]);
         let black_bishop_count = u64::count_ones(all_bitboards[Black as usize][Bishop as usize]);
         let white_knight_count = u64::count_ones(all_bitboards[White as usize][Knight as usize]);
@@ -86,9 +95,14 @@ impl Game {
             return true;
         }
         
-        if (black_minor_piece_count == 0 && white_minor_piece_count == 2 && white_knight_count == 2) || 
-            (white_minor_piece_count == 0 && black_minor_piece_count == 2 && black_knight_count == 2) {
-            return true;
+        if black_minor_piece_count == 0 && white_minor_piece_count == 2 {
+            if white_knight_count == 2 || (white_bishop_count == 2 && has_bishops_on_same_color_squares(all_bitboards[White as usize])) {
+                return true;
+            }
+        } else if white_minor_piece_count == 0 && black_minor_piece_count == 2 {
+            if black_knight_count == 2 || (black_bishop_count == 2 && has_bishops_on_same_color_squares(all_bitboards[Black as usize])) {
+                return true;
+            }   
         }
         false
     }
@@ -131,63 +145,76 @@ mod tests {
         assert_eq!(game.has_legal_move, false);
     }
 
-    
-    #[test]
-    fn test_draw_by_insufficient_material_new_game() {
-        let position = Position::new_game();
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), false);
-    }
 
-    #[test]
-    fn test_draw_by_insufficient_material_only_kings() {
-        let fen = "4k3/8/8/8/8/8/8/3K4 b - - 1 1";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), true);
-    }
+    mod insufficient_material {
+        use crate::game::Game;
+        use crate::position::Position;
 
-    #[test]
-    fn test_draw_by_insufficient_material_has_queen() {
-        let fen = "4k3/8/8/8/8/8/4q3/1K6 b - - 5 3";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), false);
-    }
-    #[test]
-    fn test_draw_by_insufficient_material_has_rook() {
-        let fen = "4k3/8/8/8/8/8/4r3/1K6 b - - 5 3";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), false);
-    }
-    #[test]
-    fn test_draw_by_insufficient_material_has_bishop() {
-        let fen = "4k3/8/8/8/8/8/4b3/1K6 b - - 5 3";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), true);
-    }
-    #[test]
-    fn test_draw_by_insufficient_material_has_knight() {
-        let fen = "4k3/8/8/8/8/8/4n3/1K6 b - - 5 3";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), true);
-    }
-    #[test]
-    fn test_draw_by_insufficient_material_has_two_knights() {
-        let fen = "4k3/8/8/8/8/8/n3n3/1K6 b - - 5 3";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), true);
-    }
+        #[test]
+        fn test_new_game() {
+            let position = Position::new_game();
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), false);
+        }
 
-    #[test]
-    fn test_draw_by_insufficient_material_has_two_bishops() {
-        let fen = "4k3/8/8/8/8/8/b3b3/1K6 b - - 5 3";
-        let position = Position::from(fen);
-        let game = Game::new(&position);
-        assert_eq!(game.has_insufficient_material(), false);
+        #[test]
+        fn test_only_kings() {
+            let fen = "4k3/8/8/8/8/8/8/3K4 b - - 1 1";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), true);
+        }
+
+        #[test]
+        fn test_has_one_queen() {
+            let fen = "4k3/8/8/8/8/8/4q3/1K6 b - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), false);
+        }
+        #[test]
+        fn test_has_one_rook() {
+            let fen = "4k3/8/8/8/8/8/4r3/1K6 b - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), false);
+        }
+        #[test]
+        fn test_has_one_bishop() {
+            let fen = "4k3/8/8/8/8/8/4b3/1K6 b - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), true);
+        }
+        #[test]
+        fn test_has_one_knight() {
+            let fen = "4k3/8/8/8/8/8/4n3/1K6 b - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), true);
+        }
+        #[test]
+        fn test_has_two_knights() {
+            let fen = "4k3/8/8/8/8/8/n3n3/1K6 b - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), true);
+        }
+
+        #[test]
+        fn test_has_two_bishops_on_same_color_squares() {
+            let fen = "4k3/1b6/8/8/6b1/8/8/1K6 w - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), true);
+        }
+
+        #[test]
+        fn test_has_two_bishops_on_different_color_squares() {
+            let fen = "4k3/1b6/8/8/5b2/8/8/1K6 w - - 5 3";
+            let position = Position::from(fen);
+            let game = Game::new(&position);
+            assert_eq!(game.has_insufficient_material(), false);
+        }
     }
 }
