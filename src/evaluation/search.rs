@@ -32,11 +32,11 @@ fn long_format_moves(position: &Position, search_results: &SearchResults) -> Str
     LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
 }
 
-pub const MAXIMUM_SEARCH_DEPTH: isize = isize::MAX;
+pub const MAXIMUM_SEARCH_DEPTH: isize = u8::MAX as isize;
 
 pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
 
-const MAXIMUM_SCORE: isize = 100000;
+const MAXIMUM_SCORE: isize = 100_000;
 
 
 #[derive(Clone, Debug, Eq, PartialEq)]
