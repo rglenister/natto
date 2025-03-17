@@ -32,9 +32,10 @@ pub struct TranspositionTable {
 impl TranspositionTable {
     pub fn new(size: usize) -> Self {
         assert!(size.is_power_of_two(), "Size must be a power of 2");
-//        let table = vec![AtomicU64::new(0); size * 2]; // Using 2 u64 per entry
         let table = (0..size * 2).map(|_| AtomicU64::new(0)).collect(); // Using 2 u64 per entry
-        Self { table, size }
+        let table = Self { table, size };
+        ensure_physical_memory::<AtomicU64>(&table.table);
+        table
     }
 
     pub fn store(&self, zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType) {
@@ -60,8 +61,8 @@ impl TranspositionTable {
     fn pack_move(best_move: ChessMove) -> u64 {
         fn pack_base_move_and_type(base_move: BaseMove, move_type: u64) -> u64 {
             // 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00
-            // |                |   to  square    |c||move |e   x   t   r   a
-            //                                                    |type|
+            // |   from square  |   to  square    |c||move |e   x   t   r   a
+            //                                       |type|| non basic  moves     
             ((base_move.from as u64 & 0x3ff) << 15) | ((base_move.to as u64 & 0x3f) << 9) | ((base_move.capture as u64 & 1) << 8) | ((move_type & 0x03) << 6)
         }
  
@@ -116,7 +117,7 @@ impl TranspositionTable {
             _ => panic!("Invalid move type"),
         }
     }
-
+    
     fn unpack_entry(packed1: u64, packed2: u64) -> Option<TTEntry> {
         let zobrist = packed1;
         let best_move = Self::unpack_mv(packed2);
@@ -131,9 +132,16 @@ impl TranspositionTable {
         Some(TTEntry { zobrist, best_move, depth, score, bound })
     }
 }
+pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
+    for atomic in data {
+        atomic.store(0, Ordering::Relaxed); // Write to every entry
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::AtomicU64;
     use crate::chess_move::BaseMove;
     use crate::chess_move::ChessMove::Basic;
     use crate::evaluation::ttable::BoundType::LowerBound;
@@ -143,7 +151,23 @@ mod tests {
     struct BasicMove {}
 
     #[test]
-    fn do_stuff_with_table() {
+    fn test_small_table_creation() {
+        let table = TranspositionTable::new(1 << 1);
+        assert_eq!(table.table.len(), 2 * 2);
+        assert_eq!(table.size, 2);
+    }
+    #[test]
+    fn test_large_table_creation() {
+        assert_eq!(1 << 25, 33_554_432);
+        let table = TranspositionTable::new(1 << 25);
+        assert_eq!(table.table.len(), (1 << 25) * 2);
+        assert_eq!(table.size, 1 << 25);
+        assert_eq!(table.table.len() * std::mem::size_of::<AtomicU64>(), 1 << 29);
+        assert_eq!(1 << 29, 536_870_912);
+    }
+    
+    #[test]
+    fn test_do_stuff_with_table() {
         let table = TranspositionTable::new(1 << 1);
         assert_eq!(table.table.len(), 2 * 2);
         assert_eq!(table.size, 2);
@@ -157,5 +181,62 @@ mod tests {
         assert_eq!(entry.score, -100000);
         assert_eq!(entry.bound, LowerBound);
     }
-    
+
+    mod entry_packing {
+        use crate::evaluation::ttable::BoundType::Exact;
+        use super::*;
+
+        #[test]
+        fn test_pack_unpack() {
+            let position = Position::new_game();
+            let packed1 = position.hash_code();
+            let packed = TranspositionTable::pack_entry(
+                packed1, Basic { base_move: BaseMove{from: 12, to: 16, capture: true }},2, -21, Exact);
+            let unpacked = TranspositionTable::unpack_entry(packed.0, packed.1).unwrap();
+            assert_eq!(unpacked.zobrist, packed1);
+            assert_eq!(unpacked.best_move, Basic { base_move: BaseMove { from: 12, to: 16, capture: true } });
+            assert_eq!(unpacked.depth, 2);
+            assert_eq!(unpacked.score, -21);
+            assert_eq!(unpacked.bound, Exact);
+        }
+
+
+        mod move_packing {
+            use super::*;
+            use crate::board::BoardSide::KingSide;
+            use crate::board::PieceType::Rook;
+            use crate::chess_move::ChessMove::{Castling, EnPassant, Promotion};
+            #[test]
+            fn test_basic_move() {
+                let basic_move = Basic { base_move: BaseMove{from: 63, to: 0, capture: false }};
+                let packed = TranspositionTable::pack_move(basic_move);
+                let unpacked = TranspositionTable::unpack_mv(packed);
+                assert_eq!(basic_move, unpacked);
+            }
+            #[test]
+            fn test_en_passant_move() {
+                let en_passant_move = EnPassant { base_move: BaseMove{from: 63, to: 0, capture: true }, capture_square: 40};
+                let packed = TranspositionTable::pack_move(en_passant_move);
+                let unpacked = TranspositionTable::unpack_mv(packed);
+                assert_eq!(en_passant_move, unpacked);
+            }
+            #[test]
+            fn test_promotion_move() {
+                let promotion_move = Promotion { base_move: BaseMove{from: 63, to: 0, capture: false }, promote_to: Rook};
+                let packed = TranspositionTable::pack_move(promotion_move);
+                let unpacked = TranspositionTable::unpack_mv(packed);
+                assert_eq!(promotion_move, unpacked);
+            }
+            #[test]
+            fn test_castling_move() {
+                // capture must be set to false otherwise the test will fail - castling never captures
+                let castling_move = Castling { base_move: BaseMove{from: 63, to: 0, capture: false }, board_side: KingSide};
+                let packed = TranspositionTable::pack_move(castling_move);
+                let unpacked = TranspositionTable::unpack_mv(packed);
+                assert_eq!(castling_move, unpacked);
+            }
+
+        }
+
+    }
 }

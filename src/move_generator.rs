@@ -333,13 +333,11 @@ where F: FnMut(&ChessMove) -> Option<()> {
         if !quit {
             // generate standard captures
             let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
-            if attacked_opposing_piece_squares != 0 {
-                util::process_bits(attacked_opposing_piece_squares, |attacked_square_index| {
-                    if create_moves(square_index as usize, attacked_square_index as usize, true).is_none() {
-                        quit = true;
-                    }
-                });
-            }
+            util::process_bits(attacked_opposing_piece_squares, |attacked_square_index| {
+                if create_moves(square_index as usize, attacked_square_index as usize, true).is_none() {
+                    quit = true;
+                }
+            });
         }
         if !quit {
             // generate en passant capture
