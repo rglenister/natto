@@ -16,7 +16,8 @@ pub enum GameStatus {
     DrawnByThreefoldRepetition,
     DrawnByInsufficientMaterial,
     Stalemate,
-    Checkmate
+    Checkmate,
+    UnKnown,
 }
 
 pub struct Game {
