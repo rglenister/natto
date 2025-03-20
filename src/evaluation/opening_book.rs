@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use crate::{fen, util};
 use rand::{rng, Rng};
@@ -35,15 +36,19 @@ pub trait OpeningBook {
 }
 
 pub struct LiChessOpeningBook {
-    out_of_book: std::cell::RefCell<bool>,       
+    out_of_book: RefCell<bool>,
 }
 
 impl LiChessOpeningBook {
     pub(crate) fn new() -> LiChessOpeningBook {
         LiChessOpeningBook {
-            out_of_book: std::cell::RefCell::new(false),
+            out_of_book: RefCell::new(false),
         }       
     }
+    pub(crate) fn reset(&self) {
+        *self.out_of_book.borrow_mut() = false;
+    }
+
 }
 
 impl OpeningBook for LiChessOpeningBook {

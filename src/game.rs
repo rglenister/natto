@@ -10,6 +10,7 @@ include!("util/generated_macro.rs");
 
 #[derive(Copy, Clone, Debug)]
 #[derive(Eq, Hash, PartialEq)]
+#[repr(u8)]
 pub enum GameStatus {
     InProgress,
     DrawnByFiftyMoveRule,

@@ -1,4 +1,6 @@
+use std::panic::panic_any;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::thread::current;
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
 use crate::chess_move::{BaseMove, ChessMove};
@@ -51,13 +53,28 @@ impl TranspositionTable {
         let packed2 = self.table[index * 2 + 1].load(Ordering::Relaxed);
         Self::unpack_entry(packed1, packed2).filter(|e| e.zobrist == zobrist)
     }
+    
+    pub fn item_count(&self) -> usize {
+        let mut count = 0;
+        for i in 0..self.size {
+            if self.table[i * 2].load(Ordering::Relaxed) != 0 {
+                count += 1;
+            }
+        }
+        count
+    }
+    pub fn clear(&self) {
+        for atomic in &self.table {
+            atomic.store(0, Ordering::Relaxed);
+        }
+    }
 
     fn pack_move(best_move: ChessMove) -> u64 {
         fn pack_base_move_and_type(base_move: BaseMove, move_type: u64) -> u64 {
             // 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00
             // |   from square  |   to  square    |c||move |e   x   t   r   a
             //                                       |type|| non basic  moves     
-            ((base_move.from as u64 & 0x3ff) << 15) | ((base_move.to as u64 & 0x3f) << 9) | ((base_move.capture as u64 & 1) << 8) | ((move_type & 0x03) << 6)
+            ((base_move.from as u64 & 0x3f) << 15) | ((base_move.to as u64 & 0x3f) << 9) | ((base_move.capture as u64 & 1) << 8) | ((move_type & 0x03) << 6)
         }
  
         match best_move {
@@ -114,9 +131,9 @@ impl TranspositionTable {
 
     fn pack_entry(zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType, game_status: GameStatus) -> (u64, u64) {
         let packed1 = zobrist;
-        let packed2 = 
-            Self::pack_move(best_move) | 
-                ((depth as u64) << 21) | 
+        let packed2 =
+            Self::pack_move(best_move) |
+                ((depth as u64) << 21) |
                 (((score + MAXIMUM_SCORE as i32) as u64 & 0x0FFFFFFF) << 29) |
                 ((bound as u64) << 57) |
                 ((game_status as u64) << 61);
@@ -132,7 +149,7 @@ impl TranspositionTable {
             0 => BoundType::Exact,
             1 => BoundType::LowerBound,
             2 => BoundType::UpperBound,
-            _ => return None,
+            _ => panic!("Invalid bound"),
         };
         let game_status = match (packed2 >> 61) & 0x0F {
             0 => InProgress,
@@ -141,7 +158,7 @@ impl TranspositionTable {
             3 => DrawnByInsufficientMaterial,
             4 => Stalemate,
             5 => Checkmate,
-            _ => return None,
+            _ => panic!("Invalid game status"),
         };
         Some(TTEntry { zobrist, best_move, depth: depth as usize, score: score as isize, bound, game_status })
     }
@@ -156,7 +173,7 @@ pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evaluation::ttable::BoundType::LowerBound;
+    use crate::evaluation::ttable::BoundType::{LowerBound, UpperBound};
     use crate::position::Position;
 
     struct BasicMove {}
@@ -192,6 +209,18 @@ mod tests {
         assert_eq!(entry.score, -100);
         assert_eq!(entry.bound, LowerBound);
         assert_eq!(entry.game_status, Checkmate);
+    }
+    #[test]
+    fn test_item_count() {
+        let table = TranspositionTable::new(1 << 2);
+        assert_eq!(table.table.len(), 4 * 2);
+        assert_eq!(table.size, 4);
+        assert_eq!(table.item_count(), 0);
+        let position = Position::new_game();
+        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound, Checkmate);
+        assert_eq!(table.item_count(), 1);
+        table.clear();
+        assert_eq!(table.item_count(), 0);
     }
 
     mod entry_packing {

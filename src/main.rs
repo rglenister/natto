@@ -70,7 +70,15 @@ fn main() {
     let (tx, rx) = mpsc::channel(); // Channel for UCI commands
     let search_stop_flag = Arc::new(AtomicBool::new(false)); // Shared stop flag
     let main_loop_quit_flag = Arc::new(AtomicBool::new(false)); // Flag to exit main loop
-    let mut opening_book: LiChessOpeningBook = LiChessOpeningBook::new();
+    
+    let use_opening_book: bool = env::var("USE_OPENING_BOOK").unwrap_or_else(|_| "true".to_string()).eq_ignore_ascii_case("true");
+    let opening_book = if use_opening_book {
+        info!("Using opening book");
+        Some(LiChessOpeningBook::new())
+    } else {
+        info!("Not using opening book");
+        None
+    };
 
     let mut uci_position: Option<UciPosition> = None;
 
@@ -120,7 +128,9 @@ fn main() {
                 }
 
                 UciCommand::UciNewGame => {
-                    opening_book = LiChessOpeningBook::new();
+                    if let Some(opening_book) = opening_book.as_ref() {
+                        opening_book.reset();
+                    }
                     uci_position = None;
                 }
 
@@ -135,13 +145,21 @@ fn main() {
 
                 UciCommand::Go(_go_options_string) => {
                     if let Some(uci_pos) = uci_position.clone() {
-                        info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
-                        let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
-                        if opening_move.is_ok() {
-                            debug!("got move from opening book");
-                            uci::send_to_gui(format!("bestmove {}", opening_move.unwrap()));
-                        } else {
-                            info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
+                        let send_opening_book_move_to_gui = || -> bool {
+                            if let Some(opening_book) = opening_book.as_ref() {
+                                info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
+                                let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
+                                if let Ok(opening_move) = opening_move {
+                                    debug!("got move {} from opening book", opening_move);
+                                    uci::send_to_gui(format!("bestmove {}", opening_move));
+                                    return true;
+                                } else {
+                                    info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
+                                }
+                            }
+                            false
+                        }; 
+                        if !send_opening_book_move_to_gui() {                 
                             let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                             debug!("go options = {:?}", uci_go_options);
 
