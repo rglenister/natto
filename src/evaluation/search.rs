@@ -179,7 +179,7 @@ pub fn iterative_deepening_search(
     }
     info!("Search complete - pv table size is {}", search_context.pv_transposition_table.item_count());
     if let Some(entry) = search_context.pv_transposition_table.retrieve(position.hash_code()) {
-        let variation = retrieve_principal_variation(&search_context.pv_transposition_table, *position);
+        let variation = retrieve_principal_variation(&search_context.pv_transposition_table, *position, search_context.repeat_position_counts);
         SearchResults {
             score: score,
             depth: entry.depth,
@@ -191,7 +191,7 @@ pub fn iterative_deepening_search(
             score,
             depth: 0,
             best_line: vec![],
-            game_status: GameStatus::UnKnown,
+            game_status: get_game_status(position, search_context.repeat_position_counts),
         }
     }
 }
@@ -259,7 +259,7 @@ fn minimax(
                 let entry = search_context.pv_transposition_table.retrieve(position.hash_code()).unwrap();
                 assert_eq!(entry.zobrist, position.hash_code());
                 assert_eq!(entry.best_move, best_move);
-//                assert_eq!(entry.depth, (max_depth - depth) as u8);
+                assert_eq!(entry.depth, max_depth - depth);
                 assert_eq!(entry.score, best_score);
                 assert_eq!(entry.bound, Exact);
                 assert_eq!(entry.game_status, InProgress);
@@ -279,7 +279,7 @@ fn minimax(
     }
 }
 
-fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, ChessMove)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
+pub fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, ChessMove)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
     let maximum_moves_to_go_back = current_position.half_move_clock().min(current_line.len());
     let position_hash = current_position.hash_code();
     let mut result = 0;
@@ -298,7 +298,7 @@ fn get_repeat_position_count(current_position: &Position, current_line: &[(Posit
 }
 
 fn score_position(position: &Position, current_line: &[(Position, ChessMove)], depth: usize) -> isize {
-    let game = Game::new(position);
+    let game = Game::new(position, None);
     let game_status = game.get_game_status();
     match game_status {
         InProgress => score_pieces(position),
@@ -339,7 +339,7 @@ fn used_allocated_move_time(search_params: &SearchParams) -> bool {
     stats.elapsed_time.as_millis() > search_params.allocated_time_millis.try_into().unwrap()
 }
 
-fn retrieve_principal_variation(transposition_table: &TranspositionTable, position: Position) -> (Vec<(Position, ChessMove)>, GameStatus) {
+fn retrieve_principal_variation(transposition_table: &TranspositionTable, position: Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> (Vec<(Position, ChessMove)>, GameStatus) {
     let mut pv = Vec::new();
     let mut current_position = position;
 
@@ -351,9 +351,12 @@ fn retrieve_principal_variation(transposition_table: &TranspositionTable, positi
         // }
         current_position = next_pos.0;
     }
-    let game = Game::new(&current_position);
-    let game_status = game.get_game_status();
-    (pv, game_status)
+    (pv, get_game_status(&current_position, repeat_position_counts))
+}
+
+fn get_game_status(position: &Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> GameStatus {
+    let game = Game::new(&position, repeat_position_counts.as_ref());
+    game.get_game_status()
 }
 
 fn increment_node_counter() -> NodeCountStats {
@@ -378,7 +381,7 @@ fn node_counter_stats() -> NodeCountStats {
 mod tests {
     use super::*;
     use crate::chess_move::{BaseMove, RawChessMove};
-    use crate::game::GameStatus::{DrawnByFiftyMoveRule, UnKnown};
+    use crate::game::GameStatus::{DrawnByFiftyMoveRule};
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::position::NEW_GAME_FEN;
     use crate::evaluation::search::{iterative_deepening_search, MAXIMUM_SCORE};
@@ -462,7 +465,7 @@ mod tests {
         let move_2 = Basic { base_move: BaseMove {from: sq!("e7"), to: sq!("e5"), capture: false} };
         transposition_table.store(position_2.hash_code(), move_2, 2, 0, BoundType::Exact, InProgress);
         let position_3 = position_2.make_move(&move_2).unwrap().0;
-        let result = retrieve_principal_variation(&transposition_table, position_1);
+        let result = retrieve_principal_variation(&transposition_table, position_1, None);
         assert_eq!(result.0.len(), 2);
         assert_eq!(result.0[0], (position_2, move_1));
         assert_eq!(result.0[1], (position_3, move_2));
@@ -480,7 +483,7 @@ mod tests {
                 score: -100_000,
                 depth: 0,
                 best_line: vec![],
-                game_status: GameStatus::UnKnown,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -496,7 +499,7 @@ mod tests {
                 score: 0,
                 depth: 0,
                 best_line: vec![],
-                game_status: UnKnown,
+                game_status: Stalemate,
             }
         );
     }
@@ -659,7 +662,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 score: 0,
-                depth: 0,
+                depth: 1,
                 best_line: vec![],
                 game_status: DrawnByThreefoldRepetition,
             }
