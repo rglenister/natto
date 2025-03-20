@@ -182,7 +182,7 @@ pub fn iterative_deepening_search(
         let variation = retrieve_principal_variation(&search_context.pv_transposition_table, *position);
         SearchResults {
             score: score,
-            depth: 0,
+            depth: entry.depth,
             best_line: variation.0,
             game_status: variation.1,
         }
@@ -255,11 +255,11 @@ fn minimax(
             // let entry = TRANSPOSITION_TABLE.retrieve(position.hash_code());
             // let insert = entry.is_none() || entry.unwrap().depth <= depth;
             // if insert {
-                search_context.pv_transposition_table.store(position.hash_code(), best_move, depth as u8, best_score as i32, Exact, InProgress);
+                search_context.pv_transposition_table.store(position.hash_code(), best_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
                 let entry = search_context.pv_transposition_table.retrieve(position.hash_code()).unwrap();
                 assert_eq!(entry.zobrist, position.hash_code());
                 assert_eq!(entry.best_move, best_move);
-                assert_eq!(entry.depth, depth);
+//                assert_eq!(entry.depth, (max_depth - depth) as u8);
                 assert_eq!(entry.score, best_score);
                 assert_eq!(entry.bound, Exact);
                 assert_eq!(entry.game_status, InProgress);
@@ -387,8 +387,8 @@ mod tests {
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
-        // assert_eq!(search_results.depth, expected.depth);
-        // assert_eq!(search_results.game_status, expected.game_status);
+        assert_eq!(search_results.depth, expected.depth);
+        assert_eq!(search_results.game_status, expected.game_status);
     }
 
     #[test]
@@ -564,7 +564,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 5,
                 depth: 5,
                 best_line: vec![],
-                game_status: UnKnown,
+                game_status: Checkmate,
             }
         );
     }
@@ -581,7 +581,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 7,
                 depth: 7,
                 best_line: vec![],
-                game_status: UnKnown,
+                game_status: Checkmate,
             }
         );
     }
@@ -598,7 +598,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 5,
                 depth: 5,
                 best_line: vec![],
-                game_status: UnKnown,
+                game_status: Checkmate,
             }
         );
     }
