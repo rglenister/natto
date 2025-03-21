@@ -21,6 +21,7 @@ use std::fmt::Display;
 use std::ops::Neg;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
+use dotenv::dotenv;
 use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use crate::evaluation::ttable;
@@ -29,12 +30,7 @@ use crate::evaluation::ttable::BoundType::Exact;
 
 include!("../util/generated_macro.rs");
 
-static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
-    let node_counter = crate::node_counter::NodeCounter::new();
-    RwLock::new(node_counter)
-});
-
-static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
+pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
     let default_size = 1 << 25;
     let transposition_table_size: usize = var("TRANSPOSITION_TABLE_SIZE")
         .unwrap_or_else(|_| default_size.to_string())
@@ -46,6 +42,10 @@ static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
     transposition_table
 });
 
+static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
+    let node_counter = crate::node_counter::NodeCounter::new();
+    RwLock::new(node_counter)
+});
 
 fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
     LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
@@ -112,7 +112,6 @@ struct SearchContext<'a> {
     stop_flag: Arc<AtomicBool>,
     sorted_root_moves: RefCell<SortedMoveList>,
     repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
-    pv_transposition_table: TranspositionTable,
 }
 
 impl SearchContext<'_> {
@@ -127,7 +126,6 @@ impl SearchContext<'_> {
             stop_flag,
             sorted_root_moves: RefCell::new(SortedMoveList::new(&moves)),
             repeat_position_counts,
-            pv_transposition_table: TranspositionTable::new(1 << 20),
         }
     }
 }
@@ -163,12 +161,13 @@ pub fn iterative_deepening_search(
     let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate(position));
     let mut score = -MAXIMUM_SCORE;
     for iteration_max_depth in 0..=search_params.max_depth {
+       TRANSPOSITION_TABLE.clear();
         score = minimax(position, &vec!(), 0, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            debug!("Search results for depth {}: {}", iteration_max_depth, "test string"/*PositionWithSearchResults { position, search_results: &iteration_search_results}*/);
+            let (best_line, game_status) = retrieve_principal_variation(&TRANSPOSITION_TABLE, *position, None);
+            debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &SearchResults { score, depth: iteration_max_depth, best_line, game_status } });
             let nps = node_counter_stats().nodes_per_second;
             uci::send_to_gui(format!("info nps {}", nps));
-//            search_results = iteration_search_results;
             if score.abs() >= MAXIMUM_SCORE - (iteration_max_depth as isize) {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
                 break;
@@ -177,9 +176,9 @@ pub fn iterative_deepening_search(
             break;
         }
     }
-    info!("Search complete - pv table size is {}", search_context.pv_transposition_table.item_count());
-    if let Some(entry) = search_context.pv_transposition_table.retrieve(position.hash_code()) {
-        let variation = retrieve_principal_variation(&search_context.pv_transposition_table, *position, search_context.repeat_position_counts);
+    info!("Search complete - pv table size is {}", TRANSPOSITION_TABLE.item_count());
+    if let Some(entry) = TRANSPOSITION_TABLE.retrieve(position.hash_code()) {
+        let variation = retrieve_principal_variation(&TRANSPOSITION_TABLE, *position, search_context.repeat_position_counts);
         SearchResults {
             score: score,
             depth: entry.depth,
@@ -203,23 +202,23 @@ fn minimax(
     max_depth: usize,
     search_context: &mut SearchContext,
     mut alpha: isize,
-    beta: isize,
+    mut beta: isize,
 ) -> isize {
     increment_node_counter();
     if used_allocated_move_time(search_context.search_params) {
         search_context.stop_flag.store(true, Ordering::Relaxed);
         return 0;
     }
-    // if let Some(entry) = TRANSPOSITION_TABLE.retrieve(position.hash_code()) {
-    //     if entry.depth == depth {
-    //         match entry.bound {
-    //             // BoundType::Exact => return entry.score,
-    //             // BoundType::LowerBound if entry.score >= beta => return entry.score,
-    //             // BoundType::UpperBound if entry.score <= alpha => return entry.score,
-    //             _ => (),
-    //         }
-    //     }
-    // }
+    if let Some(entry) = TRANSPOSITION_TABLE.retrieve(position.hash_code()) {
+        if entry.depth == depth {
+            match entry.bound {
+                BoundType::Exact => return entry.score,
+                BoundType::LowerBound => alpha = alpha.max(entry.score),
+                BoundType::UpperBound =>  beta = beta.min(entry.score),
+                _ => (),
+            }
+        }
+    }
     if depth < max_depth {
         let mut best_score = -MAXIMUM_SCORE;
         let moves = if depth == 0 { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate(position) };
@@ -238,9 +237,12 @@ fn minimax(
                     best_score = next_score;
                     best_move = Some(chess_move);
                 }
-                alpha = alpha.max(next_score);
-                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
-                    break;
+                if next_score > alpha {
+                    TRANSPOSITION_TABLE.store(position.hash_code(), chess_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
+                    alpha = alpha.max(next_score);
+                    if alpha >= beta /*|| (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed))*/ {
+                        break;
+                    }
                 }
             }
         };
@@ -255,14 +257,14 @@ fn minimax(
             // let entry = TRANSPOSITION_TABLE.retrieve(position.hash_code());
             // let insert = entry.is_none() || entry.unwrap().depth <= depth;
             // if insert {
-                search_context.pv_transposition_table.store(position.hash_code(), best_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
-                let entry = search_context.pv_transposition_table.retrieve(position.hash_code()).unwrap();
-                assert_eq!(entry.zobrist, position.hash_code());
-                assert_eq!(entry.best_move, best_move);
-                assert_eq!(entry.depth, max_depth - depth);
-                assert_eq!(entry.score, best_score);
-                assert_eq!(entry.bound, Exact);
-                assert_eq!(entry.game_status, InProgress);
+//                TRANSPOSITION_TABLE.store(position.hash_code(), best_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
+                // let entry = search_context.pv_transposition_table.retrieve(position.hash_code()).unwrap();
+                // assert_eq!(entry.zobrist, position.hash_code());
+                // assert_eq!(entry.best_move, best_move);
+                // assert_eq!(entry.depth, max_depth - depth);
+                // assert_eq!(entry.score, best_score);
+                // assert_eq!(entry.bound, Exact);
+                // assert_eq!(entry.game_status, InProgress);
             // }
         } else {
             return score_position(position, current_line, depth);
@@ -351,6 +353,7 @@ fn retrieve_principal_variation(transposition_table: &TranspositionTable, positi
         // }
         current_position = next_pos.0;
     }
+    info!("PV: {:?}", pv.len());
     (pv, get_game_status(&current_position, repeat_position_counts))
 }
 

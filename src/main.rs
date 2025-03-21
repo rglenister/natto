@@ -29,6 +29,7 @@ use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use evaluation::opening_book::ErrorKind;
 use evaluation::search::iterative_deepening_search;
+use crate::evaluation::search::TRANSPOSITION_TABLE;
 use uci::UciPosition;
 use crate::evaluation::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::move_generator::generate;
@@ -64,7 +65,8 @@ impl UciCommand {
 fn main() {
     setup_logging().expect("Failed to initialize logging");
 //    log_test_messages();
-
+    let _ = *TRANSPOSITION_TABLE;
+    
     info!("Chess engine started");
 
     let (tx, rx) = mpsc::channel(); // Channel for UCI commands
