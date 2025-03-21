@@ -62,7 +62,7 @@ impl FormatMove for MoveFormatter {
             let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().game.position.clone()} else { position };
             let next_pos: Option<(Position, ChessMove)> = pos.make_raw_move(&RawChessMove::new(cm.1.get_base_move().from, cm.1.get_base_move().to, get_promote_to(cm.1)));
             if next_pos.is_some() {
-                if let Some(np) = next_pos { acc.push(GameMove::new(Game::new(&np.0), pos, &cm.1)) }
+                if let Some(np) = next_pos { acc.push(GameMove::new(Game::new(&np.0, None), pos, &cm.1)) }
                 Some(acc)
             } else {
                 None

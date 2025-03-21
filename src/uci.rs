@@ -130,9 +130,9 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
         }
     };
 
-    let allocate_max_depth = || -> isize {
+    let allocate_max_depth = || -> usize {
         let depth = uci_go_options.depth.max(uci_go_options.mate);
-        depth.map_or(usize::MAX, |d| d).try_into().unwrap_or(isize::MAX)
+        depth.map_or(usize::MAX, |d| d).try_into().unwrap_or(usize::MAX)
     };
 
     let allocate_max_nodes = || -> usize {
@@ -196,7 +196,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, usize::MAX);
-        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_depth, usize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
 
@@ -206,7 +206,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, 133);
-        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_depth, usize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(Black));
         assert_eq!(search_params.allocated_time_millis, 236);
-        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_depth, usize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -224,7 +224,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis,1100);
-        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_depth, usize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -233,7 +233,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, 1234);
-        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_depth, usize::MAX);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -267,7 +267,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, usize::MAX);
-        assert_eq!(search_params.max_depth, isize::MAX);
+        assert_eq!(search_params.max_depth, usize::MAX);
         assert_eq!(search_params.max_nodes, 1001);
     }
 }
