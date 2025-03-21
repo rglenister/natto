@@ -77,7 +77,7 @@ impl Display for PositionWithSearchResults<'_> {
 #[derive(Clone, Debug)]
 pub struct SearchParams {
     pub allocated_time_millis: usize,
-    pub max_depth: isize,
+    pub max_depth: usize,
     pub max_nodes: usize,
 }
 
@@ -94,7 +94,7 @@ impl SearchParams {
     pub const DEFAULT_NUMBER_OF_MOVES_TO_GO : usize = 30;
 
     pub fn new(allocated_time_millis: usize, max_depth: isize, max_nodes: usize) -> SearchParams {
-        SearchParams { allocated_time_millis, max_depth, max_nodes }
+        SearchParams { allocated_time_millis, max_depth: max_depth.try_into().unwrap(), max_nodes }
     }
 
     pub fn new_by_depth(max_depth: isize) -> SearchParams {
@@ -151,7 +151,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
     let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate(position));
     let mut search_results = SearchResults { score: 0, depth: 0, best_line: vec!(), game_status: InProgress };
     for iteration_max_depth in 0..=search_params.max_depth {
-        let iteration_search_results = do_search(position, &vec!(), 0, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        let iteration_search_results = do_search(position, &vec!(), 0, iteration_max_depth.try_into().unwrap(), &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &iteration_search_results});
             let nps = node_counter_stats().nodes_per_second;
@@ -220,7 +220,7 @@ fn do_search(
     }
 }
 
-fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, ChessMove)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
+pub fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, ChessMove)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
     let maximum_moves_to_go_back = current_position.half_move_clock().min(current_line.len());
     let position_hash = current_position.hash_code();
     let mut result = 0;
@@ -239,7 +239,7 @@ fn get_repeat_position_count(current_position: &Position, current_line: &[(Posit
 }
 
 fn score_position(position: &Position, current_line: &[(Position, ChessMove)], depth: isize) -> SearchResults {
-    let game = Game::new(position);
+    let game = Game::new(position, None);
     let game_status = game.get_game_status();
     match game_status {
         InProgress => { SearchResults {score: score_pieces(position), depth, best_line: current_line.to_owned(), game_status }}

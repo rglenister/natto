@@ -141,7 +141,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
 
     SearchParams {
         allocated_time_millis: allocate_move_time_millis().map_or(usize::MAX, |mtm| mtm),
-        max_depth: allocate_max_depth(),
+        max_depth: allocate_max_depth() as usize,
         max_nodes: allocate_max_nodes(),
     }
 }
