@@ -210,12 +210,15 @@ fn minimax(
         return 0;
     }
     if let Some(entry) = TRANSPOSITION_TABLE.retrieve(position.hash_code()) {
-        if entry.depth == depth {
+        if entry.depth >= depth {
             match entry.bound {
                 BoundType::Exact => return entry.score,
                 BoundType::LowerBound => alpha = alpha.max(entry.score),
                 BoundType::UpperBound =>  beta = beta.min(entry.score),
                 _ => (),
+            }
+            if alpha >= beta {
+                return entry.score;
             }
         }
     }
@@ -238,7 +241,6 @@ fn minimax(
                     best_move = Some(chess_move);
                 }
                 if next_score > alpha {
-                    TRANSPOSITION_TABLE.store(position.hash_code(), chess_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
                     alpha = alpha.max(next_score);
                     if alpha >= beta /*|| (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed))*/ {
                         break;
@@ -247,25 +249,21 @@ fn minimax(
             }
         };
         if let Some(best_move) = best_move {
-            // let bound = if best_score <= alpha {
-            //     BoundType::UpperBound
-            // } else if best_score >= beta {
-            //     BoundType::LowerBound
-            // } else {
-            //     BoundType::Exact
-            // };
-            // let entry = TRANSPOSITION_TABLE.retrieve(position.hash_code());
-            // let insert = entry.is_none() || entry.unwrap().depth <= depth;
-            // if insert {
-//                TRANSPOSITION_TABLE.store(position.hash_code(), best_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
-                // let entry = search_context.pv_transposition_table.retrieve(position.hash_code()).unwrap();
-                // assert_eq!(entry.zobrist, position.hash_code());
-                // assert_eq!(entry.best_move, best_move);
-                // assert_eq!(entry.depth, max_depth - depth);
-                // assert_eq!(entry.score, best_score);
-                // assert_eq!(entry.bound, Exact);
-                // assert_eq!(entry.game_status, InProgress);
-            // }
+            let bound = if best_score <= alpha {
+                BoundType::UpperBound
+            } else if best_score >= beta {
+                BoundType::LowerBound
+            } else {
+                BoundType::Exact
+            };
+            TRANSPOSITION_TABLE.store(position.hash_code(), best_move, (max_depth - depth) as u8, best_score as i32, Exact, InProgress);
+            let entry = TRANSPOSITION_TABLE.retrieve(position.hash_code()).unwrap();
+            assert_eq!(entry.zobrist, position.hash_code());
+            assert_eq!(entry.best_move, best_move);
+            assert_eq!(entry.depth, max_depth - depth);
+            assert_eq!(entry.score, best_score);
+            assert_eq!(entry.bound, Exact);
+            assert_eq!(entry.game_status, InProgress);
         } else {
             return score_position(position, current_line, depth);
         }
