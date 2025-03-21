@@ -36,7 +36,7 @@ pub const MAXIMUM_SEARCH_DEPTH: isize = isize::MAX;
 
 pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
 
-const MAXIMUM_SCORE: isize = 100000;
+pub const MAXIMUM_SCORE: isize = 100000;
 
 
 #[derive(Clone, Debug, Eq, PartialEq)]
