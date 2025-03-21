@@ -145,7 +145,7 @@ impl SearchResults {
     }
 }
 
-
+// old name
 pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
     let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate(position));
