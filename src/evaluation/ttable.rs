@@ -175,9 +175,7 @@ mod tests {
     use super::*;
     use crate::evaluation::ttable::BoundType::{LowerBound, UpperBound};
     use crate::position::Position;
-
-    struct BasicMove {}
-
+    
     #[test]
     fn test_small_table_creation() {
         let table = TranspositionTable::new(1 << 1);

@@ -30,7 +30,7 @@ use log::{debug, error, info, trace, warn, LevelFilter};
 use evaluation::opening_book::ErrorKind;
 use uci::UciPosition;
 use crate::evaluation::opening_book::{LiChessOpeningBook, OpeningBook};
-use crate::evaluation::search::search;
+use crate::evaluation::search::{search, TRANSPOSITION_TABLE};
 use crate::move_generator::generate;
 use crate::position::Position;
 use crate::util::find_generated_move;
@@ -63,8 +63,8 @@ impl UciCommand {
 
 fn main() {
     setup_logging().expect("Failed to initialize logging");
-// //    log_test_messages();
-//     let _ = *TRANSPOSITION_TABLE;
+//    log_test_messages();
+    let _ = *TRANSPOSITION_TABLE;
     
     info!("Chess engine started");
 
