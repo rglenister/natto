@@ -19,13 +19,28 @@ use std::fmt::Display;
 use std::ops::Neg;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
+use dotenv::var;
+use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
+use crate::evaluation::ttable::TranspositionTable;
 
 include!("../util/generated_macro.rs");
 
 static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
     let node_counter = crate::node_counter::NodeCounter::new();
     RwLock::new(node_counter)
+});
+
+static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
+    let default_size = 1 << 25;
+    let transposition_table_size: usize = var("TRANSPOSITION_TABLE_SIZE")
+        .unwrap_or_else(|_| default_size.to_string())
+        .parse::<usize>()
+        .unwrap_or(default_size);
+    info!("Creating transposition table with size {} ({:#X})", transposition_table_size, transposition_table_size);
+    let transposition_table = TranspositionTable::new(transposition_table_size);
+    info!("Transposition table created");
+    transposition_table
 });
 
 fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
