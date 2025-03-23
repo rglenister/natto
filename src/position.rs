@@ -212,7 +212,7 @@ impl Position {
     }
 
     pub fn make_raw_move(&self, raw_move: &RawChessMove) -> Option<(Self, ChessMove)> {
-        let chess_move = util::find_generated_move(move_generator::generate(self), raw_move);
+        let chess_move = util::find_generated_move(move_generator::generate_moves(self), raw_move);
         self.make_move(&chess_move?)
     }
 
@@ -330,7 +330,7 @@ mod tests {
     use crate::board::PieceColor;
     use crate::board::PieceType::Queen;
     use crate::chess_move::ChessMove::Castling;
-    use crate::move_generator::generate;
+    use crate::move_generator::generate_moves;
 
     #[test]
     fn test_general_usability() {
@@ -388,7 +388,7 @@ mod tests {
     fn test_cannot_castle_out_of_check() {
         let fen = "r3k2r/p1pp1pb1/bn2Qnp1/2qPN3/1p2P3/2N5/PPPBBPPP/R3K2R b KQkq - 3 2";
         let position = Position::from(fen);
-        let moves = generate(&position);
+        let moves = generate_moves(&position);
         let castling_moves: Vec<&ChessMove> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
         assert_eq!(castling_moves.len(), 2);
@@ -399,7 +399,7 @@ mod tests {
     fn test_cannot_castle_through_check() {
         let fen = "r3k3/8/8/8/7B/8/8/4K3 b q - 0 1";
         let position = Position::from(fen);
-        let moves = generate(&position);
+        let moves = generate_moves(&position);
         let castling_moves: Vec<_> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
         assert_eq!(castling_moves.len(), 1);
@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
         assert_eq!(position.castling_rights_as_u64(), 15);
 
-        let moves = generate(&position);
+        let moves = generate_moves(&position);
         let castling_moves: Vec<_> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
         assert_eq!(castling_moves.len(), 2);
@@ -452,7 +452,7 @@ mod tests {
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
         assert_eq!(position.castling_rights_as_u64(), 15);
-        let moves = generate(&position);
+        let moves = generate_moves(&position);
         let king_moves: Vec<_> = util::filter_moves_by_from_square(moves,sq!("e1"));
         assert_eq!(king_moves.len(), 7);
         let new_position = position.make_move(&king_moves[0]).unwrap();

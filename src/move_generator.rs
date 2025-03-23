@@ -34,7 +34,7 @@ impl MoveProcessor {
         self.moves.clone()
     }
 }
-pub fn generate(position: &Position) -> Vec<ChessMove> {
+pub fn generate_moves(position: &Position) -> Vec<ChessMove> {
     let mut moves: Vec<ChessMove> = vec!();
     let mut non_capture_moves: Vec<ChessMove> = vec!();
     let mut process_move = |chess_move: &ChessMove| -> Option<()> {
@@ -405,7 +405,7 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
 mod tests {
     use super::*;
     use crate::chess_move::ChessMove::Castling;
-    use crate::move_generator::generate;
+    use crate::move_generator::generate_moves;
 
     use crate::board::BoardSide::{KingSide, QueenSide};
     use crate::chess_move::BaseMove;
@@ -466,7 +466,7 @@ mod tests {
     fn test_move_count_from_initial_position() {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let position = Position::from(fen);
-        let moves = generate(&position);
+        let moves = generate_moves(&position);
         assert_eq!(moves.len(), 20);
     }
 
@@ -474,7 +474,7 @@ mod tests {
     fn test_white_pawns_on_home_squares() {
         let fen = "4k3/5p2/8/8/8/8/2P5/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 10);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 10);
         assert_eq!(moves.len(), 2);
         assert_eq!(*moves.get(0).unwrap(), Basic { base_move: BaseMove::new(10, 18, false)});
         assert_eq!(*moves.get(1).unwrap(), Basic { base_move: BaseMove::new(10, 26, false)});
@@ -485,7 +485,7 @@ mod tests {
     fn test_black_pawns_on_home_squares() {
         let fen = "4k3/5p2/8/8/8/8/2P5/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 53);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 53);
         assert_eq!(moves.len(), 2);
         assert_eq!(*moves.get(0).unwrap(), Basic { base_move: BaseMove::new(53, 45, false)});
         assert_eq!(*moves.get(1).unwrap(), Basic { base_move: BaseMove::new(53, 37, false)});
@@ -496,7 +496,7 @@ mod tests {
     fn test_white_pawns_can_be_completely_blocked() {
         let fen = "4k3/5p2/5b2/8/8/2b5/2P5/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 50);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 50);
         assert_eq!(moves.len(), 0);
     }
 
@@ -505,7 +505,7 @@ mod tests {
     fn test_black_pawns_can_be_completely_blocked() {
         let fen = "4k3/5p2/5b2/8/8/2b5/2P5/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 50);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 50);
         assert_eq!(moves.len(), 0);
     }
 
@@ -514,7 +514,7 @@ mod tests {
     fn test_white_pawns_can_be_blocked_from_making_a_double_move() {
         let fen = "4k3/5p2/8/5b2/2b5/8/2P5/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 10);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 10);
         assert_eq!(moves.len(), 1);
         assert_eq!(*moves.get(0).unwrap(), Basic { base_move: BaseMove::new(10, 18, false)});
     }
@@ -524,7 +524,7 @@ mod tests {
     fn test_black_pawns_can_be_blocked_from_making_a_double_move() {
         let fen = "4k3/5p2/8/5b2/2b5/8/2P5/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 53);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 53);
         assert_eq!(moves.len(), 1);
         assert_eq!(*moves.get(0).unwrap(), Basic { base_move: BaseMove::new(53, 45, false)});
     }
@@ -534,7 +534,7 @@ mod tests {
     fn test_white_pawns_can_capture() {
         let fen = "3k4/8/4P1r1/p4P2/2p1n1b1/3P3P/8/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(&position);
+        let all_moves = generate_moves(&position);
         assert_eq!(all_moves.len(), 13);
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 19);
@@ -563,7 +563,7 @@ mod tests {
     fn test_black_pawns_can_capture() {
         let fen = "3k4/8/4P1r1/p4P2/2p1n1b1/3P3P/8/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(&position);
+        let all_moves = generate_moves(&position);
 
         let moves = util::filter_moves_by_from_square(all_moves.clone(), 32);
         assert_eq!(moves.len(), 1);
@@ -594,7 +594,7 @@ mod tests {
     fn test_white_pawns_can_capture_en_passant() {
         let fen = "4k3/8/8/4PpP1/8/8/8/4K3 w - f6 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(&position);
+        let all_moves = generate_moves(&position);
 
         assert_eq!(all_moves.len(), 9);
         assert_eq!(is_en_passant_capture_possible(&position), true);
@@ -614,7 +614,7 @@ mod tests {
     fn test_black_pawns_can_capture_en_passant() {
         let fen = "4k3/8/8/8/4pPp1/8/8/4K3 b - f3 0 1";
         let position = Position::from(fen);
-        let all_moves = generate(&position);
+        let all_moves = generate_moves(&position);
 
         assert_eq!(all_moves.len(), 9);
         assert_eq!(is_en_passant_capture_possible(&position), true);
@@ -634,7 +634,7 @@ mod tests {
     fn test_white_pawns_can_be_promoted() {
         let fen = "4k3/2P5/8/5b2/2b5/8/6p1/4K3 w - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 50);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 50);
         assert_eq!(moves.len(), 4);
         assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: Knight });
         assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: Bishop });
@@ -647,7 +647,7 @@ mod tests {
     fn test_black_pawns_can_be_promoted() {
         let fen = "4k3/2P5/8/5b2/2b5/8/6p1/4K3 b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 14);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 14);
         assert_eq!(moves.len(), 4);
 
         assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Knight });
@@ -661,7 +661,7 @@ mod tests {
     fn test_pawns_can_be_promoted_by_capturing() {
         let fen = "4k3/2P5/8/5b2/8/8/6p1/4KB1N b - - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), 14);
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), 14);
         assert_eq!(moves.len(), 12);
 
         assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: Knight });
@@ -686,7 +686,7 @@ mod tests {
     fn test_white_king_moves() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), sq!("e1"));
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), sq!("e1"));
         assert_eq!(moves.len(), 7);
         let castling_moves: Vec<&ChessMove> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. }))
@@ -701,7 +701,7 @@ mod tests {
     fn test_black_king_moves() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1";
         let position = Position::from(fen);
-        let moves = util::filter_moves_by_from_square(generate(&position), sq!("e8"));
+        let moves = util::filter_moves_by_from_square(generate_moves(&position), sq!("e8"));
         assert_eq!(moves.len(), 7);
         let castling_moves: Vec<&ChessMove> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. }))

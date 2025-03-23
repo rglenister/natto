@@ -10,7 +10,7 @@ use crate::board::{Board, Piece, PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::King;
 use crate::chess_move::{ChessMove, RawChessMove};
-use crate::move_generator::generate;
+use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::util::find_generated_move;
 
@@ -141,7 +141,7 @@ fn parse_move(move_string: &str) -> Result<RawChessMove, ErrorKind> {
 }
 
 fn validate_move(position: &Position, raw_chess_move: RawChessMove) -> Result<ChessMove, ErrorKind> {
-    find_generated_move(generate(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
+    find_generated_move(generate_moves(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
 }
 
 #[cfg(test)]

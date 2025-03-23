@@ -31,7 +31,7 @@ use evaluation::opening_book::ErrorKind;
 use uci::UciPosition;
 use crate::evaluation::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::evaluation::search::{search, TRANSPOSITION_TABLE};
-use crate::move_generator::generate;
+use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::util::find_generated_move;
 
