@@ -23,7 +23,6 @@ pub struct TTEntry {
     pub depth: usize,
     pub score: isize,
     pub bound: BoundType,
-    pub game_status: GameStatus,
 }
 
 pub struct TranspositionTable {
@@ -40,9 +39,9 @@ impl TranspositionTable {
         table
     }
 
-    pub fn store(&self, zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType, game_status: GameStatus) {
+    pub fn store(&self, zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType) {
         let index = (zobrist as usize) % self.size;
-        let packed = Self::pack_entry(zobrist, best_move, depth, score, bound, game_status);
+        let packed = Self::pack_entry(zobrist, best_move, depth, score, bound);
         self.table[index * 2].store(packed.0, Ordering::Relaxed);
         self.table[index * 2 + 1].store(packed.1, Ordering::Relaxed);
     }
@@ -129,14 +128,14 @@ impl TranspositionTable {
         }
     }
 
-    fn pack_entry(zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType, game_status: GameStatus) -> (u64, u64) {
+    fn pack_entry(zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType) -> (u64, u64) {
         let packed1 = zobrist;
         let packed2 =
             Self::pack_move(best_move) |
                 ((depth as u64) << 21) |
                 (((score + MAXIMUM_SCORE as i32) as u64 & 0x0FFFFFFF) << 29) |
                 ((bound as u64) << 57) |
-                ((game_status as u64) << 61);
+                ((0u64) << 61);
         (packed1, packed2)
     }
 
@@ -151,16 +150,7 @@ impl TranspositionTable {
             2 => BoundType::UpperBound,
             _ => panic!("Invalid bound"),
         };
-        let game_status = match (packed2 >> 61) & 0x0F {
-            0 => InProgress,
-            1 => DrawnByFiftyMoveRule,
-            2 => DrawnByThreefoldRepetition,
-            3 => DrawnByInsufficientMaterial,
-            4 => Stalemate,
-            5 => Checkmate,
-            _ => panic!("Invalid game status"),
-        };
-        Some(TTEntry { zobrist, best_move, depth: depth as usize, score: score as isize, bound, game_status })
+        Some(TTEntry { zobrist, best_move, depth: depth as usize, score: score as isize, bound })
     }
 }
 
@@ -199,14 +189,13 @@ mod tests {
         assert_eq!(table.size, 2);
 
         let position = Position::new_game();
-        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound, Checkmate);
+        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound);
         let entry = table.retrieve(position.hash_code()).unwrap();
         assert_eq!(entry.zobrist, position.hash_code());
         assert_eq!(entry.best_move, Basic { base_move: BaseMove { from: 63, to: 0, capture: true } });
         assert_eq!(entry.depth, 8);
         assert_eq!(entry.score, -100);
         assert_eq!(entry.bound, LowerBound);
-        assert_eq!(entry.game_status, Checkmate);
     }
     #[test]
     fn test_item_count() {
@@ -215,7 +204,7 @@ mod tests {
         assert_eq!(table.size, 4);
         assert_eq!(table.item_count(), 0);
         let position = Position::new_game();
-        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound, Checkmate);
+        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound);
         assert_eq!(table.item_count(), 1);
         table.clear();
         assert_eq!(table.item_count(), 0);
@@ -231,17 +220,15 @@ mod tests {
             let position = Position::new_game();
             let packed1 = position.hash_code();
             let packed = TranspositionTable::pack_entry(
-                packed1, Basic { base_move: BaseMove{from: 12, to: 16, capture: true }},2, 21, Exact, DrawnByInsufficientMaterial);
+                packed1, Basic { base_move: BaseMove{from: 12, to: 16, capture: true }},2, 21, Exact);
             let unpacked = TranspositionTable::unpack_entry(packed.0, packed.1).unwrap();
             assert_eq!(unpacked.zobrist, packed1);
             assert_eq!(unpacked.best_move, Basic { base_move: BaseMove { from: 12, to: 16, capture: true } });
             assert_eq!(unpacked.depth, 2);
             assert_eq!(unpacked.score, 21);
             assert_eq!(unpacked.bound, Exact);
-            assert_eq!(unpacked.game_status, DrawnByInsufficientMaterial);
         }
-
-
+        
         mod move_packing {
             use super::*;
             use crate::board::BoardSide::KingSide;
