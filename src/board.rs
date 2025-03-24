@@ -5,12 +5,13 @@ use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 
-#[derive(Debug, EnumCountMacro, EnumIter)]
+#[derive(Debug, EnumCountMacro, EnumIter, Default)]
 #[derive(Clone)]
 #[derive(Copy)]
 #[repr(u8)]
 #[derive(Eq, Hash, PartialEq)]
 pub enum PieceColor {
+    #[default]
     White = 0,
     Black = 1,
 }

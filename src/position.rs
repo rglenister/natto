@@ -62,7 +62,7 @@ static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
     PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table, en_passant_capture_square_hashes_table }
 });
 
-#[derive(Copy, Clone, Debug, Eq)]
+#[derive(Copy, Clone, Debug, Default, Eq)]
 pub struct Position {
     board: BitBoard,
     side_to_move: PieceColor,

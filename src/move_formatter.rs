@@ -163,7 +163,7 @@ impl MoveFormatter {
     fn get_en_passant_indicator(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
             EnPassant {base_move: _ , capture_square: _} => {
-                " e.p".to_string()
+                "ep".to_string()
             }
             _ => String::new()
         }
@@ -252,8 +252,8 @@ mod tests {
         let position = Position::from("4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1");
         let raw_moves_string = "e4d3".to_string();
         let position_move_pairs: Vec<(Position, ChessMove)> = util::replay_moves(&position, raw_moves_string).unwrap();
-        assert_eq!(LONG_FORMATTER.format_move_list(&position, &position_move_pairs).unwrap().join(","), "e4xd3 e.p");
-        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &position_move_pairs).unwrap().join(","), "exd3 e.p");
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &position_move_pairs).unwrap().join(","), "e4xd3ep");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &position_move_pairs).unwrap().join(","), "exd3ep");
     }
 
     #[test]

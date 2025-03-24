@@ -41,6 +41,12 @@ pub enum ChessMove {
 }
 
 impl ChessMove {
+    pub(crate) fn default() -> ChessMove {
+        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }   
+    }
+}
+
+impl ChessMove {
     pub fn get_base_move(&self) -> &BaseMove {
         match self {
             Basic { base_move }

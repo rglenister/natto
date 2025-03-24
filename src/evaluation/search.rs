@@ -12,7 +12,7 @@ use crate::position::Position;
 use crate::evaluation::sorted_move_list::SortedMoveList;
 use crate::{uci, util};
 use itertools::Itertools;
-use log::{debug, info};
+use log::{debug, info, error};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -23,6 +23,7 @@ use dotenv::var;
 use log::Level::Trace;
 use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
+use arrayvec::ArrayVec;
 use crate::evaluation::ttable::{BoundType, TranspositionTable};
 
 include!("../util/generated_macro.rs");
@@ -48,7 +49,7 @@ fn long_format_moves(position: &Position, search_results: &SearchResults) -> Str
     LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
 }
 
-pub const MAXIMUM_SEARCH_DEPTH: isize = 64;
+pub const MAXIMUM_SEARCH_DEPTH: usize = 64;
 
 pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
 
@@ -60,16 +61,18 @@ pub struct SearchResults {
     pub score: isize,
     pub depth: usize,
     pub best_line: Vec<(Position, ChessMove)>,
+    pub best_line_from_pv_array: Vec<(Position, ChessMove)>,
     pub game_status: GameStatus,
 }
 
 impl Default for SearchResults {
     fn default() -> Self {
         SearchResults {
-            score: 0, // todo
+            score: 0,
             depth: 0,
             best_line: vec![],
-            game_status: GameStatus::InProgress,
+            best_line_from_pv_array: vec![],
+            game_status: InProgress,
         }
     }
 }
@@ -136,6 +139,7 @@ struct SearchContext<'a> {
     stop_flag: Arc<AtomicBool>,
     sorted_root_moves: RefCell<SortedMoveList>,
     repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
+    pv_array: Box<[[(Position, ChessMove); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]>,
 }
 
 impl SearchContext<'_> {
@@ -150,7 +154,12 @@ impl SearchContext<'_> {
             stop_flag,
             sorted_root_moves: RefCell::new(SortedMoveList::new(&moves)),
             repeat_position_counts,
+            pv_array: Box::new([[(Position::default(), ChessMove::default()); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]),
         }
+    }
+
+    pub fn clear_pv_array(&mut self) {
+        self.pv_array = Box::new([[(Position::default(), ChessMove::default()); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]);
     }
 }
 impl Display for SearchResults {
@@ -175,12 +184,13 @@ impl SearchResults {
 pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
     let mut search_results = SearchResults::empty();
-    let mut search_context = SearchContext::new(search_params, stop_flag, repeat_position_counts, generate_moves(position));
     for iteration_max_depth in 0..=search_params.max_depth {
         TRANSPOSITION_TABLE.clear();
-        let score = do_search(position, &vec!(), iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
+        search_context.clear_pv_array();
+        let score = do_search(position, &mut ArrayVec::new(), iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            search_results = create_search_results(position, score, iteration_max_depth, search_context.repeat_position_counts.clone());
+            search_results = create_search_results(position, score, iteration_max_depth, search_context);
             debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &search_results});
             let nps = node_counter_stats().nodes_per_second;
             uci::send_to_gui(format!("info nps {}", nps)); // todo needs more data
@@ -197,7 +207,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
 
 fn do_search(
     position: &Position,
-    current_line: &[(Position, ChessMove)],
+    mut current_line: &mut ArrayVec<(Position, ChessMove), MAXIMUM_SEARCH_DEPTH>,
     depth: usize,
     max_depth: usize,
     search_context: &mut SearchContext,
@@ -210,6 +220,9 @@ fn do_search(
         return 0;
     }
     if let Some(entry) = TRANSPOSITION_TABLE.retrieve(position.hash_code()) {
+        if entry.zobrist != position.hash_code() {
+            error!("The retrieved zobrist is inconsistent");
+        }
         if entry.depth >= depth && entry.bound == BoundType::Exact {
             match entry.bound {
                 BoundType::Exact => return entry.score,
@@ -226,15 +239,22 @@ fn do_search(
         for chess_move in moves {
             if let Some(next_position) = position.make_move(&chess_move) {
                 // there isn't a checkmate or a stalemate
-                let next_score = if get_repeat_position_count(&next_position.0, &add_item(current_line, &next_position), search_context.repeat_position_counts.as_ref()) >= 2 {
+                current_line.push(next_position);
+                let next_score = if get_repeat_position_count(&next_position.0, &current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
                     0
                 } else {
-                    -do_search(&next_position.0, &add_item(current_line, &next_position), depth - 1, max_depth, search_context, -beta, -alpha)
+                    -do_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha)
                 };
+                current_line.pop();
                 if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&chess_move, next_score) };
                 if next_score > best_score {
                     best_score = next_score;
                     best_move = Some(chess_move);
+                    let depth_from_root = max_depth - depth;
+                    search_context.pv_array[depth_from_root][depth_from_root] = next_position;
+                    for x in depth_from_root + 1..max_depth {
+                        search_context.pv_array[depth_from_root][x] = search_context.pv_array[depth_from_root + 1][x];
+                    }
                 }
                 alpha = alpha.max(next_score);
                 if alpha >= beta {
@@ -250,26 +270,33 @@ fn do_search(
             } else {
                 BoundType::Exact
             };
-            TRANSPOSITION_TABLE.store(position.hash_code(), best_move, max_depth as u8, best_score as i32, bound_type, InProgress)
+            TRANSPOSITION_TABLE.store(position.hash_code(), best_move, max_depth as u8, best_score as i32, bound_type)
         } else {
             best_score = score_position(position, current_line, max_depth - depth);
         }
-        return best_score;
+        best_score
     } else {
-        return score_position(position, current_line, max_depth);
-    }
-    fn add_item(line: &[(Position, ChessMove)], cm: &(Position, ChessMove)) -> Vec<(Position, ChessMove)> {
-        let mut appended_line = line.to_owned();
-        appended_line.push(*cm);
-        appended_line
+        score_position(position, current_line, max_depth)
     }
 }
 
-fn create_search_results(position: &Position, score: isize, depth: usize, previous_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
+fn create_search_results(position: &Position, score: isize, depth: usize, search_context: SearchContext) -> SearchResults {
     let entry = TRANSPOSITION_TABLE.retrieve(position.hash_code());
     if let Some(entry) = entry {
-        let variation = retrieve_principal_variation(position.clone(), previous_position_counts);
-        SearchResults { score, depth, best_line: variation.0, game_status: variation.1 }
+        let variation = retrieve_principal_variation(position.clone(), search_context.repeat_position_counts);
+        let results = SearchResults {
+            score,
+            depth,
+            best_line: variation.0,
+            best_line_from_pv_array: search_context.pv_array[0][0..depth].to_vec(),
+            game_status: variation.1 };
+
+        let best_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line).unwrap().join(", ");
+        let pv_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line_from_pv_array).unwrap().join(", ");
+        if best_line_moves != pv_line_moves {
+            error!("The best line and the PV line don't match: {} vs {}", best_line_moves, pv_line_moves);
+        }
+        results
     } else {
         SearchResults::empty().with_updated_score(score).with_updated_game_status(get_game_status(position, None))
     }
@@ -462,6 +489,7 @@ mod tests {
                 score: -100_000,
                 depth: 0,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -478,6 +506,7 @@ mod tests {
                 score: 0,
                 depth: 0,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Stalemate,
             }
         );
@@ -495,6 +524,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 1,
                 depth: 1,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -512,6 +542,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 1,
                 depth: 1,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -529,6 +560,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 3,
                 depth: 3,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -546,6 +578,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 5,
                 depth: 5,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -563,6 +596,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 7,
                 depth: 7,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -580,6 +614,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 5,
                 depth: 5,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: Checkmate,
             }
         );
@@ -605,6 +640,7 @@ mod tests {
                 score: 260,
                 depth: 0,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: InProgress,
             }
         );
@@ -618,6 +654,7 @@ mod tests {
                 score: 0,
                 depth: 0,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: DrawnByFiftyMoveRule,
             }
         );
@@ -643,6 +680,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: DrawnByThreefoldRepetition,
             }
         );
@@ -655,6 +693,7 @@ mod tests {
                 score: 1000,
                 depth: 1,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: InProgress,
             }
         );
@@ -678,6 +717,7 @@ mod tests {
                 score: -660,
                 depth: 2,
                 best_line: vec![],
+                best_line_from_pv_array: vec![],
                 game_status: InProgress,
             }
         );
