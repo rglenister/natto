@@ -179,6 +179,13 @@ impl SearchResults {
     fn best_line_moves_as_string(&self) -> String {
         self.best_line_moves().iter().join(",")
     }
+
+    fn pv_array_moves(&self) -> Vec<ChessMove> {
+        self.best_line_from_pv_array.clone().into_iter().map(|pm| pm.1).collect()
+    }
+    fn pv_array_moves_as_string(&self) -> String {
+        self.pv_array_moves().iter().join(",")
+    }
 }
 
 pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
@@ -193,7 +200,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
             search_results = create_search_results(position, score, iteration_max_depth, search_context);
             debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &search_results});
             let nps = node_counter_stats().nodes_per_second;
-            uci::send_to_gui(format!("info nps {}", nps)); // todo needs more data
+            uci::send_to_gui(format!("info nps {}", nps)); // todo needs more data and also M for millions and K for thousands
             if search_results.game_status == Checkmate {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
                 break;
@@ -294,7 +301,7 @@ fn create_search_results(position: &Position, score: isize, depth: usize, search
         let best_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line).unwrap().join(", ");
         let pv_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line_from_pv_array).unwrap().join(", ");
         if best_line_moves != pv_line_moves {
-            error!("The best line and the PV line don't match: {} vs {}", best_line_moves, pv_line_moves);
+            error!("The best line and the PV line don't match: \n{}\n{}", best_line_moves, pv_line_moves);
         }
         results
     } else {
@@ -305,11 +312,12 @@ fn create_search_results(position: &Position, score: isize, depth: usize, search
 fn retrieve_principal_variation(position: Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> (Vec<(Position, ChessMove)>, GameStatus) {
     let mut pv = Vec::new();
     let mut current_position = position;
+    let maximum_pv_length = 16;
 
     while let Some(entry) = TRANSPOSITION_TABLE.retrieve(current_position.hash_code()) {
         let next_pos = current_position.make_move(&entry.best_move).unwrap();
         pv.push(next_pos);
-        if entry.depth == 0 {
+        if entry.depth == 0 || pv.len() == maximum_pv_length {
             break;
         }
         current_position = next_pos.0;
@@ -723,18 +731,20 @@ mod tests {
         );
     }
 
+    // todo reinstate test
     // #[test]
     // fn test_perpetual_check() {
     //     let fen = "r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1";
     //     let position: Position = Position::from(fen);
     //     let search_results = search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
-    //     assert_eq!(search_results.best_line_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
+    //     assert_eq!(search_results.pv_array_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
     //     test_eq(
     //         &search_results,
     //         &SearchResults {
     //             score: 0,
-    //             depth: 4,
+    //             depth: 5,
     //             best_line: vec![],
+    //             best_line_from_pv_array: vec![],
     //             game_status: DrawnByThreefoldRepetition,
     //         }
     //     );
