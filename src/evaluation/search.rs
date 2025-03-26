@@ -1,7 +1,6 @@
 use crate::bit_board::BitBoard;
 use crate::board::PieceColor;
 use crate::board::PieceType::{King, Knight, Pawn, Queen};
-use crate::chess_move::ChessMove;
 use crate::game::GameStatus::{Checkmate, DrawnByInsufficientMaterial, InProgress, Stalemate};
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
@@ -9,7 +8,7 @@ use crate::move_generator::generate_moves;
 use crate::evaluation::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
 use crate::evaluation::sorted_move_list::SortedMoveList;
-use crate::{uci, util};
+use crate::{chess_move, uci, util};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -23,6 +22,7 @@ use log::Level::Trace;
 use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use arrayvec::ArrayVec;
+use crate::chess_move::ChessMove;
 use crate::evaluation::node_counter::{NodeCountStats, NodeCounter};
 use crate::evaluation::ttable::{BoundType, TranspositionTable};
 
@@ -200,7 +200,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
             search_results = create_search_results(position, score, iteration_max_depth, search_context);
             debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &search_results});
             let nps = node_counter_stats().nodes_per_second;
-            uci::send_to_gui(format!("info nps {}", nps)); // todo needs more data and also M for millions and K for thousands
+            uci::send_to_gui(format_uci_info(&search_results, &node_counter_stats()));
             if search_results.game_status == Checkmate {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
                 break;
@@ -322,7 +322,6 @@ fn retrieve_principal_variation(position: Position, repeat_position_counts: Opti
         }
         current_position = next_pos.0;
     }
-    info!("PV: {:?}", pv.len());
     (pv, get_game_status(&current_position, repeat_position_counts))
 }
 
@@ -381,9 +380,17 @@ fn score_pieces(position: &Position) -> isize {
         - score_board_for_color(position.board(), position.opposing_side())
 }
 
-fn write_uci_info(results: &SearchResults, depth: isize) {
-    let stats = node_counter_stats();
-    eprintln!("info depth {} score {} nodes {} nps {} time {}", depth, results.score, node_count(), stats.nodes_per_second, stats.elapsed_time.as_secs());
+fn format_uci_info(search_results: &SearchResults, node_counter_stats: &NodeCountStats) -> String {
+    format!("info depth {} score cp {} time {} nodes {} nps {} pv {}",
+            search_results.depth,
+            search_results.score,
+            node_counter_stats.elapsed_time.as_millis(),
+            node_counter_stats.node_count,
+            node_counter_stats.nodes_per_second,
+            search_results.best_line_from_pv_array.iter()
+                .map(|pos| chess_move::convert_chess_move_to_raw(&pos.1).to_string())
+                .collect::<Vec<String>>()
+                .join(","))
 }
 
 fn used_allocated_move_time(search_params: &SearchParams) -> bool {
