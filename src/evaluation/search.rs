@@ -390,7 +390,7 @@ fn format_uci_info(search_results: &SearchResults, node_counter_stats: &NodeCoun
             search_results.best_line_from_pv_array.iter()
                 .map(|pos| chess_move::convert_chess_move_to_raw(&pos.1).to_string())
                 .collect::<Vec<String>>()
-                .join(","))
+                .join(" "))
 }
 
 fn used_allocated_move_time(search_params: &SearchParams) -> bool {
