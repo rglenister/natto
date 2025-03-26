@@ -7,7 +7,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::{env, thread};
 pub mod fen;
-pub mod node_counter;
 pub mod board;
 pub mod chess_move;
 pub mod bit_board;

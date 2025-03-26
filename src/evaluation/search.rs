@@ -6,7 +6,6 @@ use crate::game::GameStatus::{Checkmate, DrawnByInsufficientMaterial, InProgress
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate_moves;
-use crate::node_counter::NodeCountStats;
 use crate::evaluation::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
 use crate::evaluation::sorted_move_list::SortedMoveList;
@@ -24,12 +23,13 @@ use log::Level::Trace;
 use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use arrayvec::ArrayVec;
+use crate::evaluation::node_counter::{NodeCountStats, NodeCounter};
 use crate::evaluation::ttable::{BoundType, TranspositionTable};
 
 include!("../util/generated_macro.rs");
 
-static NODE_COUNTER: LazyLock<RwLock<crate::node_counter::NodeCounter>> = LazyLock::new(|| {
-    let node_counter = crate::node_counter::NodeCounter::new();
+static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
+    let node_counter = NodeCounter::new();
     RwLock::new(node_counter)
 });
 

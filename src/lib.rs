@@ -11,7 +11,6 @@ pub mod move_formatter;
 pub mod game;
 mod util;
 pub mod move_generator;
-pub mod node_counter;
 
 pub mod uci;
 
