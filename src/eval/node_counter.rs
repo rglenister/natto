@@ -1,4 +1,4 @@
-use crate::move_generator::generate;
+use crate::move_generator::generate_moves;
 use crate::position::Position;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, RwLock};
@@ -64,7 +64,7 @@ fn do_count_nodes(position: &Position, depth: i32, max_depth: i32) {
         //        increment_node_counter();
     }
     if depth < max_depth {
-        generate(position)
+        generate_moves(position)
             .iter()
             .filter_map(|cm| position.make_move(cm))
             .map(|(pos, _)| do_count_nodes( &pos, depth + 1, max_depth))

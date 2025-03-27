@@ -1,15 +1,14 @@
 extern crate core;
 
-use crate::evaluation::opening_book;
-use crate::evaluation::search;
+use crate::eval::opening_book;
+use crate::eval::search;
 use std::io::{self, BufRead};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::{env, thread};
 pub mod fen;
-pub mod node_counter;
 pub mod board;
-pub mod chess_move;
+pub mod r#move;
 pub mod bit_board;
 pub mod position;
 pub mod uci;
@@ -17,21 +16,22 @@ pub mod util;
 pub mod move_generator;
 pub mod game;
 pub mod move_formatter;
-pub mod evaluation;
+pub mod eval;
 
 
-use crate::chess_move::{convert_chess_move_to_raw, RawChessMove};
+use crate::r#move::{convert_chess_move_to_raw, RawMove};
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::uci::UciGoOptions;
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use evaluation::opening_book::ErrorKind;
+use eval::opening_book::ErrorKind;
 use uci::UciPosition;
-use crate::evaluation::opening_book::{LiChessOpeningBook, OpeningBook};
-use crate::evaluation::search::search;
-use crate::move_generator::generate;
+use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
+use crate::eval::search::iterative_deepening_search;
+use crate::eval::ttable::TRANSPOSITION_TABLE;
+use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::util::find_generated_move;
 
@@ -63,8 +63,8 @@ impl UciCommand {
 
 fn main() {
     setup_logging().expect("Failed to initialize logging");
-// //    log_test_messages();
-//     let _ = *TRANSPOSITION_TABLE;
+//    log_test_messages();
+    let _ = *TRANSPOSITION_TABLE;
     
     info!("Chess engine started");
 
@@ -173,7 +173,7 @@ fn main() {
 
                             let stop_flag = Arc::clone(&search_stop_flag);
                             search_handle = Some(thread::spawn(move || {
-                                let search_results = search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
+                                let search_results = iterative_deepening_search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
                                 let best_move = search_results.best_line
                                     .first()
                                     .map(|cm| convert_chess_move_to_raw(&cm.1));

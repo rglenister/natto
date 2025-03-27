@@ -5,7 +5,7 @@ use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::{move_generator, util};
 use crate::bit_board::BitBoard;
-use crate::evaluation::search;
+use crate::eval::search;
 use crate::position::Position;
 
 include!("util/generated_macro.rs");

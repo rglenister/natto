@@ -9,8 +9,8 @@ use thiserror::Error;
 use crate::board::{Board, Piece, PieceColor, PieceType};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::King;
-use crate::chess_move::{ChessMove, RawChessMove};
-use crate::move_generator::generate;
+use crate::r#move::{Move, RawMove};
+use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::util::find_generated_move;
 
@@ -26,13 +26,13 @@ pub enum ErrorKind {
     #[error("Invalid move string: {move_string}")]
     InvalidMoveString { move_string: String },
     #[error("Illegal move: {raw_chess_move}")]
-    IllegalMove { raw_chess_move: RawChessMove },
+    IllegalMove { raw_chess_move: RawMove },
     #[error("Out of book")]
     OutOfBook,
 }
 
 pub trait OpeningBook {
-    fn get_opening_move(&self, position: &Position) -> Result<RawChessMove, ErrorKind>;
+    fn get_opening_move(&self, position: &Position) -> Result<RawMove, ErrorKind>;
 }
 
 pub struct LiChessOpeningBook {
@@ -52,7 +52,7 @@ impl LiChessOpeningBook {
 }
 
 impl OpeningBook for LiChessOpeningBook {
-    fn get_opening_move(&self, position: &Position) -> Result<RawChessMove, ErrorKind> {
+    fn get_opening_move(&self, position: &Position) -> Result<RawMove, ErrorKind> {
         if !*self.out_of_book.borrow() {
             let result = get_opening_move(position);
             match result {
@@ -67,7 +67,7 @@ impl OpeningBook for LiChessOpeningBook {
         }
     }
 }
-fn get_opening_move(position: &Position) -> Result<RawChessMove, ErrorKind> {
+fn get_opening_move(position: &Position) -> Result<RawMove, ErrorKind> {
     let fen = fen::write(&position);
     let opening_moves = fetch_opening_moves(&fen)?;
     if opening_moves.len() > 0 {
@@ -136,17 +136,17 @@ fn map_castling_move_to_uci_format<'a>(move_string: &'a str, position: &Position
     }
 }
 
-fn parse_move(move_string: &str) -> Result<RawChessMove, ErrorKind> {
+fn parse_move(move_string: &str) -> Result<RawMove, ErrorKind> {
     util::parse_move(move_string.to_string()).ok_or(ErrorKind::InvalidMoveString { move_string: move_string.to_string() })    
 }
 
-fn validate_move(position: &Position, raw_chess_move: RawChessMove) -> Result<ChessMove, ErrorKind> {
-    find_generated_move(generate(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
+fn validate_move(position: &Position, raw_chess_move: RawMove) -> Result<Move, ErrorKind> {
+    find_generated_move(generate_moves(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::evaluation::opening_book::{get_opening_move, map_castling_move_to_uci_format, ErrorKind, LiChessOpeningBook, OpeningBook};
+    use crate::eval::opening_book::{get_opening_move, map_castling_move_to_uci_format, ErrorKind, LiChessOpeningBook, OpeningBook};
     use crate::position::Position;
 
     #[test]

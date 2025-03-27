@@ -7,7 +7,7 @@ use strum::IntoEnumIterator;
 
 include!("util/generated_macro.rs");
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Default)]
 #[derive(PartialEq, Eq)]
 pub struct BitBoard {
     bit_boards: [[u64; 6]; 2],
