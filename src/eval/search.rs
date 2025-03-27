@@ -24,25 +24,13 @@ use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use arrayvec::ArrayVec;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::eval::ttable::{BoundType, TranspositionTable};
+use crate::eval::ttable::{BoundType, TranspositionTable, TRANSPOSITION_TABLE};
 
 include!("../util/generated_macro.rs");
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
     RwLock::new(node_counter)
-});
-
-pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
-    let default_size = 1 << 25;
-    let transposition_table_size: usize = var("TRANSPOSITION_TABLE_SIZE")
-        .unwrap_or_else(|_| default_size.to_string())
-        .parse::<usize>()
-        .unwrap_or(default_size);
-    info!("Creating transposition table with size {} ({:#X})", transposition_table_size, transposition_table_size);
-    let transposition_table = TranspositionTable::new(transposition_table_size);
-    info!("Transposition table created");
-    transposition_table
 });
 
 fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {

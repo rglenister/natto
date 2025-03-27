@@ -1,6 +1,9 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::panic::panic_any;
 use std::thread::current;
+use dotenv::var;
+use log::info;
+use once_cell::sync::Lazy;
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
 use crate::r#move::{BaseMove, Move};
@@ -8,6 +11,19 @@ use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 pub use crate::eval::search::MAXIMUM_SCORE;
 use crate::game::GameStatus;
 use crate::game::GameStatus::{Checkmate, DrawnByFiftyMoveRule, DrawnByInsufficientMaterial, DrawnByThreefoldRepetition, InProgress, Stalemate};
+
+
+pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
+    let default_size = 1 << 25;
+    let transposition_table_size: usize = var("TRANSPOSITION_TABLE_SIZE")
+        .unwrap_or_else(|_| default_size.to_string())
+        .parse::<usize>()
+        .unwrap_or(default_size);
+    info!("Creating transposition table with size {} ({:#X})", transposition_table_size, transposition_table_size);
+    let transposition_table = TranspositionTable::new(transposition_table_size);
+    info!("Transposition table created");
+    transposition_table
+});
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundType {

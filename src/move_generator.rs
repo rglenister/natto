@@ -45,7 +45,7 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
         }
         Some(())
     };
-    generate_moves_for_position(position, &mut process_move);
+    generate_moves_using_callback(position, &mut process_move);
     moves.extend(non_capture_moves);
     moves
 }
@@ -58,11 +58,11 @@ pub fn has_legal_move(position: &Position) -> bool {
         }
         if found_legal_move { None } else { Some(()) }
     };
-    generate_moves_for_position(position, &mut process_move);
+    generate_moves_using_callback(position, &mut process_move);
     found_legal_move
 }
 
-fn generate_moves_for_position<F>(position: &Position, process_move: &mut F) -> Option<()> where
+fn generate_moves_using_callback<F>(position: &Position, process_move: &mut F) -> Option<()> where
     F: FnMut(&Move) -> Option<()> {
     let board: &BitBoard = position.board();
     let occupied_squares = board.bitboard_all_pieces();
