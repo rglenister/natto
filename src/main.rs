@@ -1,14 +1,14 @@
 extern crate core;
 
-use crate::evaluation::opening_book;
-use crate::evaluation::search;
+use crate::eval::opening_book;
+use crate::eval::search;
 use std::io::{self, BufRead};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::{env, thread};
 pub mod fen;
 pub mod board;
-pub mod chess_move;
+pub mod r#move;
 pub mod bit_board;
 pub mod position;
 pub mod uci;
@@ -16,20 +16,20 @@ pub mod util;
 pub mod move_generator;
 pub mod game;
 pub mod move_formatter;
-pub mod evaluation;
+pub mod eval;
 
 
-use crate::chess_move::{convert_chess_move_to_raw, RawChessMove};
+use crate::r#move::{convert_chess_move_to_raw, RawMove};
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::uci::UciGoOptions;
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use evaluation::opening_book::ErrorKind;
+use eval::opening_book::ErrorKind;
 use uci::UciPosition;
-use crate::evaluation::opening_book::{LiChessOpeningBook, OpeningBook};
-use crate::evaluation::search::{search, TRANSPOSITION_TABLE};
+use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
+use crate::eval::search::{search, TRANSPOSITION_TABLE};
 use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::util::find_generated_move;

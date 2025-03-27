@@ -5,10 +5,10 @@ use crate::game::GameStatus::{Checkmate, DrawnByInsufficientMaterial, InProgress
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate_moves;
-use crate::evaluation::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
+use crate::eval::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
-use crate::evaluation::sorted_move_list::SortedMoveList;
-use crate::{chess_move, uci, util};
+use crate::eval::sorted_move_list::SortedMoveList;
+use crate::{r#move, uci, util};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -22,9 +22,9 @@ use log::Level::Trace;
 use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use arrayvec::ArrayVec;
-use crate::chess_move::ChessMove;
-use crate::evaluation::node_counter::{NodeCountStats, NodeCounter};
-use crate::evaluation::ttable::{BoundType, TranspositionTable};
+use crate::r#move::Move;
+use crate::eval::node_counter::{NodeCountStats, NodeCounter};
+use crate::eval::ttable::{BoundType, TranspositionTable};
 
 include!("../util/generated_macro.rs");
 
@@ -60,8 +60,8 @@ pub const MAXIMUM_SCORE: isize = 100000;
 pub struct SearchResults {
     pub score: isize,
     pub depth: usize,
-    pub best_line: Vec<(Position, ChessMove)>,
-    pub best_line_from_pv_array: Vec<(Position, ChessMove)>,
+    pub best_line: Vec<(Position, Move)>,
+    pub best_line_from_pv_array: Vec<(Position, Move)>,
     pub game_status: GameStatus,
 }
 
@@ -139,7 +139,7 @@ struct SearchContext<'a> {
     stop_flag: Arc<AtomicBool>,
     sorted_root_moves: RefCell<SortedMoveList>,
     repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
-    pv_array: Box<[[(Position, ChessMove); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]>,
+    pv_array: Box<[[(Position, Move); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]>,
 }
 
 impl SearchContext<'_> {
@@ -147,19 +147,19 @@ impl SearchContext<'_> {
         search_params: &SearchParams,
         stop_flag: Arc<AtomicBool>,
         repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
-        moves: Vec<ChessMove>,
+        moves: Vec<Move>,
     ) -> SearchContext {
         SearchContext {
             search_params,
             stop_flag,
             sorted_root_moves: RefCell::new(SortedMoveList::new(&moves)),
             repeat_position_counts,
-            pv_array: Box::new([[(Position::default(), ChessMove::default()); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]),
+            pv_array: Box::new([[(Position::default(), Move::default()); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]),
         }
     }
 
     pub fn clear_pv_array(&mut self) {
-        self.pv_array = Box::new([[(Position::default(), ChessMove::default()); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]);
+        self.pv_array = Box::new([[(Position::default(), Move::default()); MAXIMUM_SEARCH_DEPTH]; MAXIMUM_SEARCH_DEPTH]);
     }
 }
 impl Display for SearchResults {
@@ -173,14 +173,14 @@ impl Display for SearchResults {
 }
 
 impl SearchResults {
-    fn best_line_moves(&self) -> Vec<ChessMove> {
+    fn best_line_moves(&self) -> Vec<Move> {
         self.best_line.clone().into_iter().map(|pm| pm.1).collect()
     }
     fn best_line_moves_as_string(&self) -> String {
         self.best_line_moves().iter().join(",")
     }
 
-    fn pv_array_moves(&self) -> Vec<ChessMove> {
+    fn pv_array_moves(&self) -> Vec<Move> {
         self.best_line_from_pv_array.clone().into_iter().map(|pm| pm.1).collect()
     }
     fn pv_array_moves_as_string(&self) -> String {
@@ -214,7 +214,7 @@ pub fn search(position: &Position, search_params: &SearchParams, stop_flag: Arc<
 
 fn do_search(
     position: &Position,
-    mut current_line: &mut ArrayVec<(Position, ChessMove), MAXIMUM_SEARCH_DEPTH>,
+    mut current_line: &mut ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH>,
     depth: usize,
     max_depth: usize,
     search_context: &mut SearchContext,
@@ -296,8 +296,8 @@ fn create_search_results(position: &Position, score: isize, depth: usize, search
             depth,
             best_line: variation.0,
             best_line_from_pv_array: search_context.pv_array[0][0..depth].to_vec(),
-            game_status: variation.1 };
-
+            game_status: variation.1 
+        };
         let best_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line).unwrap().join(", ");
         let pv_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line_from_pv_array).unwrap().join(", ");
         if best_line_moves != pv_line_moves {
@@ -309,7 +309,7 @@ fn create_search_results(position: &Position, score: isize, depth: usize, search
     }
 }
 
-fn retrieve_principal_variation(position: Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> (Vec<(Position, ChessMove)>, GameStatus) {
+fn retrieve_principal_variation(position: Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> (Vec<(Position, Move)>, GameStatus) {
     let mut pv = Vec::new();
     let mut current_position = position;
     let maximum_pv_length = 16;
@@ -330,7 +330,7 @@ fn get_game_status(position: &Position, repeat_position_counts: Option<HashMap<u
     game.get_game_status()
 }
 
-pub fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, ChessMove)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
+pub fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, Move)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
     let maximum_moves_to_go_back = current_position.half_move_clock().min(current_line.len());
     let position_hash = current_position.hash_code();
     let mut result = 0;
@@ -348,7 +348,7 @@ pub fn get_repeat_position_count(current_position: &Position, current_line: &[(P
     result
 }
 
-fn score_position(position: &Position, current_line: &[(Position, ChessMove)], depth: usize) -> isize {
+fn score_position(position: &Position, current_line: &[(Position, Move)], depth: usize) -> isize {
     let game = Game::new(position, None);
     let game_status = game.get_game_status();
     match game_status {
@@ -388,7 +388,7 @@ fn format_uci_info(search_results: &SearchResults, node_counter_stats: &NodeCoun
             node_counter_stats.node_count,
             node_counter_stats.nodes_per_second,
             search_results.best_line_from_pv_array.iter()
-                .map(|pos| chess_move::convert_chess_move_to_raw(&pos.1).to_string())
+                .map(|pos| r#move::convert_chess_move_to_raw(&pos.1).to_string())
                 .collect::<Vec<String>>()
                 .join(" "))
 }
@@ -419,11 +419,11 @@ fn node_counter_stats() -> NodeCountStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess_move::RawChessMove;
+    use crate::r#move::RawMove;
     use crate::game::GameStatus::DrawnByFiftyMoveRule;
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::position::NEW_GAME_FEN;
-    use crate::evaluation::search::{search, MAXIMUM_SCORE};
+    use crate::eval::search::{search, MAXIMUM_SCORE};
     use crate::{move_formatter, uci};
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
@@ -660,7 +660,7 @@ mod tests {
             }
         );
 
-        let drawn_position = in_progress_position.make_raw_move(&RawChessMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
+        let drawn_position = in_progress_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
         let drawn_position_search_results = search(&drawn_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(drawn_position_search_results.best_line_moves_as_string(), "".to_string());
         test_eq(

@@ -2,8 +2,8 @@ use crate::bit_board::BitBoard;
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::board::{BoardSide, PieceColor, PieceType};
-use crate::chess_move::ChessMove::{Basic, Castling, EnPassant, Promotion};
-use crate::chess_move::{BaseMove, ChessMove};
+use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+use crate::r#move::{BaseMove, Move};
 use crate::position::Position;
 use crate::util::on_board;
 use crate::{bit_board, util};
@@ -17,27 +17,27 @@ use strum::IntoEnumIterator;
 include!("util/generated_macro.rs");
 
 struct MoveProcessor {
-    moves: Vec<ChessMove>,
+    moves: Vec<Move>,
 }
 
 impl MoveProcessor {
-    fn get_closure(&mut self) -> Box<dyn FnMut(&ChessMove) -> Option<()> + '_> {
+    fn get_closure(&mut self) -> Box<dyn FnMut(&Move) -> Option<()> + '_> {
         let moves = RefCell::new(&mut self.moves);
 
-        Box::new(move |cm: &ChessMove| -> Option<()> {
+        Box::new(move |cm: &Move| -> Option<()> {
             moves.borrow_mut().push(*cm);
             Some(())
         })
     }
 
-    fn get_moves(&self) -> Vec<ChessMove> {
+    fn get_moves(&self) -> Vec<Move> {
         self.moves.clone()
     }
 }
-pub fn generate_moves(position: &Position) -> Vec<ChessMove> {
-    let mut moves: Vec<ChessMove> = vec!();
-    let mut non_capture_moves: Vec<ChessMove> = vec!();
-    let mut process_move = |chess_move: &ChessMove| -> Option<()> {
+pub fn generate_moves(position: &Position) -> Vec<Move> {
+    let mut moves: Vec<Move> = vec!();
+    let mut non_capture_moves: Vec<Move> = vec!();
+    let mut process_move = |chess_move: &Move| -> Option<()> {
         if chess_move.get_base_move().capture {
             moves.push(*chess_move);
         } else {
@@ -52,7 +52,7 @@ pub fn generate_moves(position: &Position) -> Vec<ChessMove> {
 
 pub fn has_legal_move(position: &Position) -> bool {
     let mut found_legal_move: bool = false;
-    let mut process_move = |chess_move: &ChessMove| -> Option<()> {
+    let mut process_move = |chess_move: &Move| -> Option<()> {
         if !found_legal_move {
             found_legal_move = position.make_move(chess_move).is_some();
         }
@@ -63,7 +63,7 @@ pub fn has_legal_move(position: &Position) -> bool {
 }
 
 fn generate_moves_for_position<F>(position: &Position, process_move: &mut F) -> Option<()> where
-    F: FnMut(&ChessMove) -> Option<()> {
+    F: FnMut(&Move) -> Option<()> {
     let board: &BitBoard = position.board();
     let occupied_squares = board.bitboard_all_pieces();
     let friendly_squares = board.bitboard_by_color(position.side_to_move());
@@ -89,7 +89,7 @@ pub fn get_non_sliding_moves_by_piece_type<F>(
     friendly_squares: u64,
     process_move: &mut F,
 ) -> Option<()>
-where F: FnMut(&ChessMove) -> Option<()> {
+where F: FnMut(&Move) -> Option<()> {
     let mut quit = false;
     util::process_bits(square_indexes.try_into().unwrap(), |square_index| {
         let destinations = NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index as usize];
@@ -107,7 +107,7 @@ pub fn get_sliding_moves_by_piece_type<F>(
     friendly_squares: u64,
     process_move: &mut F
 ) -> Option<()>
-where F: FnMut(&ChessMove) -> Option<()> {
+where F: FnMut(&Move) -> Option<()> {
     util::process_bits(square_indexes, |square_index| {
         let valid_moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index, occupied_squares);
         generate_moves_for_destinations(square_index as usize, valid_moves, occupied_squares, friendly_squares, process_move);
@@ -124,7 +124,7 @@ fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, squa
 }
 
 fn generate_moves_for_destinations<F>(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F) -> Option<()>
-where F: FnMut(&ChessMove) -> Option<()> {
+where F: FnMut(&Move) -> Option<()> {
     let mut quit = false;
     util::process_bits(destinations, |to: u64| {
         if !quit && friendly_squares & (1 << to) == 0 && process_move(&Basic { base_move: BaseMove::new(from, to as usize, occupied_squares & (1 << to) != 0)}).is_none() {
@@ -280,7 +280,7 @@ fn generate_move_bitboard(
 }
 
 fn generate_king_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F) -> Option<()>
-where F: FnMut(&ChessMove) -> Option<()> {
+where F: FnMut(&Move) -> Option<()> {
     get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, process_move)?;
     let moves = BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
@@ -294,7 +294,7 @@ where F: FnMut(&ChessMove) -> Option<()> {
 }
 
 fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()>
-where F: FnMut(&ChessMove) -> Option<()> {
+where F: FnMut(&Move) -> Option<()> {
     let create_moves = |from: usize, to: usize, capture: bool| -> Option<()> {
         if BitBoard::rank(to, position.side_to_move()) != 7 {
             process_move.borrow_mut()(&Basic { base_move: BaseMove::new(from, to, capture) })?;
@@ -404,11 +404,11 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess_move::ChessMove::Castling;
+    use crate::r#move::Move::Castling;
     use crate::move_generator::generate_moves;
 
     use crate::board::BoardSide::{KingSide, QueenSide};
-    use crate::chess_move::BaseMove;
+    use crate::r#move::BaseMove;
 
     /// Verifies that a knight in a corner square can move to the expected squares
     #[test]
@@ -688,7 +688,7 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate_moves(&position), sq!("e1"));
         assert_eq!(moves.len(), 7);
-        let castling_moves: Vec<&ChessMove> =
+        let castling_moves: Vec<&Move> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. }))
                 .collect();
         assert_eq!(castling_moves.len(), 2);
@@ -703,7 +703,7 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate_moves(&position), sq!("e8"));
         assert_eq!(moves.len(), 7);
-        let castling_moves: Vec<&ChessMove> =
+        let castling_moves: Vec<&Move> =
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. }))
                 .collect();
         assert_eq!(castling_moves.len(), 2);

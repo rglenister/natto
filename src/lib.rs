@@ -2,7 +2,7 @@
 
 pub mod fen;
 mod board;
-mod chess_move;
+mod r#move;
 mod bit_board;
 pub mod position;
 
@@ -14,4 +14,4 @@ pub mod move_generator;
 
 pub mod uci;
 
-pub mod evaluation;
+pub mod eval;

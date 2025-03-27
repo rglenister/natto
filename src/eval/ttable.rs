@@ -3,9 +3,9 @@ use std::panic::panic_any;
 use std::thread::current;
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
-use crate::chess_move::{BaseMove, ChessMove};
-use crate::chess_move::ChessMove::{Basic, Castling, EnPassant, Promotion};
-pub use crate::evaluation::search::MAXIMUM_SCORE;
+use crate::r#move::{BaseMove, Move};
+use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+pub use crate::eval::search::MAXIMUM_SCORE;
 use crate::game::GameStatus;
 use crate::game::GameStatus::{Checkmate, DrawnByFiftyMoveRule, DrawnByInsufficientMaterial, DrawnByThreefoldRepetition, InProgress, Stalemate};
 
@@ -19,7 +19,7 @@ pub enum BoundType {
 #[derive(Clone, Copy, Debug)]
 pub struct TTEntry {
     pub zobrist: u64,
-    pub best_move: ChessMove,
+    pub best_move: Move,
     pub depth: usize,
     pub score: isize,
     pub bound: BoundType,
@@ -39,7 +39,7 @@ impl TranspositionTable {
         table
     }
 
-    pub fn store(&self, zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType) {
+    pub fn store(&self, zobrist: u64, best_move: Move, depth: u8, score: i32, bound: BoundType) {
         let index = (zobrist as usize) % self.size;
         let packed = Self::pack_entry(zobrist, best_move, depth, score, bound);
         self.table[index * 2].store(packed.0, Ordering::Relaxed);
@@ -68,7 +68,7 @@ impl TranspositionTable {
         }
     }
 
-    fn pack_move(best_move: ChessMove) -> u64 {
+    fn pack_move(best_move: Move) -> u64 {
         fn pack_base_move_and_type(base_move: BaseMove, move_type: u64) -> u64 {
             // 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00
             // |   from square  |   to  square    |c||move |e   x   t   r   a
@@ -92,7 +92,7 @@ impl TranspositionTable {
         }
     }
 
-    fn unpack_mv(move_packed: u64) -> ChessMove {
+    fn unpack_mv(move_packed: u64) -> Move {
         let from = ((move_packed >> 15) & 0x3F) as usize;
         let to = ((move_packed >> 9) & 0x3F) as usize;
         let is_capture = ((move_packed >> 8) & 1) != 0;
@@ -128,7 +128,7 @@ impl TranspositionTable {
         }
     }
 
-    fn pack_entry(zobrist: u64, best_move: ChessMove, depth: u8, score: i32, bound: BoundType) -> (u64, u64) {
+    fn pack_entry(zobrist: u64, best_move: Move, depth: u8, score: i32, bound: BoundType) -> (u64, u64) {
         let packed1 = zobrist;
         let packed2 =
             Self::pack_move(best_move) |
@@ -163,7 +163,7 @@ pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evaluation::ttable::BoundType::{LowerBound, UpperBound};
+    use crate::eval::ttable::BoundType::{LowerBound, UpperBound};
     use crate::position::Position;
     
     #[test]
@@ -211,7 +211,7 @@ mod tests {
     }
 
     mod entry_packing {
-        use crate::evaluation::ttable::BoundType::Exact;
+        use crate::eval::ttable::BoundType::Exact;
         use crate::game::GameStatus::DrawnByInsufficientMaterial;
         use super::*;
 
@@ -233,7 +233,7 @@ mod tests {
             use super::*;
             use crate::board::BoardSide::KingSide;
             use crate::board::PieceType::Rook;
-            use crate::chess_move::ChessMove::{Castling, EnPassant, Promotion};
+            use crate::r#move::Move::{Castling, EnPassant, Promotion};
             #[test]
             fn test_basic_move() {
                 let basic_move = Basic { base_move: BaseMove{from: 63, to: 0, capture: false }};

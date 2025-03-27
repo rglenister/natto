@@ -1,7 +1,7 @@
 use crate::board::PieceColor::{Black, White};
-use crate::chess_move::{ChessMove, RawChessMove};
+use crate::r#move::{Move, RawMove};
 use crate::position::Position;
-use crate::evaluation::search::{SearchParams, MAXIMUM_SEARCH_DEPTH};
+use crate::eval::search::{SearchParams, MAXIMUM_SEARCH_DEPTH};
 use crate::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -16,7 +16,7 @@ static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(
 #[derive(Clone, Debug)]
 pub struct UciPosition {
     pub(crate) given_position: Position,
-    pub(crate) position_move_pairs: Option<Vec<(Position, ChessMove)>>,
+    pub(crate) position_move_pairs: Option<Vec<(Position, Move)>>,
 }
 
 impl UciPosition {
@@ -43,7 +43,7 @@ pub struct UciGoOptions {
     pub move_time: Option<usize>,
     pub ponder: bool,
     pub infinite: bool,
-    pub search_moves: Option<Vec<RawChessMove>>,
+    pub search_moves: Option<Vec<RawMove>>,
 }
 
 pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptions {
@@ -158,7 +158,7 @@ mod tests {
     use crate::board::PieceColor::{Black, White};
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {
         let white_to_move = Position::new_game();
-        let black_to_move = white_to_move.make_raw_move(&RawChessMove::new(sq!("e2"), sq!("e4"), None));
+        let black_to_move = white_to_move.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None));
         UciPosition { given_position: if side_to_move == White {white_to_move} else {black_to_move.unwrap().0}, position_move_pairs: None }
     }
 
@@ -187,7 +187,7 @@ mod tests {
         assert_eq!(uci_go_options.move_time, Some(1234));
         assert_eq!(uci_go_options.ponder, true);
         assert_eq!(uci_go_options.infinite, true);
-        assert_eq!(uci_go_options.search_moves, Some(vec!(RawChessMove::new(sq!("e2"), sq!("e4"), None), RawChessMove::new(sq!("e7"), sq!("e5"), None))));
+        assert_eq!(uci_go_options.search_moves, Some(vec!(RawMove::new(sq!("e2"), sq!("e4"), None), RawMove::new(sq!("e7"), sq!("e5"), None))));
     }
 
     #[test]
