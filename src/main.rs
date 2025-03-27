@@ -29,7 +29,7 @@ use log::{debug, error, info, trace, warn, LevelFilter};
 use eval::opening_book::ErrorKind;
 use uci::UciPosition;
 use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
-use crate::eval::search::search;
+use crate::eval::search::iterative_deepening_search;
 use crate::eval::ttable::TRANSPOSITION_TABLE;
 use crate::move_generator::generate_moves;
 use crate::position::Position;
@@ -173,7 +173,7 @@ fn main() {
 
                             let stop_flag = Arc::clone(&search_stop_flag);
                             search_handle = Some(thread::spawn(move || {
-                                let search_results = search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
+                                let search_results = iterative_deepening_search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
                                 let best_move = search_results.best_line
                                     .first()
                                     .map(|cm| convert_chess_move_to_raw(&cm.1));
