@@ -8,7 +8,7 @@ use crate::move_generator::generate_moves;
 use crate::eval::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
 use crate::eval::sorted_move_list::SortedMoveList;
-use crate::{r#move, uci, util};
+use crate::{move_generator, r#move, uci, util};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -273,6 +273,42 @@ fn negamax_search(
     } else {
         score_position(position, current_line, max_depth)
     }
+}
+
+fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isize {
+    // Evaluate the current position statically
+    let stand_pat = score_pieces(position);
+
+    // If this static evaluation already proves the position is worse than beta, return beta (prune)
+    if stand_pat >= beta {
+        return beta;
+    }
+
+    // Update alpha if the static evaluation is better than the current alpha
+    if stand_pat > alpha {
+        alpha = stand_pat;
+    }
+
+    // Generate all possible capture moves for the current position
+    let capture_moves = move_generator::generate_capture_moves(position);
+
+    for chess_move in capture_moves {
+        if let Some(next_position) = position.make_move(&chess_move) {
+            // Perform quiescence search with the new position
+            let score = -quiescence_search(&next_position.0, -beta, -alpha);
+
+            // Alpha-beta pruning
+            if score >= beta {
+                return beta; // Prune the remaining moves
+            }
+
+            if score > alpha {
+                alpha = score; // Update alpha if a better move is found
+            }
+        }
+    }
+
+    alpha
 }
 
 fn create_search_results(position: &Position, score: isize, depth: usize, search_context: SearchContext) -> SearchResults {

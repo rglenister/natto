@@ -50,6 +50,18 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
     moves
 }
 
+pub(crate) fn generate_capture_moves(position: &Position) -> Vec<Move> {
+    let mut moves: Vec<Move> = vec!();
+    let mut process_move = |chess_move: &Move| -> Option<()> {
+        if chess_move.get_base_move().capture {
+            moves.push(*chess_move);
+        }
+        Some(())
+    };
+    generate_moves_using_callback(position, &mut process_move);
+    moves
+}
+
 pub fn has_legal_move(position: &Position) -> bool {
     let mut found_legal_move: bool = false;
     let mut process_move = |chess_move: &Move| -> Option<()> {
@@ -784,6 +796,17 @@ mod tests {
 
         assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 22);
         assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 38);
+    }
+    
+    #[test]
+    fn test_generate_capture_moves() {
+        let fen = "8/4k3/Q7/8/8/8/3K4/r7 b - - 0 1";
+        let position = Position::from(fen);
+        let all_moves = generate_moves(&position);
+        assert_eq!(all_moves.len(), 20);
+
+        let capturing_moves = generate_capture_moves(&position);
+        assert_eq!(capturing_moves.len(), 1);
     }
 
 }

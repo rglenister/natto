@@ -19,7 +19,7 @@ pub mod move_formatter;
 pub mod eval;
 
 
-use crate::r#move::{convert_chess_move_to_raw, RawMove};
+use crate::r#move::{convert_chess_move_to_raw, RawMove}; 
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::uci::UciGoOptions;
 use chrono::Local;
