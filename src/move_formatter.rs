@@ -56,14 +56,14 @@ pub fn format_move_list(position: &Position, search_results: &SearchResults) -> 
     LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
 }
 
-impl FormatMove for MoveFormatter { 
+impl FormatMove for MoveFormatter {
     fn format_move_list(&self, position: &Position, chess_moves: &[(Position, Move)]) -> Option<Vec<String>> {
         let mut result = Vec::new();
         let mut current_position = position;
         for (next_position, mv) in chess_moves.iter() {
             result.push(self.format_move_internal(&GameMove::new(Game::new(next_position, None), current_position, &mv)));
             current_position = next_position;
-        }    
+        }
         Some(result)
     }
 }

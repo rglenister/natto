@@ -180,7 +180,6 @@ pub fn iterative_deepening_search(position: &Position, search_params: &SearchPar
     reset_node_counter();
     let mut search_results = SearchResults::empty();
     for iteration_max_depth in 0..=search_params.max_depth {
-        TRANSPOSITION_TABLE.clear();
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
         search_context.clear_pv_array();
         let score = negamax_search(position, &mut ArrayVec::new(), iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
@@ -235,10 +234,11 @@ fn negamax_search(
             if let Some(next_position) = position.make_move(&chess_move) {
                 // there isn't a checkmate or a stalemate
                 current_line.push(next_position);
-                let next_score = if get_repeat_position_count(&next_position.0, &current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
+                let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
                     0
                 } else {
-                    -negamax_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha)
+                    let score = -negamax_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha);
+                    score
                 };
                 current_line.pop();
                 if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&chess_move, next_score) };
@@ -272,6 +272,7 @@ fn negamax_search(
         best_score
     } else {
         score_position(position, current_line, max_depth)
+//        quiescence_search(position, alpha, beta)
     }
 }
 
@@ -312,28 +313,26 @@ fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isiz
 }
 
 fn create_search_results(position: &Position, score: isize, depth: usize, search_context: SearchContext) -> SearchResults {
-    let entry = TRANSPOSITION_TABLE.retrieve(position.hash_code());
-    if let Some(entry) = entry {
-        let variation = retrieve_principal_variation(position.clone(), search_context.repeat_position_counts);
-        let results = SearchResults {
-            score,
-            depth,
-            best_line: variation.0,
-            best_line_from_pv_array: search_context.pv_array[0][0..depth].to_vec(),
-            game_status: variation.1 
-        };
-        let best_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line).unwrap().join(", ");
-        let pv_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line_from_pv_array).unwrap().join(", ");
-        if best_line_moves != pv_line_moves {
-            error!("The best line and the PV line don't match: \n{}\n{}", best_line_moves, pv_line_moves);
-        }
-        results
-    } else {
-        SearchResults::empty().with_updated_score(score).with_updated_game_status(get_game_status(position, None))
+    let best_line = retrieve_principal_variation(position.clone());
+    let best_line_from_pv_array = search_context.pv_array[0][0..depth].to_vec();
+    let last_position = best_line_from_pv_array.last().map_or(position, |m| &m.0);
+    let game_status = get_game_status(last_position, search_context.repeat_position_counts);
+    let results = SearchResults {
+        score,
+        depth,
+        best_line,
+        best_line_from_pv_array,
+        game_status,
+    };
+    let best_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line).unwrap().join(", ");
+    let pv_line_moves = LONG_FORMATTER.format_move_list(position, &*results.best_line_from_pv_array).unwrap().join(", ");
+    if best_line_moves != pv_line_moves {
+        error!("The best line and the PV line don't match: \n{}\n{}", best_line_moves, pv_line_moves);
     }
+    results
 }
 
-fn retrieve_principal_variation(position: Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> (Vec<(Position, Move)>, GameStatus) {
+fn retrieve_principal_variation(position: Position) -> Vec<(Position, Move)> {
     let mut pv = Vec::new();
     let mut current_position = position;
     let maximum_pv_length = 16;
@@ -346,11 +345,11 @@ fn retrieve_principal_variation(position: Position, repeat_position_counts: Opti
         }
         current_position = next_pos.0;
     }
-    (pv, get_game_status(&current_position, repeat_position_counts))
+    pv
 }
 
 fn get_game_status(position: &Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> GameStatus {
-    let game = Game::new(&position, repeat_position_counts.as_ref());
+    let game = Game::new(position, repeat_position_counts.as_ref());
     game.get_game_status()
 }
 
@@ -373,7 +372,7 @@ pub fn get_repeat_position_count(current_position: &Position, current_line: &[(P
 }
 
 fn score_position(position: &Position, current_line: &[(Position, Move)], depth: usize) -> isize {
-    let game = Game::new(position, None);
+    let game = Game::new(&position, None);
     let game_status = game.get_game_status();
     match game_status {
         InProgress => score_pieces(position),
@@ -762,22 +761,22 @@ mod tests {
         );
     }
 
-    // todo reinstate test
-    // #[test]
-    // fn test_perpetual_check() {
-    //     let fen = "r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1";
-    //     let position: Position = Position::from(fen);
-    //     let search_results = search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
-    //     assert_eq!(search_results.pv_array_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
-    //     test_eq(
-    //         &search_results,
-    //         &SearchResults {
-    //             score: 0,
-    //             depth: 5,
-    //             best_line: vec![],
-    //             best_line_from_pv_array: vec![],
-    //             game_status: DrawnByThreefoldRepetition,
-    //         }
-    //     );
-    // }
+    #[test]
+    fn test_perpetual_check() {
+        let fen = "r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        assert_eq!(search_results.pv_array_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: 0,
+                depth: 5,
+                best_line: vec![],
+                best_line_from_pv_array: vec![],
+                // todo it'd be good to actually get the three fold repetition status
+                game_status: InProgress,
+            }
+        );
+    }
 }
