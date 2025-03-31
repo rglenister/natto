@@ -35,7 +35,7 @@ static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
 });
 
 fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.best_line_from_pv_array).unwrap().join(",")
 }
 
 pub const MAXIMUM_SEARCH_DEPTH: usize = 64;
@@ -519,7 +519,7 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
         assert_eq!(search_results.score, -980);
-        let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
+        let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line_from_pv_array).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
     }
 
@@ -692,7 +692,7 @@ mod tests {
 
         let drawn_position = in_progress_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
         let drawn_position_search_results = iterative_deepening_search(&drawn_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(drawn_position_search_results.best_line_moves_as_string(), "".to_string());
+        assert_eq!(drawn_position_search_results.pv_array_moves_as_string(), "".to_string());
         test_eq(
             &drawn_position_search_results,
             &SearchResults {
@@ -718,7 +718,7 @@ mod tests {
         }
         
         let drawn_search_results = test_draw(go_for_draw_uci_position_str);
-        assert_eq!(drawn_search_results.best_line_moves_as_string(), "f6-g8");
+        assert_eq!(drawn_search_results.pv_array_moves_as_string(), "f6-g8");
         test_eq(
             &drawn_search_results,
             &SearchResults {
@@ -731,7 +731,7 @@ mod tests {
         );
         
         let win_search_results = test_draw(go_for_win_uci_position_str);
-        assert_eq!(win_search_results.best_line_moves_as_string(), "b8-c6".to_string());
+        assert_eq!(win_search_results.pv_array_moves_as_string(), "b8-c6".to_string());
         test_eq(
             &win_search_results,
             &SearchResults {
@@ -755,7 +755,7 @@ mod tests {
             iterative_deepening_search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
         }
         let drawn_search_results = test_draw(uci_position_str);
-        assert_eq!(drawn_search_results.best_line_moves_as_string(), "f5-c8,e8-e7");
+        assert_eq!(drawn_search_results.pv_array_moves_as_string(), "f5-c8,e8-e7");
         test_eq(
             &drawn_search_results,
             &SearchResults {
