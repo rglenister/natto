@@ -174,7 +174,7 @@ fn main() {
                             let stop_flag = Arc::clone(&search_stop_flag);
                             search_handle = Some(thread::spawn(move || {
                                 let search_results = iterative_deepening_search(&uci_pos.given_position, &search_params, stop_flag, repeat_position_counts);
-                                let best_move = search_results.best_line
+                                let best_move = search_results.best_line_from_pv_array
                                     .first()
                                     .map(|cm| convert_chess_move_to_raw(&cm.1));
                                 if let Some(best_move) = best_move {
