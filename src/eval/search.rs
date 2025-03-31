@@ -8,7 +8,7 @@ use crate::move_generator::generate_moves;
 use crate::eval::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
 use crate::eval::sorted_move_list::SortedMoveList;
-use crate::{move_generator, r#move, uci, util};
+use crate::{fen, move_generator, r#move, uci, util};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -25,6 +25,7 @@ use arrayvec::ArrayVec;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::eval::ttable::{BoundType, TranspositionTable, TRANSPOSITION_TABLE};
+use crate::util::replay_moves;
 
 include!("../util/generated_macro.rs");
 
@@ -186,8 +187,7 @@ pub fn iterative_deepening_search(position: &Position, search_params: &SearchPar
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             search_results = create_search_results(position, score, iteration_max_depth, search_context);
             debug!("Search results for depth {}: {}", iteration_max_depth, PositionWithSearchResults { position, search_results: &search_results});
-            let nps = node_counter_stats().nodes_per_second;
-            uci::send_to_gui(format_uci_info(&search_results, &node_counter_stats()));
+            uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
             if search_results.game_status == Checkmate {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
                 break;
@@ -252,7 +252,7 @@ fn negamax_search(
                     }
                 }
                 alpha = alpha.max(next_score);
-                if alpha >= beta {
+                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
                     break;
                 }
             }
@@ -403,17 +403,24 @@ fn score_pieces(position: &Position) -> isize {
         - score_board_for_color(position.board(), position.opposing_side())
 }
 
-fn format_uci_info(search_results: &SearchResults, node_counter_stats: &NodeCountStats) -> String {
+fn format_uci_info(position: &Position, search_results: &SearchResults, node_counter_stats: &NodeCountStats) -> String {
+    let moves_string =             search_results.best_line_from_pv_array.iter()
+        .map(|pos| r#move::convert_chess_move_to_raw(&pos.1).to_string())
+        .collect::<Vec<String>>()
+        .join(" ");
+    
+    let moves = replay_moves(position, moves_string.clone());
+    if moves.is_none() {
+        error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
+    }
+
     format!("info depth {} score cp {} time {} nodes {} nps {} pv {}",
             search_results.depth,
             search_results.score,
             node_counter_stats.elapsed_time.as_millis(),
             node_counter_stats.node_count,
             node_counter_stats.nodes_per_second,
-            search_results.best_line_from_pv_array.iter()
-                .map(|pos| r#move::convert_chess_move_to_raw(&pos.1).to_string())
-                .collect::<Vec<String>>()
-                .join(" "))
+            moves_string)
 }
 
 fn used_allocated_move_time(search_params: &SearchParams) -> bool {
