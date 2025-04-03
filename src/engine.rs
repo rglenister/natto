@@ -204,7 +204,7 @@ impl Engine {
     }
 
     fn create_opening_book() -> Option<LiChessOpeningBook> {
-        let use_opening_book: bool = env::var("USE_OPENING_BOOK").unwrap_or_else(|_| "true".to_string()).eq_ignore_ascii_case("true");
+        let use_opening_book: bool = env::var("USE_OPENING_BOOK").unwrap_or_else(|_| "false".to_string()).eq_ignore_ascii_case("false");
         let opening_book = if use_opening_book {
             info!("Using opening book");
             Some(LiChessOpeningBook::new())
