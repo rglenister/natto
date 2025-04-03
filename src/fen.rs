@@ -6,40 +6,77 @@ use crate::util::{create_color, parse_square};
 use crate::{board, util};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use regex::Regex;
+use regex::{Captures, Regex};
+use thiserror::Error;
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
     r"^(?<board>((?<RankItem>[pnbrqkPNBRQK1-8]{1,8})/?){8})\s+(?<side_to_move>[bw])\s+(?<castling_rights>-|K?Q?k?q?)\s+(?<en_passant_target_square>-|[a-h][3-6])\s+(?<halfmove_clock>\d+)\s+(?<fullmove_number>\d+)\s*$"
 ).unwrap());
 
+#[derive(Debug, Error)]
+#[derive(PartialEq)]
+pub enum ErrorKind {
+    #[error("Failed to parse fen: {0}")]
+    InvalidFen(String),
+}
 
-pub fn parse(fen: String) -> Position {
-    if let Some(captures) = FEN_REGEX.captures(&fen) {
-        let board_str = expand_board(captures.name("board").unwrap().as_str());
-        let side_to_move = captures.name("side_to_move").unwrap().as_str();
-        let castling_rights = captures.name("castling_rights").unwrap().as_str();
-        let en_passant_target_square = captures.name("en_passant_target_square").unwrap().as_str();
-        let halfmove_clock: usize = captures.name("halfmove_clock").unwrap().as_str().parse().expect("it matched the regular expression");
-        let fullmove_number: usize = captures.name("fullmove_number").unwrap().as_str().parse().expect("it matched the regular expression");
+pub struct Fen {
+    pub fen: String,
+}
 
-        let mut board: BitBoard = BitBoard::new();
-        for i in 0..board::NUMBER_OF_SQUARES {
-            let ch = board_str.chars().nth(i).expect("it's ok");
-            if !ch.is_whitespace() {
-                board.put_piece(i, Piece::from_char(ch).expect("it's ok"));
-            }
-        }
-        Position::new(
-            board,
-            create_color(side_to_move).expect("it matched the regular expression"),
-            castling_rights.to_string(),
-            parse_square(en_passant_target_square),
-            halfmove_clock,
-            fullmove_number
-        )
-    } else {
-        panic!("{}", format!("Could not parse fen {}", fen));
+struct FenParts<'a> {
+    board: String,
+    side_to_move: &'a str,
+    castling_rights: &'a str,
+    en_passant_target_square: &'a str,
+    halfmove_clock: usize,
+    fullmove_number: usize,
+}
+
+impl From<&Position> for Fen {
+    fn from(position: &Position) -> Self {
+        Fen { fen: write(position) }
     }
+}
+
+impl<'a> TryFrom<Captures<'a>> for FenParts<'a> {
+    type Error = ErrorKind;
+    fn try_from(captures: Captures<'a>) -> Result<Self, Self::Error> {
+        Ok(FenParts {
+            board: expand_board(captures.name("board").unwrap().as_str()),
+            side_to_move: captures.name("side_to_move").unwrap().as_str(),
+            castling_rights: captures.name("castling_rights").unwrap().as_str(),
+            en_passant_target_square: captures.name("en_passant_target_square").unwrap().as_str(),
+            halfmove_clock: captures.name("halfmove_clock").unwrap().as_str().parse().unwrap(),
+            fullmove_number: captures.name("fullmove_number").unwrap().as_str().parse().unwrap(),
+        }).map_err(|_: std::num::ParseIntError| ErrorKind::InvalidFen(captures.name("fen").unwrap().as_str().to_string()))
+    }
+}
+pub fn parse(fen: String) -> Result<Position, ErrorKind> {
+    let fen_parts = FEN_REGEX
+        .captures(&fen)
+        .and_then(|caps| FenParts::try_from(caps).ok())
+        .ok_or_else(|| ErrorKind::InvalidFen(fen.clone()))?;
+
+    if fen_parts.board.chars().count() != board::NUMBER_OF_SQUARES {
+        return Err(ErrorKind::InvalidFen(fen.clone()));
+    }
+    let mut board: BitBoard = BitBoard::new();
+    for i in 0..board::NUMBER_OF_SQUARES {
+        let ch = fen_parts.board.chars().nth(i).unwrap();
+        if !ch.is_whitespace() {
+            board.put_piece(i, Piece::from_char(ch).unwrap());
+        }
+    }
+    
+    Ok(Position::new(
+        board,
+        create_color(fen_parts.side_to_move).unwrap(),
+        fen_parts.castling_rights.to_string(),
+        parse_square(fen_parts.en_passant_target_square),
+        fen_parts.halfmove_clock,
+        fen_parts.fullmove_number
+    ))
 }
 
 pub fn write(position: &Position) -> String {
@@ -122,21 +159,29 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        let position = parse(fen.to_string());
-
-        assert_eq!(position.side_to_move(), White);
-        assert_eq!(position.castling_rights(), [[true; 2]; 2]);
-        assert_eq!(position.en_passant_capture_square(), None);
-        assert_eq!(position.half_move_clock(), 0);
-        assert_eq!(position.full_move_number(), 1);
+        let fen = NEW_GAME_FEN.to_string();
+        let position = parse(fen);
+        assert!(position.is_ok());
+        assert_eq!(position.as_ref().unwrap().side_to_move(), White);
+        assert_eq!(position.as_ref().unwrap().castling_rights(), [[true; 2]; 2]);
+        assert_eq!(position.as_ref().unwrap().en_passant_capture_square(), None);
+        assert_eq!(position.as_ref().unwrap().half_move_clock(), 0);
+        assert_eq!(position.as_ref().unwrap().full_move_number(), 1);
     }
-
+    
+    #[test]
+    fn test_parse_invalid_fen() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A";
+        let position = parse(fen.to_string());
+        assert!(position.is_err());
+        let error = position.err().unwrap();
+        assert_eq!(error.to_string(), "Failed to parse fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A");
+    }
     #[test]
     fn test_write_1() {
         let fen = "r6r/1b2k1bq/8/8/7B/8/8/R3K2R b Kq h3 9 22";
         let position = parse(fen.to_string());
-        let result = write(&position);
+        let result = write(position.as_ref().expect("valid position"));
         assert_eq!(result, fen);
     }
 
@@ -144,8 +189,8 @@ mod tests {
     fn test_write_2() {
         let fen = NEW_GAME_FEN.to_string();
         let position = parse(fen.to_string());
-        let result = write(&position);
+        let result = write(&position.unwrap());
         assert_eq!(result, fen);
     }
-
 }
+

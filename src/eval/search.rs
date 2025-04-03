@@ -5,7 +5,7 @@ use crate::game::GameStatus::{Checkmate, DrawnByInsufficientMaterial, InProgress
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate_moves;
-use crate::eval::piece_score_tables::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
+use crate::eval::evaluation::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
 use crate::eval::sorted_move_list::SortedMoveList;
 use crate::{fen, move_generator, r#move, uci, util};
@@ -22,6 +22,7 @@ use log::Level::Trace;
 use once_cell::sync::Lazy;
 use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use arrayvec::ArrayVec;
+use crate::eval::evaluation;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::eval::ttable::{BoundType, TranspositionTable, TRANSPOSITION_TABLE};
@@ -39,8 +40,6 @@ fn long_format_moves(position: &Position, search_results: &SearchResults) -> Str
 }
 
 pub const MAXIMUM_SEARCH_DEPTH: usize = 64;
-
-pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
 
 pub const MAXIMUM_SCORE: isize = 100000;
 
@@ -229,26 +228,31 @@ fn negamax_search(
     if depth > 0 {
         let moves = if depth == max_depth { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate_moves(position) };
         let mut best_score = -MAXIMUM_SCORE;
-        let mut best_move = None;        
+        let mut best_move = None;    
         for chess_move in moves {
             if let Some(next_position) = position.make_move(&chess_move) {
                 // there isn't a checkmate or a stalemate
                 current_line.push(next_position);
+                let mut drawn = false;
                 let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
+                    drawn = true;
                     0
                 } else {
-                    let score = -negamax_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha);
-                    score
+                    -negamax_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha)
                 };
                 current_line.pop();
                 if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&chess_move, next_score) };
-                if next_score > best_score {
+                if next_score > best_score || best_score == -MAXIMUM_SCORE {
                     best_score = next_score;
                     best_move = Some(chess_move);
                     let depth_from_root = max_depth - depth;
                     search_context.pv_array[depth_from_root][depth_from_root] = next_position;
-                    for x in depth_from_root + 1..max_depth {
-                        search_context.pv_array[depth_from_root][x] = search_context.pv_array[depth_from_root + 1][x];
+                    if !drawn {
+                        for x in depth_from_root + 1..max_depth {
+                            search_context.pv_array[depth_from_root][x] = search_context.pv_array[depth_from_root + 1][x];
+                        }
+                    } else {
+                        search_context.pv_array[depth_from_root][depth_from_root + 1] = (Position::default(), Move::default());
                     }
                 }
                 alpha = alpha.max(next_score);
@@ -267,18 +271,18 @@ fn negamax_search(
             };
             TRANSPOSITION_TABLE.store(position.hash_code(), best_move, max_depth as u8, best_score as i32, bound_type)
         } else {
-            best_score = score_position(position, current_line, max_depth - depth);
+            best_score = evaluation::evaluate(position, current_line, max_depth - depth);
         }
         best_score
     } else {
-        score_position(position, current_line, max_depth)
+        evaluation::evaluate(position, current_line, max_depth)
 //        quiescence_search(position, alpha, beta)
     }
 }
 
 fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isize {
     // Evaluate the current position statically
-    let stand_pat = score_pieces(position);
+    let stand_pat = evaluation::score_pieces(position);
 
     // If this static evaluation already proves the position is worse than beta, return beta (prune)
     if stand_pat >= beta {
@@ -314,7 +318,11 @@ fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isiz
 
 fn create_search_results(position: &Position, score: isize, depth: usize, search_context: SearchContext) -> SearchResults {
     let best_line = retrieve_principal_variation(position.clone());
-    let best_line_from_pv_array = search_context.pv_array[0][0..depth].to_vec();
+    let best_line_from_pv_array: Vec<(Position, Move)> = search_context.pv_array[0][0..depth]
+        .iter()
+        .take_while(|pos| pos.1 != Move::default())
+        .cloned()
+        .collect();
     let last_position = best_line_from_pv_array.last().map_or(position, |m| &m.0);
     let game_status = get_game_status(last_position, search_context.repeat_position_counts);
     let results = SearchResults {
@@ -369,38 +377,6 @@ pub fn get_repeat_position_count(current_position: &Position, current_line: &[(P
         .map(|pos_and_size| pos_and_size.1)
         .unwrap_or(0);
     result
-}
-
-fn score_position(position: &Position, current_line: &[(Position, Move)], depth: usize) -> isize {
-    let game = Game::new(&position, None);
-    let game_status = game.get_game_status();
-    match game_status {
-        InProgress => score_pieces(position),
-        Checkmate => depth as isize - MAXIMUM_SCORE,
-        _ => 0,
-    }
-}
-
-fn score_pieces(position: &Position) -> isize {
-    fn score_board_for_color(board: &BitBoard, color: PieceColor) -> isize {
-        let bitboards = board.bitboards_for_color(color);
-        let mut score: isize = 0;
-        util::process_bits(bitboards[Pawn as usize], |square_index| {
-            score += PIECE_SCORES[Pawn as usize] + PAWN_SCORE_ADJUSTMENT_TABLE[color as usize][square_index as usize];
-        });
-        for piece_type in Knight as usize ..=Queen as usize {
-            util::process_bits(bitboards[piece_type], |square_index| {
-                score += PIECE_SCORES[piece_type] + PIECE_SCORE_ADJUSTMENT_TABLE[piece_type][square_index as usize];
-            });
-        }
-        util::process_bits(bitboards[King as usize], |square_index| {
-            score += PIECE_SCORES[King as usize] + KING_SCORE_ADJUSTMENT_TABLE[color as usize][square_index as usize];
-        });
-        score
-    }
-
-    score_board_for_color(position.board(), position.side_to_move())
-        - score_board_for_color(position.board(), position.opposing_side())
 }
 
 fn format_uci_info(position: &Position, search_results: &SearchResults, node_counter_stats: &NodeCountStats) -> String {
@@ -462,56 +438,6 @@ mod tests {
         assert_eq!(search_results.game_status, expected.game_status);
     }
 
-    #[test]
-    fn test_score_pieces() {
-        let position: Position = Position::from(NEW_GAME_FEN);
-        assert_eq!(score_pieces(&position), 0);
-
-        let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_pieces(&missing_white_pawn), -100);
-
-        let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_pieces(&missing_black_pawn), 100);
-
-
-        let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
-        let all_black_no_white: Position = Position::from(fen);
-        assert_eq!(score_pieces(&all_black_no_white), 3780);
-
-        let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
-        let black_pawn_on_seventh_rank: Position = Position::from(fen);
-        assert_eq!(score_pieces(&black_pawn_on_seventh_rank), -260);
-    }
-
-    #[test]
-    fn test_pawn_scores() {
-        let position: Position = Position::from("4k3/P7/8/8/8/6p1/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), 80);
-    }
-
-    #[test]
-    fn test_knight_scores() {
-        let position: Position = Position::from("N3k3/8/8/4n3/8/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), -60);
-    }
-
-    #[test]
-    fn test_bishop_scores() {
-        let position: Position = Position::from("b3k3/8/8/8/3B4/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), -30);
-    }
-
-    #[test]
-    fn test_rook_scores() {
-        let position: Position = Position::from("4k1r1/8/R7/8/8/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), 0);
-    }
-
-    #[test]
-    fn test_king_scores() {
-        let position: Position = Position::from("8/7k/8/8/8/2K5/8/8 w - - 0 1");
-        assert_eq!(score_pieces(&position), -40);
-    }
 
     #[test]
     fn test_piece_captured() {
