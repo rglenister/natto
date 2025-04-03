@@ -4,7 +4,6 @@ use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::eval::search::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
-use crate::r#move::Move;
 use crate::{game, util};
 
 
@@ -93,7 +92,7 @@ pub const KING_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 2] = [
 ];
 
 
-pub fn evaluate(position: &Position, current_line: &[(Position, Move)], depth: usize) -> isize {
+pub fn evaluate(position: &Position, depth: usize) -> isize {
     let game = Game::new(&position, None);
     let game_status = game.get_game_status();
     match game_status {

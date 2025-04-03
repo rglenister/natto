@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
-use crate::board::{PieceColor, PieceType};
+use crate::board::PieceColor;
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::{move_generator, util};

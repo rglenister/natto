@@ -1,6 +1,4 @@
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::panic::panic_any;
-use std::thread::current;
 use dotenv::var;
 use log::info;
 use once_cell::sync::Lazy;
@@ -9,8 +7,6 @@ use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
 use crate::r#move::{BaseMove, Move};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 pub use crate::eval::search::MAXIMUM_SCORE;
-use crate::game::GameStatus;
-use crate::game::GameStatus::{Checkmate, DrawnByFiftyMoveRule, DrawnByInsufficientMaterial, DrawnByThreefoldRepetition, InProgress, Stalemate};
 
 
 pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {

@@ -132,7 +132,7 @@ impl BitBoard {
     
     pub fn get_piece_counts(&self) -> [[usize; 6]; 2] {
         let mut counts: [[usize; 6]; 2] = [[0; 6]; 2];
-        self.process_pieces(|piece_color, piece_type, square_index| {
+        self.process_pieces(|piece_color, piece_type, _square_index| {
             counts[piece_color as usize][piece_type as usize] += 1;
         });
         counts

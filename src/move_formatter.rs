@@ -3,7 +3,7 @@ use crate::board::BoardSide::KingSide;
 use crate::board::PieceType::Pawn;
 use crate::board::{Board, Piece, PieceType};
 use crate::r#move::Move::{Castling, EnPassant, Promotion};
-use crate::r#move::{Move, RawMove};
+use crate::r#move::Move;
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate_moves;

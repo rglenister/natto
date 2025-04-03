@@ -1,31 +1,22 @@
-use crate::bit_board::BitBoard;
-use crate::board::PieceColor;
-use crate::board::PieceType::{King, Knight, Pawn, Queen};
-use crate::game::GameStatus::{Checkmate, DrawnByInsufficientMaterial, InProgress, Stalemate};
+use crate::game::GameStatus::{Checkmate, InProgress};
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate_moves;
-use crate::eval::evaluation::{KING_SCORE_ADJUSTMENT_TABLE, PAWN_SCORE_ADJUSTMENT_TABLE, PIECE_SCORE_ADJUSTMENT_TABLE};
 use crate::position::Position;
 use crate::eval::sorted_move_list::SortedMoveList;
-use crate::{fen, move_generator, r#move, uci, util};
+use crate::{fen, move_generator, r#move, uci};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::ops::Neg;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
-use dotenv::var;
-use log::Level::Trace;
-use once_cell::sync::Lazy;
-use GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition};
 use arrayvec::ArrayVec;
 use crate::eval::evaluation;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::eval::ttable::{BoundType, TranspositionTable, TRANSPOSITION_TABLE};
+use crate::eval::ttable::{BoundType, TRANSPOSITION_TABLE};
 use crate::util::replay_moves;
 
 include!("../util/generated_macro.rs");
@@ -200,7 +191,7 @@ pub fn iterative_deepening_search(position: &Position, search_params: &SearchPar
 
 fn negamax_search(
     position: &Position,
-    mut current_line: &mut ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH>,
+    current_line: &mut ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH>,
     depth: usize,
     max_depth: usize,
     search_context: &mut SearchContext,
@@ -221,7 +212,6 @@ fn negamax_search(
                 BoundType::Exact => return entry.score,
                 BoundType::LowerBound => alpha = alpha.max(entry.score),
                 BoundType::UpperBound =>  beta = beta.min(entry.score),
-                _ => (),
             }
         }
     }
@@ -271,11 +261,11 @@ fn negamax_search(
             };
             TRANSPOSITION_TABLE.store(position.hash_code(), best_move, max_depth as u8, best_score as i32, bound_type)
         } else {
-            best_score = evaluation::evaluate(position, current_line, max_depth - depth);
+            best_score = evaluation::evaluate(position, max_depth - depth);
         }
         best_score
     } else {
-        evaluation::evaluate(position, current_line, max_depth)
+        evaluation::evaluate(position, max_depth)
 //        quiescence_search(position, alpha, beta)
     }
 }
