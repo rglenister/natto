@@ -3,7 +3,7 @@ use crate::board::BoardSide::KingSide;
 use crate::board::PieceType::Pawn;
 use crate::board::{Board, Piece, PieceType};
 use crate::r#move::Move::{Castling, EnPassant, Promotion};
-use crate::r#move::{Move, RawMove};
+use crate::r#move::Move;
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate_moves;
@@ -46,33 +46,25 @@ pub struct MoveFormatter {
     move_format: MoveFormat,
 }
 
-pub struct GameMove {
+struct GameMove {
     game: Game,
     position: Position,
     chess_move: Move,
 }
 
 pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.best_line_from_pv_array).unwrap().join(",")
 }
 
 impl FormatMove for MoveFormatter {
     fn format_move_list(&self, position: &Position, chess_moves: &[(Position, Move)]) -> Option<Vec<String>> {
-        let game_moves: Option<Vec<GameMove>> = chess_moves.iter().try_fold(Vec::new(), |mut acc: Vec<GameMove>, &cm| {
-            let pos: &Position = if !acc.is_empty() { &acc.last().unwrap().game.position.clone()} else { position };
-            let next_pos: Option<(Position, Move)> = pos.make_raw_move(&RawMove::new(cm.1.get_base_move().from, cm.1.get_base_move().to, get_promote_to(cm.1)));
-            if next_pos.is_some() {
-                if let Some(np) = next_pos { acc.push(GameMove::new(Game::new(&np.0, None), pos, &cm.1)) }
-                Some(acc)
-            } else {
-                None
-            }
-        });
-        game_moves.map(|gms| {
-            gms.iter().map(|gm|
-                self.format_move_internal(gm))
-                    .collect::<Vec<String>>()
-        })
+        let mut result = Vec::new();
+        let mut current_position = position;
+        for (next_position, mv) in chess_moves.iter() {
+            result.push(self.format_move_internal(&GameMove::new(Game::new(next_position, None), current_position, &mv)));
+            current_position = next_position;
+        }
+        Some(result)
     }
 }
 

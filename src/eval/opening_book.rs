@@ -1,12 +1,11 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use crate::{fen, util};
 use rand::{rng, Rng};
 use reqwest;
 use serde::{Deserialize, Serialize};
-use log::{debug, error, info};
+use log::{error};
 use thiserror::Error;
-use crate::board::{Board, Piece, PieceColor, PieceType};
+use crate::board::{Board, Piece, PieceColor};
 use crate::board::PieceColor::{Black, White};
 use crate::board::PieceType::King;
 use crate::r#move::{Move, RawMove};
@@ -40,12 +39,12 @@ pub struct LiChessOpeningBook {
 }
 
 impl LiChessOpeningBook {
-    pub(crate) fn new() -> LiChessOpeningBook {
+    pub fn new() -> LiChessOpeningBook {
         LiChessOpeningBook {
             out_of_book: RefCell::new(false),
         }       
     }
-    pub(crate) fn reset(&self) {
+    pub fn reset(&self) {
         *self.out_of_book.borrow_mut() = false;
     }
 

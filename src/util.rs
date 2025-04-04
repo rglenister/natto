@@ -172,6 +172,7 @@ mod tests {
     use crate::bit_board::BitBoard;
     use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
     use crate::board::{Board, Piece, PieceType};
+    use crate::fen;
     use crate::r#move::BaseMove;
     use crate::r#move::Move::{Basic, Promotion};
     use crate::position::NEW_GAME_FEN;
@@ -312,6 +313,24 @@ mod tests {
         assert_eq!(repeat_position_counts[&position_1.hash_code()], (position_1, 2));
         assert_eq!(repeat_position_counts[&position_2.hash_code()], (position_2, 1));
 
+    }
+
+    #[test]
+    fn test_replay_moves() {
+        let position = Position::from(NEW_GAME_FEN);
+        let moves = "e2e4 e7e5".to_string();
+        let result = replay_moves(&position, moves);
+        assert!(result.is_some());
+        let moves = result.unwrap();
+        assert_eq!(moves.len(), 2);
+        let last_position = moves.last().unwrap().0;
+        let fen = fen::write(&last_position);
+        assert_eq!(fen, "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".to_string());
+
+        let position = Position::from(NEW_GAME_FEN);
+        let moves = "e2e4 e6e5".to_string();
+        let result = replay_moves(&position, moves);
+        assert!(result.is_none());
     }
 }
 

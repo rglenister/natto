@@ -15,8 +15,8 @@ static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(
 //#[derive(Copy, Clone, Debug)]
 #[derive(Clone, Debug)]
 pub struct UciPosition {
-    pub(crate) given_position: Position,
-    pub(crate) position_move_pairs: Option<Vec<(Position, Move)>>,
+    pub given_position: Position,
+    pub position_move_pairs: Option<Vec<(Position, Move)>>,
 }
 
 impl UciPosition {

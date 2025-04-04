@@ -75,13 +75,7 @@ pub struct Position {
 
 impl From<&str> for Position {
     fn from(fen: &str) -> Self {
-        fen::parse(fen.to_string())
-    }
-}
-
-impl From<&Position> for Position {
-    fn from(position: &Position) -> Self {
-        position.into()
+        fen::parse(fen.to_string()).unwrap()
     }
 }
 

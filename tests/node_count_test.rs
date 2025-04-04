@@ -28,7 +28,7 @@ fn test_fens() {
     let test_cases = load_fens().unwrap();
     let mut test_number = 0;
     for test in test_cases {
-        let position = fen::parse(test.fen);
+        let position = fen::parse(test.fen).expect("Failed to parse FEN");
         let node_count_stats = node_counter::count_nodes(&position, test.depth as i32);
         assert_eq!(node_count_stats.node_count, test.nodes, "Test {}",  test_number);
         test_number += 1;
