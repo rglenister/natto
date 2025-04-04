@@ -5,7 +5,7 @@ use std::{env, io, thread};
 use std::io::BufRead;
 use std::thread::JoinHandle;
 use log::{debug, error, info};
-use crate::eval::opening_book::LiChessOpeningBook;
+use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::{fen, uci, util};
 use crate::eval::search::iterative_deepening_search;
 use crate::game::GameStatus::{Checkmate, Stalemate};
@@ -43,7 +43,6 @@ pub struct Engine {
     search_stop_flag: Arc::<AtomicBool>,
     main_loop_quit_flag: Arc::<AtomicBool>,
     opening_book: Option<LiChessOpeningBook>,
-//    uci_position: RefCell<Option<UciPosition>>,
     // search_handle: Option<JoinHandle<()>>
 }
 
@@ -58,7 +57,7 @@ impl Engine {
         }
     }
 
-    pub fn run_engine(&self) {
+    pub fn run(&self) {
         // Spawn input-handling thread
         let (tx, rx) = &self.channel;
         let _input_thread = self.start_input_thread(tx.clone());
@@ -191,7 +190,7 @@ impl Engine {
     fn play_move_from_opening_book(&self, uci_pos: &UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
             info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
-            let opening_move = crate::eval::opening_book::OpeningBook::get_opening_move(opening_book, &uci_pos.given_position);
+            let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
             if let Ok(opening_move) = opening_move {
                 debug!("got move {} from opening book", opening_move);
                 uci::send_to_gui(format!("bestmove {}", opening_move));

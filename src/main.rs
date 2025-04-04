@@ -46,7 +46,7 @@ fn main() {
     info!("Chess engine started");
     
     let mut engine = Engine::new();
-    engine.run_engine();
+    engine.run();
 
     info!("Engine exited cleanly.");
 }

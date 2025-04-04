@@ -416,11 +416,11 @@ fn node_counter_stats() -> NodeCountStats {
 mod tests {
     use super::*;
     use crate::r#move::RawMove;
-    use crate::game::GameStatus::DrawnByFiftyMoveRule;
+    use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::position::NEW_GAME_FEN;
     use crate::eval::search::{iterative_deepening_search, MAXIMUM_SCORE};
-    use crate::{move_formatter, uci};
+    use crate::{move_formatter, uci, util};
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
