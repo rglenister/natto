@@ -265,44 +265,36 @@ fn negamax_search(
         }
         best_score
     } else {
-        evaluation::evaluate(position, max_depth)
-//        quiescence_search(position, alpha, beta)
+        let score = evaluation::evaluate(position, max_depth);
+        if is_mating_score(score) || is_drawing_score(score) {
+            score
+        } else {
+            quiescence_search(position, alpha, beta)
+        }
     }
 }
 
 fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isize {
-    // Evaluate the current position statically
     let stand_pat = evaluation::score_pieces(position);
-
-    // If this static evaluation already proves the position is worse than beta, return beta (prune)
     if stand_pat >= beta {
         return beta;
     }
-
-    // Update alpha if the static evaluation is better than the current alpha
     if stand_pat > alpha {
         alpha = stand_pat;
     }
+    let moves = move_generator::generate_capture_moves(position);
 
-    // Generate all possible capture moves for the current position
-    let capture_moves = move_generator::generate_capture_moves(position);
-
-    for chess_move in capture_moves {
-        if let Some(next_position) = position.make_move(&chess_move) {
-            // Perform quiescence search with the new position
+    for mv in moves {
+        if let Some(next_position) = position.make_move(&mv) {
             let score = -quiescence_search(&next_position.0, -beta, -alpha);
-
-            // Alpha-beta pruning
             if score >= beta {
-                return beta; // Prune the remaining moves
+                return beta;
             }
-
             if score > alpha {
                 alpha = score; // Update alpha if a better move is found
             }
         }
     }
-
     alpha
 }
 
@@ -388,6 +380,15 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
             node_counter_stats.nodes_per_second,
             moves_string)
 }
+
+fn is_mating_score(score: isize) -> bool {
+    score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize
+}
+
+fn is_drawing_score(score: isize) -> bool {
+    score == 0
+}
+
 
 fn used_allocated_move_time(search_params: &SearchParams) -> bool {
     let stats = node_counter_stats();
@@ -632,7 +633,7 @@ mod tests {
             let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
             iterative_deepening_search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
         }
-        
+
         let drawn_search_results = test_draw(go_for_draw_uci_position_str);
         assert_eq!(drawn_search_results.pv_array_moves_as_string(), "f6-g8");
         test_eq(
@@ -645,7 +646,7 @@ mod tests {
                 game_status: DrawnByThreefoldRepetition,
             }
         );
-        
+
         let win_search_results = test_draw(go_for_win_uci_position_str);
         assert_eq!(win_search_results.pv_array_moves_as_string(), "b8-c6".to_string());
         test_eq(
@@ -701,5 +702,47 @@ mod tests {
                 game_status: InProgress,
             }
         );
+    }
+
+    #[test]
+    fn test_is_mating_score() {
+        let score = MAXIMUM_SCORE;
+        assert!(is_mating_score(score));
+        
+        let score = -MAXIMUM_SCORE;
+        assert!(is_mating_score(score));
+        
+        let score = MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize;
+        assert!(is_mating_score(score));
+
+        let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize);
+        assert!(is_mating_score(score));
+
+        let score = (MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize) - 1;
+        assert!(!is_mating_score(score));
+
+        let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize) + 1;
+        assert!(!is_mating_score(score));
+
+    }
+
+    #[test]
+    fn test_is_drawing_score() {
+        let score = -1;
+        assert!(!is_drawing_score(score));
+
+        let score = 1;
+        assert!(!is_drawing_score(score));
+
+        let score = 0;
+        assert!(is_drawing_score(score));
+    }
+
+    #[test]
+    fn test_quiescence_search() {
+        let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        assert_eq!(format_move_list(&position, &search_results), "♛g7xh6");
     }
 }
