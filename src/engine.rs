@@ -131,7 +131,7 @@ impl Engine {
                         .map(|cm| convert_chess_move_to_raw(&cm.1));
                     if let Some(best_move) = best_move {
                         uci::send_to_gui(format!("bestmove {}", best_move));
-                    } else if search_results.depth == 0 {
+                    } else {
                         match search_results.game_status {
                             Checkmate => { uci::send_to_gui("info score mate 0".to_string()); }
                             Stalemate => { uci::send_to_gui("info score 0".to_string()); }
