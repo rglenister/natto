@@ -20,51 +20,29 @@ pub mod eval;
 
 pub mod engine;
 
+mod config;
+
 
 use crate::r#move::{convert_chess_move_to_raw, RawMove}; 
 use crate::game::GameStatus::{Checkmate, Stalemate};
-use crate::uci::UciGoOptions;
 use chrono::Local;
-use dotenv::dotenv;
 use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use eval::opening_book::ErrorKind;
-use uci::UciPosition;
-use crate::engine::Engine;
-use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
-use crate::eval::search::iterative_deepening_search;
 use crate::eval::ttable::TRANSPOSITION_TABLE;
-use crate::move_generator::generate_moves;
-use crate::position::Position;
-use crate::util::find_generated_move;
+use crate::config::{Config, CONFIG};
 
 fn main() {
-    setup_logging().expect("Failed to initialize logging");
-    //    log_test_messages();
+    println!("Configuration: {:?}", *CONFIG);
+    setup_logging().or_else(|err| {
+        error!("Failed to initialize logging: {:?}", err);
+        Err(err)
+    }).ok();
     let _ = *TRANSPOSITION_TABLE;
-
-    info!("Chess engine started");
-    
-    let mut engine = Engine::new();
-    engine.run();
-
+    engine::run();
     info!("Engine exited cleanly.");
 }
 
 fn setup_logging() -> Result<(), fern::InitError> {
-    dotenv().ok();
-
-    let default_log_level = LevelFilter::Error;
-    let log_level = env::var("LOGLEVEL").unwrap_or_else(|_| default_log_level.to_string());
-    let log_level = match log_level.to_lowercase().as_str() {
-        "trace" => LevelFilter::Trace,
-        "debug" => LevelFilter::Debug,
-        "info" => LevelFilter::Info,
-        "warn" => LevelFilter::Warn,
-        "error" => LevelFilter::Error,
-        _ => default_log_level,
-    };
-
     Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -74,9 +52,9 @@ fn setup_logging() -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(log_level)  // Set the default log level
+        .level(CONFIG.log_level)  // Set the default log level
         .chain(std::io::stderr())        // Log to the console
-        .chain(fern::log_file(env::var("LOGFILE").unwrap_or_else(|_| "natto.log".to_string()))?) // Log to a file
+        .chain(fern::log_file(CONFIG.log_file.clone())?) // Log to a file
         .apply()?;
     Ok(())
 }

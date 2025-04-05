@@ -12,6 +12,13 @@ use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
 use crate::uci::{UciGoOptions, UciPosition};
 
+const MAXIMUM_BOOK_MOVES: usize = 10;
+
+
+pub fn run() {
+    Engine::new().run();
+}
+
 enum UciCommand {
     Uci,
     IsReady,
@@ -38,7 +45,7 @@ impl UciCommand {
     }
 }
 
-pub struct Engine {
+struct Engine {
     channel: (Sender<String>, Receiver<String>),
     search_stop_flag: Arc::<AtomicBool>,
     main_loop_quit_flag: Arc::<AtomicBool>,
@@ -47,7 +54,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Engine {
             channel: mpsc::channel(),
             search_stop_flag: Arc::new(AtomicBool::new(false)),
@@ -57,13 +64,14 @@ impl Engine {
         }
     }
 
-    pub fn run(&self) {
+    fn run(&self) {
         // Spawn input-handling thread
         let (tx, rx) = &self.channel;
         let _input_thread = self.start_input_thread(tx.clone());
 
         let mut search_handle: Option<thread::JoinHandle<()>> = None;
         let mut uci_position: Option<UciPosition> = None;
+        info!("Chess engine started");
         self.main_loop(rx, &mut search_handle, &mut uci_position);
         if let Some(handle) = search_handle {
             handle.join().unwrap();
@@ -189,21 +197,26 @@ impl Engine {
 
     fn play_move_from_opening_book(&self, uci_pos: &UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
-            info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
-            let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
-            if let Ok(opening_move) = opening_move {
-                debug!("got move {} from opening book", opening_move);
-                uci::send_to_gui(format!("bestmove {}", opening_move));
-                return true;
+            if uci_pos.given_position.full_move_number() <= MAXIMUM_BOOK_MOVES {
+                info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
+                let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
+                if let Ok(opening_move) = opening_move {
+                    debug!("got move {} from opening book", opening_move);
+                    uci::send_to_gui(format!("bestmove {}", opening_move));
+                    return true;
+                } else {
+                    info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
+                }
             } else {
-                info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
+                info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
+                    uci_pos.given_position.full_move_number(), MAXIMUM_BOOK_MOVES);
             }
         }
         false
     }
 
     fn create_opening_book() -> Option<LiChessOpeningBook> {
-        let use_opening_book: bool = env::var("USE_OPENING_BOOK").unwrap_or_else(|_| "false".to_string()).eq_ignore_ascii_case("false");
+        let use_opening_book = env::var("USE_OPENING_BOOK").unwrap_or_else(|_| "true".to_string()).eq_ignore_ascii_case("true");
         let opening_book = if use_opening_book {
             info!("Using opening book");
             Some(LiChessOpeningBook::new())

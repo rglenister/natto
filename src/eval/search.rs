@@ -291,7 +291,7 @@ fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isiz
                 return beta;
             }
             if score > alpha {
-                alpha = score; // Update alpha if a better move is found
+                alpha = score;
             }
         }
     }
