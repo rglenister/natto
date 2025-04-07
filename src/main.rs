@@ -20,18 +20,20 @@ pub mod eval;
 
 pub mod engine;
 
-mod config;
+pub mod config;
 
 
 use crate::r#move::{convert_chess_move_to_raw, RawMove}; 
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use chrono::Local;
+use dotenv::dotenv;
 use fern::Dispatch;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use crate::eval::ttable::TRANSPOSITION_TABLE;
 use crate::config::{Config, CONFIG};
 
 fn main() {
+    dotenv().ok();
     println!("Configuration: {:?}", *CONFIG);
     setup_logging().or_else(|err| {
         error!("Failed to initialize logging: {:?}", err);

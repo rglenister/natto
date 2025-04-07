@@ -11,7 +11,6 @@ pub struct Config {
 }
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
-    dotenv().ok();
     Config {
         log_file: std::env::var("LOGFILE")
             .unwrap_or_else(|_| "natto.log".to_string()),

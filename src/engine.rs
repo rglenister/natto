@@ -7,13 +7,11 @@ use std::thread::JoinHandle;
 use log::{debug, error, info};
 use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::{fen, uci, util};
+use crate::config::CONFIG;
 use crate::eval::search::iterative_deepening_search;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
 use crate::uci::{UciGoOptions, UciPosition};
-
-const MAXIMUM_BOOK_MOVES: usize = 10;
-
 
 pub fn run() {
     Engine::new().run();
@@ -197,7 +195,7 @@ impl Engine {
 
     fn play_move_from_opening_book(&self, uci_pos: &UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
-            if uci_pos.given_position.full_move_number() <= MAXIMUM_BOOK_MOVES {
+            if uci_pos.given_position.full_move_number() <= CONFIG.opening_book_maximum_depth {
                 info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
                 let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
                 if let Ok(opening_move) = opening_move {
@@ -209,21 +207,19 @@ impl Engine {
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
-                    uci_pos.given_position.full_move_number(), MAXIMUM_BOOK_MOVES);
+                    uci_pos.given_position.full_move_number(), CONFIG.opening_book_maximum_depth);
             }
         }
         false
     }
 
     fn create_opening_book() -> Option<LiChessOpeningBook> {
-        let use_opening_book = env::var("USE_OPENING_BOOK").unwrap_or_else(|_| "true".to_string()).eq_ignore_ascii_case("true");
-        let opening_book = if use_opening_book {
+        if CONFIG.use_opening_book {
             info!("Using opening book");
             Some(LiChessOpeningBook::new())
         } else {
             info!("Not using opening book");
             None
-        };
-        opening_book
+        }
     }
 }
