@@ -34,14 +34,16 @@ use crate::config::{Config, CONFIG};
 
 fn main() {
     dotenv().ok();
-    println!("Configuration: {:?}", *CONFIG);
+    eprintln!("Configuration: {:?}", *CONFIG);
     setup_logging().or_else(|err| {
         error!("Failed to initialize logging: {:?}", err);
         Err(err)
     }).ok();
+    info!("Configuration: {:?}", *CONFIG);
     let _ = *TRANSPOSITION_TABLE;
+    info!("Starting engine");
     engine::run();
-    info!("Engine exited cleanly.");
+    info!("Engine exited cleanly");
 }
 
 fn setup_logging() -> Result<(), fern::InitError> {
@@ -54,9 +56,9 @@ fn setup_logging() -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(CONFIG.log_level)  // Set the default log level
-        .chain(std::io::stderr())        // Log to the console
-        .chain(fern::log_file(CONFIG.log_file.clone())?) // Log to a file
+        .level(CONFIG.log_level)
+        .chain(std::io::stderr())        
+        .chain(fern::log_file(CONFIG.log_file.clone())?)
         .apply()?;
     Ok(())
 }
