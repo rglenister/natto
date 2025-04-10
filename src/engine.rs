@@ -1,7 +1,7 @@
 use std::sync::{mpsc, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
-use std::{env, io, thread};
+use std::{io, thread};
 use std::io::BufRead;
 use std::thread::JoinHandle;
 use log::{debug, error, info};
@@ -45,10 +45,9 @@ impl UciCommand {
 
 struct Engine {
     channel: (Sender<String>, Receiver<String>),
-    search_stop_flag: Arc::<AtomicBool>,
-    main_loop_quit_flag: Arc::<AtomicBool>,
+    search_stop_flag: Arc<AtomicBool>,
+    main_loop_quit_flag: Arc<AtomicBool>,
     opening_book: Option<LiChessOpeningBook>,
-    // search_handle: Option<JoinHandle<()>>
 }
 
 impl Engine {
@@ -58,7 +57,6 @@ impl Engine {
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
             opening_book: Self::create_opening_book(),
-            // search_handle: None,
         }
     }
 
@@ -67,7 +65,7 @@ impl Engine {
         let (tx, rx) = &self.channel;
         let _input_thread = self.start_input_thread(tx.clone());
 
-        let mut search_handle: Option<thread::JoinHandle<()>> = None;
+        let mut search_handle: Option<JoinHandle<()>> = None;
         let mut uci_position: Option<UciPosition> = None;
         info!("Chess engine started");
         self.main_loop(rx, &mut search_handle, &mut uci_position);
@@ -195,7 +193,7 @@ impl Engine {
 
     fn play_move_from_opening_book(&self, uci_pos: &UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
-            if uci_pos.given_position.full_move_number() <= CONFIG.opening_book_maximum_depth {
+            if uci_pos.given_position.full_move_number() <= CONFIG.max_book_depth {
                 info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
                 let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
                 if let Ok(opening_move) = opening_move {
@@ -207,14 +205,14 @@ impl Engine {
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
-                    uci_pos.given_position.full_move_number(), CONFIG.opening_book_maximum_depth);
+                    uci_pos.given_position.full_move_number(), CONFIG.max_book_depth);
             }
         }
         false
     }
 
     fn create_opening_book() -> Option<LiChessOpeningBook> {
-        if CONFIG.use_opening_book {
+        if CONFIG.use_book {
             info!("Using opening book");
             Some(LiChessOpeningBook::new())
         } else {

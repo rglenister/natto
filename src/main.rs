@@ -1,11 +1,6 @@
 extern crate core;
 
-use crate::eval::opening_book;
-use crate::eval::search;
-use std::io::{self, BufRead};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
-use std::{env, thread};
+use std::io::{self};
 pub mod fen;
 pub mod board;
 pub mod r#move;
@@ -23,14 +18,13 @@ pub mod engine;
 pub mod config;
 
 
-use crate::r#move::{convert_chess_move_to_raw, RawMove}; 
-use crate::game::GameStatus::{Checkmate, Stalemate};
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
-use log::{debug, error, info, trace, warn, LevelFilter};
+use log::info;
+use log::error;
 use crate::eval::ttable::TRANSPOSITION_TABLE;
-use crate::config::{Config, CONFIG};
+use crate::config::CONFIG;
 
 fn main() {
     dotenv().ok();
@@ -57,10 +51,8 @@ fn setup_logging() -> Result<(), fern::InitError> {
             ))
         })
         .level(CONFIG.log_level)
-        .chain(std::io::stderr())        
+        .chain(io::stderr())        
         .chain(fern::log_file(CONFIG.log_file.clone())?)
         .apply()?;
     Ok(())
 }
-
-
