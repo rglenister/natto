@@ -1,10 +1,22 @@
+use std::collections::HashMap;
+use once_cell::sync::Lazy;
 use crate::bit_board::BitBoard;
-use crate::board::PieceColor;
+use crate::board::{PieceColor, PieceType};
 use crate::board::PieceType::{King, Knight, Pawn, Queen};
 use crate::eval::search::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
 use crate::{game, util};
+use crate::util::filter_bits;
+
+static COLUMN_SQUARE_INDEXES: Lazy<[u64; 8]> = Lazy::new(|| {
+    let mut result = [0; 8];
+    let b: u64 = !0;
+    for column_index in 0..8 {
+        result[column_index] = filter_bits(!0, |square_index| square_index % 8 == column_index as u64);
+    }
+    result
+});
 
 
 pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
@@ -178,9 +190,20 @@ mod tests {
     }
 
     #[test]
+    fn test_queen_scores() {
+        let position: Position = Position::from("4k1q1/8/QQ6/8/8/8/8/4K3 w - - 0 1");
+        assert_eq!(score_pieces(&position), 900);
+    }
+
+    #[test]
     fn test_king_scores() {
         let position: Position = Position::from("8/7k/8/8/8/2K5/8/8 w - - 0 1");
         assert_eq!(score_pieces(&position), -40);
     }
 
+    #[test]
+    fn test_score_board_for_color() {
+        assert_eq!(COLUMN_SQUARE_INDEXES[0], 1 << 0 | 1 << 8 | 1 << 16 | 1 << 24 | 1 << 32 | 1 << 40 | 1 << 48 | 1 << 56);
+        assert_eq!(COLUMN_SQUARE_INDEXES[7], 1 << 7 | 1 << 15 | 1 << 23 | 1 << 31 | 1 << 39 | 1 << 47 | 1 << 55 | 1 << 63);
+    }
 }

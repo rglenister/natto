@@ -90,6 +90,19 @@ pub fn bit_indexes(bitmap: u64) -> Vec<u64> {
     indexes
 }
 
+pub fn filter_bits<F>(bitmap: u64, filter_fn: F) -> u64 
+where
+    F: Fn(u64) -> bool,
+{
+    let mut result: u64 = 0;
+    process_bits(bitmap, |index: u64| {
+        if filter_fn(index) {
+            result |= 1 << index;
+        }
+    });
+    result
+}
+
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
     moves.into_iter().filter(|chess_move | {
         match chess_move {
@@ -182,6 +195,11 @@ mod tests {
         let result = bit_indexes(1 << 0 | 1 << 1 | 1 << 32 | 1 << 63);
         assert_eq!(result.len(), 4);
         assert_eq!(result, vec![0, 1, 32, 63]);
+    }
+
+    #[test]
+    fn test_filter_bits() {
+        assert_eq!(filter_bits(!0, |index| index / 8 == 0), 1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6 | 1 << 7);
     }
 
     #[test]
