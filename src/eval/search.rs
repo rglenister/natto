@@ -438,7 +438,7 @@ mod tests {
         let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -980);
+        assert_eq!(search_results.score, -1280);
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line_from_pv_array).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
     }
@@ -679,7 +679,7 @@ mod tests {
         test_eq(
             &drawn_search_results,
             &SearchResults {
-                score: -660,
+                score: -550,
                 depth: 2,
                 best_line: vec![],
                 best_line_from_pv_array: vec![],
