@@ -269,12 +269,12 @@ fn negamax_search(
         if is_mating_score(score) || is_drawing_score(score) {
             score
         } else {
-            quiescence_search(position, alpha, beta)
+            quiescence_search(position, search_context, alpha, beta)
         }
     }
 }
 
-fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isize {
+fn quiescence_search(position: &Position, search_context: &SearchContext, mut alpha: isize, beta: isize) -> isize {
     let stand_pat = evaluation::score_pieces(position);
     if stand_pat >= beta {
         return beta;
@@ -286,13 +286,16 @@ fn quiescence_search(position: &Position, mut alpha: isize, beta: isize) -> isiz
 
     for mv in moves {
         if let Some(next_position) = position.make_move(&mv) {
-            let score = -quiescence_search(&next_position.0, -beta, -alpha);
+            let score = -quiescence_search(&next_position.0, search_context, -beta, -alpha);
             if score >= beta {
                 return beta;
             }
             if score > alpha {
                 alpha = score;
             }
+        }
+        if search_context.stop_flag.load(Ordering::Relaxed) {
+            break;
         }
     }
     alpha
