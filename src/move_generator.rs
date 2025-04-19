@@ -171,11 +171,11 @@ static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy:
 
 static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<i32>>> = Lazy::new(|| {
     let mut table = HashMap::new();
-    table.insert(&PieceType::Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
-    table.insert(&PieceType::Bishop, vec![9, 7, -9, -7]);
-    table.insert(&PieceType::Rook, vec![1, 8, -1, -8]);
-    table.insert(&PieceType::Queen, vec![9, 7, -9, -7, 1, 8, -1, -8]);
-    table.insert(&PieceType::King, vec![9, 7, -9, -7, 1, 8, -1, -8]);
+    table.insert(&Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
+    table.insert(&Bishop, vec![9, 7, -9, -7]);
+    table.insert(&Rook, vec![1, 8, -1, -8]);
+    table.insert(&Queen, table.get(&Bishop).unwrap().iter().chain(table.get(&Rook).unwrap()).cloned().collect());
+    table.insert(&King, table.get(&Queen).unwrap().clone());
     table
 });
 
