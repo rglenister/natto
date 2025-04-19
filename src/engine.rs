@@ -115,34 +115,38 @@ impl Engine {
 
     fn uci_go(&self, search_stop_flag: &&Arc<AtomicBool>, search_handle: &mut Option<JoinHandle<()>>, input: String, uci_position: &Option<UciPosition>) {
         if let Some(uci_pos) = uci_position {
-            if !self.play_move_from_opening_book(uci_pos) {
-                let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
-                debug!("go options = {:?}", uci_go_options);
+            if search_handle.is_none() {
+                if !self.play_move_from_opening_book(uci_pos) {
+                    let uci_go_options: UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
+                    debug!("go options = {:?}", uci_go_options);
 
-                let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
-                let repeat_position_counts = Some(util::create_repeat_position_counts(uci_pos.all_game_positions()));
+                    let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
+                    let repeat_position_counts = Some(util::create_repeat_position_counts(uci_pos.all_game_positions()));
 
-                debug!("search params = {}", search_params);
-                debug!("Starting search...");
-                search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
+                    debug!("search params = {}", search_params);
+                    debug!("Starting search...");
+                    search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
-                let stop_flag = Arc::clone(&search_stop_flag);
-                let uci_pos_clone = uci_pos.clone();
-                *search_handle = Some(thread::spawn(move || {
-                    let search_results = iterative_deepening_search(&uci_pos_clone.given_position, &search_params, stop_flag, repeat_position_counts);
-                    let best_move = search_results.best_line_from_pv_array
-                        .first()
-                        .map(|cm| convert_chess_move_to_raw(&cm.1));
-                    if let Some(best_move) = best_move {
-                        uci::send_to_gui(format!("bestmove {}", best_move));
-                    } else {
-                        match search_results.game_status {
-                            Checkmate => { uci::send_to_gui("info score mate 0".to_string()); }
-                            Stalemate => { uci::send_to_gui("info score 0".to_string()); }
-                            _ => ()
+                    let stop_flag = Arc::clone(&search_stop_flag);
+                    let uci_pos_clone = uci_pos.clone();
+                    *search_handle = Some(thread::spawn(move || {
+                        let search_results = iterative_deepening_search(&uci_pos_clone.given_position, &search_params, stop_flag, repeat_position_counts);
+                        let best_move = search_results.best_line_from_pv_array
+                            .first()
+                            .map(|cm| convert_chess_move_to_raw(&cm.1));
+                        if let Some(best_move) = best_move {
+                            uci::send_to_gui(format!("bestmove {}", best_move));
+                        } else {
+                            match search_results.game_status {
+                                Checkmate => { uci::send_to_gui("info score mate 0".to_string()); }
+                                Stalemate => { uci::send_to_gui("info score 0".to_string()); }
+                                _ => ()
+                            }
                         }
-                    }
-                }));
+                    }));
+                }
+            } else {
+                error!("Cannot initiate search because the position is already being searched");
             }
         } else {
             error!("Cannot initiate search because the position has not been set");
