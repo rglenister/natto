@@ -53,7 +53,7 @@ struct GameMove {
 }
 
 pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER.format_move_list(position, &search_results.best_line_from_pv_array).unwrap().join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.best_line).unwrap().join(",")
 }
 
 impl FormatMove for MoveFormatter {

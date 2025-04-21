@@ -1,25 +1,24 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use dotenv::var;
-use log::info;
+use log::{error, info};
 use once_cell::sync::Lazy;
 use crate::board::BoardSide::{KingSide, QueenSide};
 use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
+use crate::config::CONFIG;
 use crate::r#move::{BaseMove, Move};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 pub use crate::eval::search::MAXIMUM_SCORE;
-
+use crate::position::Position;
 
 pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
-    let default_size = 1 << 25;
-    let transposition_table_size: usize = var("TRANSPOSITION_TABLE_SIZE")
-        .unwrap_or_else(|_| default_size.to_string())
-        .parse::<usize>()
-        .unwrap_or(default_size);
-    info!("Creating transposition table with size {} ({:#X})", transposition_table_size, transposition_table_size);
-    let transposition_table = TranspositionTable::new(transposition_table_size);
+    let hash_size = DEFAULT_HASH_SIZE;
+    info!("Creating transposition table with size {} ({:#X})", hash_size, hash_size);
+    let transposition_table = TranspositionTable::new(hash_size);
     info!("Transposition table created");
     transposition_table
 });
+
+const DEFAULT_HASH_SIZE: usize = 1 << 25;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundType {
@@ -31,10 +30,10 @@ pub enum BoundType {
 #[derive(Clone, Copy, Debug)]
 pub struct TTEntry {
     pub zobrist: u64,
-    pub best_move: Move,
+    pub best_move: Option<Move>,
     pub depth: usize,
     pub score: isize,
-    pub bound: BoundType,
+    pub bound_type: BoundType,
 }
 
 pub struct TranspositionTable {
@@ -50,8 +49,31 @@ impl TranspositionTable {
         ensure_physical_memory::<AtomicU64>(&table.table);
         table
     }
+    
+    pub fn insert(&self, position: &Position, depth: usize, alpha: isize, beta: isize, best_score: isize, best_move: Option<Move>) {
+        let bound_type = if best_score <= alpha {
+            BoundType::UpperBound
+        } else if best_score >= beta {
+            BoundType::LowerBound
+        } else {
+            BoundType::Exact
+        };
+        let do_store = {
+            if let Some(current_entry) = self.retrieve(position.hash_code()) {
+                depth > current_entry.depth ||
+                    (depth == current_entry.depth && 
+                        (bound_type == BoundType::Exact && current_entry.bound_type != BoundType::Exact ||
+                        bound_type == BoundType::LowerBound && current_entry.bound_type == BoundType::UpperBound))
+            } else {
+                true
+            }       
+        };
+        if do_store {
+            self.store(position.hash_code(), best_move, depth as u8, best_score as i32, bound_type);
+        }
+    }
 
-    pub fn store(&self, zobrist: u64, best_move: Move, depth: u8, score: i32, bound: BoundType) {
+    fn store(&self, zobrist: u64, best_move: Option<Move>, depth: u8, score: i32, bound: BoundType) {
         let index = (zobrist as usize) % self.size;
         let packed = Self::pack_entry(zobrist, best_move, depth, score, bound);
         self.table[index * 2].store(packed.0, Ordering::Relaxed);
@@ -61,8 +83,12 @@ impl TranspositionTable {
     pub fn retrieve(&self, zobrist: u64) -> Option<TTEntry> {
         let index = (zobrist as usize) % self.size;
         let packed1 = self.table[index * 2].load(Ordering::Relaxed);
-        let packed2 = self.table[index * 2 + 1].load(Ordering::Relaxed);
-        Self::unpack_entry(packed1, packed2).filter(|e| e.zobrist == zobrist)
+        if packed1 == zobrist {
+            let packed2 = self.table[index * 2 + 1].load(Ordering::Relaxed);
+            Self::unpack_entry(packed1, packed2)
+        } else {
+            None
+        }       
     }
 
     pub fn item_count(&self) -> usize {
@@ -140,10 +166,10 @@ impl TranspositionTable {
         }
     }
 
-    fn pack_entry(zobrist: u64, best_move: Move, depth: u8, score: i32, bound: BoundType) -> (u64, u64) {
+    fn pack_entry(zobrist: u64, best_move: Option<Move>, depth: u8, score: i32, bound: BoundType) -> (u64, u64) {
         let packed1 = zobrist;
         let packed2 =
-            Self::pack_move(best_move) |
+            if best_move.is_some() { Self::pack_move(best_move.unwrap()) } else { 0 } |
                 ((depth as u64) << 21) |
                 (((score + MAXIMUM_SCORE as i32) as u64 & 0x0FFFFFFF) << 29) |
                 ((bound as u64) << 57) |
@@ -153,7 +179,8 @@ impl TranspositionTable {
 
     fn unpack_entry(packed1: u64, packed2: u64) -> Option<TTEntry> {
         let zobrist = packed1;
-        let best_move = Self::unpack_mv(packed2);
+        let has_move = (packed2 & 0x1fffff) != 0;
+        let best_move =  if has_move { Some(Self::unpack_mv(packed2)) } else { None };
         let depth = ((packed2 >> 21) & 0xFF) as u8;
         let score = ((packed2 >> 29) & 0x0FFFFFFF) as i32 - MAXIMUM_SCORE as i32;
         let bound = match (packed2 >> 57) & 0x0F {
@@ -162,7 +189,7 @@ impl TranspositionTable {
             2 => BoundType::UpperBound,
             _ => panic!("Invalid bound"),
         };
-        Some(TTEntry { zobrist, best_move, depth: depth as usize, score: score as isize, bound })
+        Some(TTEntry { zobrist, best_move, depth: depth as usize, score: score as isize, bound_type: bound })
     }
 }
 
@@ -201,13 +228,13 @@ mod tests {
         assert_eq!(table.size, 2);
 
         let position = Position::new_game();
-        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound);
+        table.store(position.hash_code(), Option::from(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
         let entry = table.retrieve(position.hash_code()).unwrap();
         assert_eq!(entry.zobrist, position.hash_code());
-        assert_eq!(entry.best_move, Basic { base_move: BaseMove { from: 63, to: 0, capture: true } });
+        assert_eq!(entry.best_move, Some(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }));
         assert_eq!(entry.depth, 8);
         assert_eq!(entry.score, -100);
-        assert_eq!(entry.bound, LowerBound);
+        assert_eq!(entry.bound_type, LowerBound);
     }
     #[test]
     fn test_item_count() {
@@ -216,7 +243,7 @@ mod tests {
         assert_eq!(table.size, 4);
         assert_eq!(table.item_count(), 0);
         let position = Position::new_game();
-        table.store(position.hash_code(), Basic { base_move: BaseMove{from: 63, to: 0, capture: true }},8, -100, LowerBound);
+        table.store(position.hash_code(), Option::from(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
         assert_eq!(table.item_count(), 1);
         table.clear();
         assert_eq!(table.item_count(), 0);
@@ -232,15 +259,28 @@ mod tests {
             let position = Position::new_game();
             let packed1 = position.hash_code();
             let packed = TranspositionTable::pack_entry(
-                packed1, Basic { base_move: BaseMove{from: 12, to: 16, capture: true }},2, 21, Exact);
+                packed1, Option::from(Basic { base_move: BaseMove { from: 12, to: 16, capture: true } }), 2, 21, Exact);
             let unpacked = TranspositionTable::unpack_entry(packed.0, packed.1).unwrap();
             assert_eq!(unpacked.zobrist, packed1);
-            assert_eq!(unpacked.best_move, Basic { base_move: BaseMove { from: 12, to: 16, capture: true } });
+            assert_eq!(unpacked.best_move, Some(Basic { base_move: BaseMove { from: 12, to: 16, capture: true } }));
             assert_eq!(unpacked.depth, 2);
             assert_eq!(unpacked.score, 21);
-            assert_eq!(unpacked.bound, Exact);
+            assert_eq!(unpacked.bound_type, Exact);
         }
-        
+
+        #[test]
+        fn test_pack_unpack_without_move() {
+            let zobrist: u64 = 123456;
+            let packed = TranspositionTable::pack_entry(
+                zobrist, None, 2, -21, Exact);
+            let unpacked = TranspositionTable::unpack_entry(packed.0, packed.1).unwrap();
+            assert_eq!(unpacked.zobrist, zobrist);
+            assert_eq!(unpacked.best_move, None);
+            assert_eq!(unpacked.depth, 2);
+            assert_eq!(unpacked.score, -21);
+            assert_eq!(unpacked.bound_type, Exact);
+        }
+
         mod move_packing {
             use super::*;
             use crate::board::BoardSide::KingSide;

@@ -131,9 +131,7 @@ impl Engine {
                     let uci_pos_clone = uci_pos.clone();
                     *search_handle = Some(thread::spawn(move || {
                         let search_results = iterative_deepening_search(&uci_pos_clone.given_position, &search_params, stop_flag, repeat_position_counts);
-                        let best_move = search_results.best_line_from_pv_array
-                            .first()
-                            .map(|cm| convert_chess_move_to_raw(&cm.1));
+                        let best_move = search_results.best_line.first().map(|cm| convert_chess_move_to_raw(&cm.1));
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {}", best_move));
                         } else {

@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
-use std::fmt;
+use std::{default, fmt};
 
 include!("util/generated_macro.rs");
 
@@ -62,7 +62,7 @@ static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
     PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table, en_passant_capture_square_hashes_table }
 });
 
-#[derive(Copy, Clone, Debug, Default, Eq)]
+#[derive(Copy, Clone, Debug, Eq)]
 pub struct Position {
     board: BitBoard,
     side_to_move: PieceColor,
@@ -71,6 +71,12 @@ pub struct Position {
     half_move_clock: usize,
     full_move_number: usize,
     hash_code: u64,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Position::new_game()
+    }   
 }
 
 impl From<&str> for Position {
