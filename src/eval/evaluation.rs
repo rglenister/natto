@@ -110,7 +110,7 @@ pub fn evaluate(position: &Position, depth: usize, historic_repeat_position_coun
     match game_status {
         game::GameStatus::InProgress => {
             let score = score_pieces(position);
-            if score == 0 { -1 } else { score }
+            if score != 0 { score } else { -1 }
         },
         game::GameStatus::Checkmate => depth as isize - MAXIMUM_SCORE,
         _ => 0,

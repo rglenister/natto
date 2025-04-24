@@ -5,3 +5,4 @@ pub mod ttable;
 pub mod opening_book;
 
 pub mod node_counter;
+mod quiescence;

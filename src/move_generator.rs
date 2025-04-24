@@ -52,9 +52,9 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
 
 pub(crate) fn generate_capture_moves(position: &Position) -> Vec<Move> {
     let mut moves: Vec<Move> = vec!();
-    let mut process_move = |chess_move: &Move| -> Option<()> {
-        if chess_move.get_base_move().capture {
-            moves.push(*chess_move);
+    let mut process_move = |mv: &Move| -> Option<()> {
+        if mv.get_base_move().capture {
+            moves.push(*mv);
         }
         Some(())
     };

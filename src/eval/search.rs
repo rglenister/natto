@@ -225,33 +225,6 @@ fn negamax_search(
     }
 }
 
-// fn quiescence_search(position: &Position, search_context: &SearchContext, mut alpha: isize, beta: isize) -> isize {
-//     let stand_pat = evaluation::score_pieces(position);
-//     if stand_pat >= beta {
-//         return beta;
-//     }
-//     if stand_pat > alpha {
-//         alpha = stand_pat;
-//     }
-//     let moves = move_generator::generate_capture_moves(position);
-// 
-//     for mv in moves {
-//         if let Some(next_position) = position.make_move(&mv) {
-//             let score = -quiescence_search(&next_position.0, search_context, -beta, -alpha);
-//             if score >= beta {
-//                 return beta;
-//             }
-//             if score > alpha {
-//                 alpha = score;
-//             }
-//         }
-//         if search_context.stop_flag.load(Ordering::Relaxed) {
-//             break;
-//         }
-//     }
-//     alpha
-// }
-
 fn create_search_results(position: &Position, score: isize, depth: usize, search_context: SearchContext) -> SearchResults {
     let best_line = retrieve_principal_variation(position.clone());
     let last_position = best_line.last().map_or(position, |m| &m.0);
