@@ -104,8 +104,8 @@ pub const KING_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 2] = [
 ];
 
 
-pub fn evaluate(position: &Position, depth: usize) -> isize {
-    let game = Game::new(&position, None);
+pub fn evaluate(position: &Position, depth: usize, historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> isize {
+    let game = Game::new(&position, historic_repeat_position_counts);
     let game_status = game.get_game_status();
     match game_status {
         game::GameStatus::InProgress => {

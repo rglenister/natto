@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 use crate::board::PieceColor;
 use crate::board::PieceColor::{Black, White};
@@ -7,6 +8,7 @@ use crate::{move_generator, util};
 use crate::bit_board::BitBoard;
 use crate::eval::search;
 use crate::position::Position;
+use crate::r#move::Move;
 
 include!("util/generated_macro.rs");
 
@@ -26,7 +28,7 @@ pub struct Game {
     pub position: Position,
     has_legal_move: bool,
     check_count: usize,
-    historic_repeat_position_counts: Option<HashMap<u64, (Position, usize)>>, 
+    historic_repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
 }
 
 
@@ -61,7 +63,7 @@ impl Game {
     }
 
     pub fn has_three_fold_repetition(&self) -> bool {
-        search::get_repeat_position_count(&self.position, &*vec!(), self.historic_repeat_position_counts.as_ref()) >= 1
+        search::get_repeat_position_count(&self.position, &*vec!(), self.historic_repeat_position_counts.as_ref()) >= 3
     }
     pub fn is_check(&self) -> bool {
         self.check_count >= 1

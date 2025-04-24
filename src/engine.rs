@@ -8,7 +8,7 @@ use log::{debug, error, info};
 use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::{fen, uci, util};
 use crate::config::CONFIG;
-use crate::eval::search::iterative_deepening_search;
+use crate::eval::search::iterative_search;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
 use crate::uci::{UciGoOptions, UciPosition};
@@ -100,7 +100,7 @@ impl Engine {
         let uci_pos = uci::parse_position(&input);
         if let Some(uci_pos) = uci_pos {
             *uci_position = Some(uci_pos.clone());
-            info!("uci set position to [{}] from input [{}]", fen::write(&uci_pos.given_position), &input);
+            info!("uci set position to [{}] from input [{}]", fen::write(&uci_pos.end_position), &input);
         } else {
             error!("failed to parse position from input [{}]", &input)
         }
@@ -114,6 +114,7 @@ impl Engine {
     }
 
     fn uci_go(&self, search_stop_flag: &&Arc<AtomicBool>, search_handle: &mut Option<JoinHandle<()>>, input: String, uci_position: &Option<UciPosition>) {
+        self.uci_stop(search_stop_flag, search_handle);
         if let Some(uci_pos) = uci_position {
             if search_handle.is_none() {
                 if !self.play_move_from_opening_book(uci_pos) {
@@ -130,7 +131,7 @@ impl Engine {
                     let stop_flag = Arc::clone(&search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
                     *search_handle = Some(thread::spawn(move || {
-                        let search_results = iterative_deepening_search(&uci_pos_clone.given_position, &search_params, stop_flag, repeat_position_counts);
+                        let search_results = iterative_search(&uci_pos_clone.end_position, &search_params, stop_flag, repeat_position_counts);
                         let best_move = search_results.best_line.first().map(|cm| convert_chess_move_to_raw(&cm.1));
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {}", best_move));
@@ -195,9 +196,9 @@ impl Engine {
 
     fn play_move_from_opening_book(&self, uci_pos: &UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
-            if uci_pos.given_position.full_move_number() <= CONFIG.max_book_depth {
-                info!("getting opening book move for position: {}", fen::write(&uci_pos.given_position));
-                let opening_move = opening_book.get_opening_move(&uci_pos.given_position);
+            if uci_pos.end_position.full_move_number() <= CONFIG.max_book_depth {
+                info!("getting opening book move for position: {}", fen::write(&uci_pos.end_position));
+                let opening_move = opening_book.get_opening_move(&uci_pos.end_position);
                 if let Ok(opening_move) = opening_move {
                     debug!("got move {} from opening book", opening_move);
                     uci::send_to_gui(format!("bestmove {}", opening_move));
@@ -207,7 +208,7 @@ impl Engine {
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
-                    uci_pos.given_position.full_move_number(), CONFIG.max_book_depth);
+                    uci_pos.end_position.full_move_number(), CONFIG.max_book_depth);
             }
         }
         false

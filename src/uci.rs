@@ -16,6 +16,7 @@ static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(
 #[derive(Clone, Debug)]
 pub struct UciPosition {
     pub given_position: Position,
+    pub end_position: Position,
     pub position_move_pairs: Option<Vec<(Position, Move)>>,
 }
 
@@ -87,7 +88,8 @@ pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
         captures.get(3)
             .map_or(Some(vec!()), |m| { util::replay_moves(position, m.as_str().to_string()) })
             .map(|moves| UciPosition {
-                given_position: if !moves.is_empty() { moves.last().unwrap().0 } else {*position},
+                given_position: *position,
+                end_position: if !moves.is_empty() { moves.last().unwrap().0 } else {*position},
                 position_move_pairs: Some(moves)
             })
     }
@@ -113,7 +115,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
         if uci_go_options.move_time.is_some() {
             uci_go_options.move_time
         } else {
-            let side_to_move = uci_position.given_position.side_to_move();
+            let side_to_move = uci_position.end_position.side_to_move();
             let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
             let inc_per_move_millis: usize = uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
             let remaining_number_of_moves_to_go: usize = uci_go_options.moves_to_go.map_or(30, |moves_to_go| moves_to_go);
@@ -159,7 +161,8 @@ mod tests {
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {
         let white_to_move = Position::new_game();
         let black_to_move = white_to_move.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None));
-        UciPosition { given_position: if side_to_move == White {white_to_move} else {black_to_move.unwrap().0}, position_move_pairs: None }
+        let position = if side_to_move == White {white_to_move} else {black_to_move.unwrap().0};
+        UciPosition { given_position: position, end_position: position, position_move_pairs: None }
     }
 
     #[test]

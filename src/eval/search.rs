@@ -145,7 +145,7 @@ impl SearchResults {
     }
 }
 
-pub fn iterative_deepening_search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
+pub fn iterative_search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
     let mut search_results = SearchResults::default();
     for iteration_max_depth in 0..=search_params.max_depth {
@@ -189,39 +189,40 @@ fn negamax_search(
             }
         }
     }
-    if depth == 0 { // || is_terminal()
-        evaluation::evaluate(position, depth);
-    }
-    let moves = if depth == max_depth { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate_moves(position) };
-    let mut best_score = -MAXIMUM_SCORE;
-    let mut best_move = None;    
-    for mv in moves {
-        if let Some(next_position) = position.make_move(&mv) {
-            // there isn't a checkmate or a stalemate
-            current_line.push(next_position);
-            let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
-                0
-            } else {
-                -negamax_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha)
-            };
-            current_line.pop();
-            if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&mv, next_score) };
-            if next_score > best_score || best_move.is_none() {
-                best_score = next_score;
-                best_move = Some(mv);
+    if depth > 0 {
+        let moves = if depth == max_depth { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate_moves(position) };
+        let mut best_score = -MAXIMUM_SCORE;
+        let mut best_move = None;
+        for mv in moves {
+            if let Some(next_position) = position.make_move(&mv) {
+                // there isn't a checkmate or a stalemate
+                current_line.push(next_position);
+                let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
+                    0
+                } else {
+                    -negamax_search(&next_position.0, current_line, depth - 1, max_depth, search_context, -beta, -alpha)
+                };
+                current_line.pop();
+                if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&mv, next_score) };
+                if next_score > best_score || best_move.is_none() {
+                    best_score = next_score;
+                    best_move = Some(mv);
+                }
+                alpha = alpha.max(next_score);
+                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
+                    break;
+                }
             }
-            alpha = alpha.max(next_score);
-            if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
-                break;
-            }
+        };
+        if let Some(best_move) = best_move {
+            TRANSPOSITION_TABLE.insert(position, depth, alpha, beta, best_score, Some(best_move));
+        } else {
+            best_score = evaluation::evaluate(position, max_depth - depth, search_context.repeat_position_counts.as_ref());
         }
-    };
-    if let Some(best_move) = best_move {
-        TRANSPOSITION_TABLE.insert(position, depth, alpha, beta, best_score, Some(best_move));
+        best_score
     } else {
-        best_score = evaluation::evaluate(position, max_depth - depth);
+        evaluation::evaluate(position, max_depth - depth, search_context.repeat_position_counts.as_ref())
     }
-    best_score
 }
 
 // fn quiescence_search(position: &Position, search_context: &SearchContext, mut alpha: isize, beta: isize) -> isize {
@@ -360,9 +361,17 @@ mod tests {
     use crate::r#move::RawMove;
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
-    use crate::eval::search::{iterative_deepening_search, MAXIMUM_SCORE};
+    use crate::eval::search::{iterative_search, MAXIMUM_SCORE};
     use crate::{move_formatter, uci, util};
 
+    fn test_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
+        let uci_position = uci::parse_position(uci_position_str).unwrap();
+        let uci_go_options = uci::parse_uci_go_options(Some(go_options_str.to_string()));
+        let search_params = uci::create_search_params(&uci_go_options, &uci_position);
+        let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
+        iterative_search(&uci_position.end_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
+    }
+    
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
         assert_eq!(search_results.depth, expected.depth);
@@ -377,7 +386,7 @@ mod tests {
     fn test_piece_captured() {
         let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
         assert_eq!(search_results.score, -980);
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
@@ -387,7 +396,7 @@ mod tests {
     fn test_already_checkmated() {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(
             search_results,
             SearchResults {
@@ -403,7 +412,7 @@ mod tests {
     fn test_already_stalemated() {
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(
             search_results,
             SearchResults {
@@ -419,7 +428,7 @@ mod tests {
     fn test_mate_in_one() {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -436,7 +445,7 @@ mod tests {
     fn test_mate_in_one_using_high_depth() {
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -453,7 +462,7 @@ mod tests {
     fn test_mate_in_two() {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
         test_eq(
             &search_results,
@@ -470,7 +479,7 @@ mod tests {
     fn test_mate_in_three() {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(format_move_list(&position, &search_results), "♖f6-a6+,f7-f6,♗e5xf6+,♜g8-g7,♖a6xa8#");
         test_eq(
             &search_results,
@@ -487,7 +496,7 @@ mod tests {
     fn test_mate_in_four() {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(long_format_moves(&position, &search_results), "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,f5xg6#");
         test_eq(
             &search_results,
@@ -504,7 +513,7 @@ mod tests {
     fn test_mate_in_three_fischer() {
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(format_move_list(&position, &search_results), "♗f1-c4,♚e4-e5,♕d1-d5+,♚e5-f6,♕d5-g5#");
         test_eq(
             &search_results,
@@ -521,7 +530,7 @@ mod tests {
     fn test_hiarcs_game_engine_would_not_get_out_of_check() {
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
 
@@ -529,7 +538,7 @@ mod tests {
     fn test_50_move_rule_is_recognised() {
         let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 99 76";
         let in_progress_position: Position = Position::from(fen);
-        let in_progress_search_results = iterative_deepening_search(&in_progress_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
+        let in_progress_search_results = iterative_search(&in_progress_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(in_progress_search_results.best_line_moves_as_string(), "".to_string());
         test_eq(
             &in_progress_search_results,
@@ -542,7 +551,7 @@ mod tests {
         );
 
         let drawn_position = in_progress_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
-        let drawn_position_search_results = iterative_deepening_search(&drawn_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
+        let drawn_position_search_results = iterative_search(&drawn_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(drawn_position_search_results.best_line_moves_as_string(), "".to_string());
         test_eq(
             &drawn_position_search_results,
@@ -559,15 +568,8 @@ mod tests {
     fn test_losing_side_plays_for_draw() {
         let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_for_win_uci_position_str = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
-        fn test_draw(uci_position_str: &str) -> SearchResults {
-            let uci_position = uci::parse_position(uci_position_str).unwrap();
-            let uci_go_options = uci::parse_uci_go_options(Some("depth 1".to_string()));
-            let search_params = uci::create_search_params(&uci_go_options, &uci_position);
-            let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
-            iterative_deepening_search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
-        }
-
-        let drawn_search_results = test_draw(go_for_draw_uci_position_str);
+        let go_options_str = "depth 1";
+        let drawn_search_results = test_uci_position(go_for_draw_uci_position_str, go_options_str);
         assert_eq!(drawn_search_results.best_line_moves_as_string(), "f6-g8");
         test_eq(
             &drawn_search_results,
@@ -575,11 +577,11 @@ mod tests {
                 score: 0,
                 depth: 1,
                 best_line: vec![],
-                game_status: DrawnByThreefoldRepetition,
+                game_status: InProgress,
             }
         );
 
-        let win_search_results = test_draw(go_for_win_uci_position_str);
+        let win_search_results = test_uci_position(go_for_win_uci_position_str, go_options_str);
         assert_eq!(win_search_results.best_line_moves_as_string(), "b8-c6".to_string());
         test_eq(
             &win_search_results,
@@ -595,14 +597,7 @@ mod tests {
     fn test_li_chess_game() {
         // https://lichess.org/RZTYaEbP#87
         let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
-        fn test_draw(uci_position_str: &str) -> SearchResults {
-            let uci_position = uci::parse_position(uci_position_str).unwrap();
-            let uci_go_options = uci::parse_uci_go_options(Some("depth 2".to_string()));
-            let search_params = uci::create_search_params(&uci_go_options, &uci_position);
-            let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
-            iterative_deepening_search(&uci_position.given_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
-        }
-        let drawn_search_results = test_draw(uci_position_str);
+        let drawn_search_results = test_uci_position(uci_position_str, "depth 2");
         assert_eq!(drawn_search_results.best_line_moves_as_string(), "f5-c8,e8-e7");
         test_eq(
             &drawn_search_results,
@@ -617,10 +612,10 @@ mod tests {
 
     #[test]
     fn test_perpetual_check() {
-        let fen = "r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1";
-        let position: Position = Position::from(fen);
-        let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
-//        assert_eq!(search_results.best_line_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
+        let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
+        let search_results = test_uci_position(go_for_draw_uci_position_str, "depth 5");
+        assert_eq!(search_results.best_line_moves_as_string(), "g6-f8".to_string());
+//        assert_eq!(search_results.best_line_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,
             &SearchResults {
