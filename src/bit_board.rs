@@ -85,8 +85,8 @@ impl BitBoard {
         self.bit_boards[piece_color as usize].iter().fold(0, |acc, x| acc | *x)
     }
 
-    pub fn king_square(&self, piece_color: PieceColor) -> i32 {
-        self.bitboard_by_color_and_piece_type(piece_color, King).trailing_zeros() as i32
+    pub fn king_square(&self, piece_color: PieceColor) -> usize {
+        self.bitboard_by_color_and_piece_type(piece_color, King).trailing_zeros() as usize
     }
 
     pub fn white_pawn_attacks(&self) -> u64 {

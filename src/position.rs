@@ -233,7 +233,7 @@ impl Position {
             Castling { base_move, board_side } => {
                 let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                 if king_attacks_finder(&new_position, self.side_to_move) == 0 &&
-                            square_attacks_finder(&new_position, self.opposing_side(), castling_metadata.king_through_square as i32) == 0 {
+                            square_attacks_finder(&new_position, self.opposing_side(), castling_metadata.king_through_square) == 0 {
                     do_basic_move(&mut new_position, base_move.from, base_move.to, false);
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                     new_position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);

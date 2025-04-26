@@ -368,7 +368,7 @@ where F: FnMut(&Move) -> Option<()> {
     if quit { None } else { Some(()) }
 }
 
-pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: i32) -> u64 {
+pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
     let occupied_squares = position.board().bitboard_all_pieces();
     let enemy_squares = position.board().bitboard_by_color(attacking_color);
     let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, Queen);
@@ -402,7 +402,7 @@ pub fn is_en_passant_capture_possible(position: &Position) -> bool {
     }
 }
 
-fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: i32) -> u64 {
+fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: usize) -> u64 {
     let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
     let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
     moves & enemy_squares
@@ -410,7 +410,15 @@ fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceTyp
 
 pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
     square_attacks_finder(
-        position, if king_color == White {Black} else {White}, position.board().king_square(king_color))
+        position, king_color.opposite(), position.board().king_square(king_color))
+}
+
+pub fn check_count(position: &Position) -> usize {
+    king_attacks_finder(position, position.side_to_move()).count_ones() as usize
+}
+
+pub fn is_check(position: &Position) -> bool {
+    check_count(position) > 0
 }
 
 #[cfg(test)]

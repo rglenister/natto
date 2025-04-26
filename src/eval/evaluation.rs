@@ -19,7 +19,7 @@ static COLUMN_SQUARE_INDEXES: Lazy<[u64; 8]> = Lazy::new(|| {
 });
 
 
-pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 0];
+pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 10000];
 
 
 pub const PIECE_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 6] = [

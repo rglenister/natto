@@ -20,10 +20,7 @@ impl Not for PieceColor {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        match self {
-            White => Black,
-            Black => White,
-        }
+        self.opposite()
     }
 }
 
@@ -95,6 +92,15 @@ impl PieceType {
             self.to_string().chars().next().unwrap()
         } else {
             'N'
+        }
+    }
+}
+
+impl PieceColor {
+    pub fn opposite(&self) -> PieceColor {
+        match self {
+            White => Black,
+            Black => White,
         }
     }
 }
