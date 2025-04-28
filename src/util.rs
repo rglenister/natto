@@ -38,7 +38,7 @@ pub fn format_square(square_index: usize) -> String {
     }
 }
 
-pub(crate) fn distance(square_index_1: i32, square_index_2: i32) -> i32 {
+pub(crate) fn distance(square_index_1: isize, square_index_2: isize) -> isize {
     let square_1_row = square_index_1 / 8;
     let square_1_col = square_index_1 % 8;
 
@@ -51,7 +51,7 @@ pub(crate) fn distance(square_index_1: i32, square_index_2: i32) -> i32 {
     row_difference.max(col_difference)
 }
 
-pub fn on_board(square_from: i32, square_to: i32) -> bool {
+pub fn on_board(square_from: isize, square_to: isize) -> bool {
     (0..64).contains(&square_to) && (square_to % 8 - square_from % 8).abs() <= 2
 }
 

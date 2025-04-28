@@ -252,7 +252,7 @@ impl Position {
         fn do_basic_move(new_position: &mut Position, from: usize, to: usize, capture: bool) {
             let piece = new_position.move_piece(from, to);
             let piece_type = piece.piece_type;
-            if piece_type == Pawn && distance(from as i32, to as i32) == 2 {
+            if piece_type == Pawn && distance(from as isize, to as isize) == 2 {
                 new_position.en_passant_capture_square = Some((from + to) / 2);
             } else if piece_type == King && from == KING_HOME_SQUARE[new_position.side_to_move() as usize] {
                 new_position.castling_rights[new_position.side_to_move as usize] = [false, false];

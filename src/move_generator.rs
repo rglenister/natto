@@ -152,7 +152,7 @@ static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy:
     table.insert(&White, generate_move_table([7, 9]));
     // the black table contains the attacks by black pawns on a square
     table.insert(&Black, generate_move_table([-7, -9]));
-    fn generate_move_table(increments: [i32; 2]) -> [u64; 64] {
+    fn generate_move_table(increments: [isize; 2]) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
         for square_index in 0..64 {
             let move_squares: u64 = generate_move_bitboard(
@@ -169,7 +169,7 @@ static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy:
     table
 });
 
-static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<i32>>> = Lazy::new(|| {
+static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<isize>>> = Lazy::new(|| {
     let mut table = HashMap::new();
     table.insert(&Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
     table.insert(&Bishop, vec![9, 7, -9, -7]);
@@ -247,8 +247,8 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
 
 /// Pre-calculates the bitmaps
 fn generate_move_bitboard(
-    source_square: i32,
-    increments: Vec<i32>,
+    source_square: isize,
+    increments: Vec<isize>,
     blocking_pieces_bitboard: u64,
     generating_blocking_square_mask: bool,
     sliding: bool,
@@ -264,13 +264,13 @@ fn generate_move_bitboard(
     return bitboards.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard);
 
     fn generate_move_bitboard_for_increment(
-        source_square: i32,
+        source_square: isize,
         blocking_pieces_bitboard: u64,
-        increment: i32,
+        increment: isize,
         generating_blocking_square_mask: bool,
         sliding: bool,
     ) -> u64 {
-        let destination_square: i32 = source_square + increment;
+        let destination_square: isize = source_square + increment;
         if on_board(source_square, destination_square) &&
             (!generating_blocking_square_mask || on_board(destination_square, destination_square + increment)) {
             let result = 1 << destination_square;

@@ -1,9 +1,9 @@
 use strum::IntoEnumIterator;
 use crate::board::{Board, PieceColor, PieceType};
-use crate::board::PieceType::{Knight, Pawn};
+use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{evaluate, score_pieces, PIECE_SCORES};
-use crate::eval::search::{MAXIMUM_SCORE};
-use crate::move_generator;
+use crate::eval::search::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
+use crate::{move_generator, util};
 use crate::position::Position;
 use crate::r#move::{Move};
 
@@ -73,39 +73,34 @@ fn static_exchange_eval(position: &Position, mov: &Move) -> isize {
     let target_square = base_move.to;
     let captured_piece = position.board().get_piece(target_square).unwrap().piece_type;
 
-    let mut gain = Vec::new();
-    gain.push(PIECE_SCORES[captured_piece as usize]); // First gain: captured piece value
+    let mut gain = [ 0; MAXIMUM_SEARCH_DEPTH];
+//    gain.push(PIECE_SCORES[captured_piece as usize]); // First gain: captured piece value
 
     let mut occupied = position.board().bitboard_all_pieces();
     let mut attackers = attackers_to(position, target_square, occupied);
-
     let mut side_to_move = position.side_to_move();
 
     // Remove the moving piece from occupied and attackers
-    occupied ^= 1 << base_move.from;
-    attackers[0] ^= 1 << base_move.from;
+    // occupied ^= 1 << base_move.from;
+    // attackers[0] ^= 1 << base_move.from;
 
     let mut depth = 0;
 
-    loop {
-        // Find the least valuable attacker for side to move
-        if let Some(from_square) = select_least_valuable_attacker(position, position.side_to_move(), attackers[side_to_move as usize]) {
-            // Update occupied and attackers
-            let piece_type = position.board().get_piece(from_square).unwrap().piece_type;
-            occupied ^= 1 << from_square;
+    // Find the least valuable attacker for side to move
+    while let Some(from_square) = select_least_valuable_attacker(position, side_to_move, attackers[side_to_move as usize]) {
+        // Update occupied and attackers
+        let piece_type = position.board().get_piece(from_square).unwrap().piece_type;
+        occupied ^= 1 << from_square;
 
-            // Update attackers due to new X-ray attacks (like rooks, bishops, queens behind pawns)
-            attackers = attackers_to(position, target_square, occupied);
+        // Update attackers due to new X-ray attacks (like rooks, bishops, queens behind pawns)
+        attackers = attackers_to(position, target_square, occupied);
 
-            depth += 1;
-            let last_gain = gain[depth - 1];
-            gain.push(PIECE_SCORES[piece_type as usize] - last_gain);
+        depth += 1;
+        let last_gain = gain[depth - 1];
+//        gain.push(PIECE_SCORES[piece_type as usize] - last_gain);
 
-            // Switch side
-            side_to_move = side_to_move.opposite();
-        } else {
-            break; // No more attackers
-        }
+        // Switch side
+        side_to_move = side_to_move.opposite();
     }
 
     // Now, walk back through the gains to find best result
@@ -155,10 +150,41 @@ fn piece_value(position: &Position, square_index: usize) -> isize {
     PIECE_SCORES[position.board().get_piece(square_index).unwrap().piece_type as usize]
 }
 
+fn find_discovered_attacker(position: &Position, target_square: isize, previous_attacker_square: isize, side_to_move: PieceColor, occupied: u64) -> Option<isize> {
+    if let Some(square_increment) = find_square_increment(target_square, previous_attacker_square) {
+        let piece_type = if square_increment.abs() == 8 || square_increment == 0 { Rook } else { Bishop };
+        let mut square_index = previous_attacker_square + square_increment;
+        while util::on_board(previous_attacker_square, square_index) {
+            if (1 << square_index) & occupied != 0 {
+                let bitboards_for_color = position.board().bitboards_for_color(side_to_move);
+                let bitboard = bitboards_for_color[piece_type as usize] | bitboards_for_color[Queen as usize];
+                if (bitboard & (1 << square_index)) != 0 {
+                    return Some(square_index);
+                }
+            }
+            square_index += square_increment;
+        }
+    }
+    None
+}
+
+fn find_square_increment(from_square: isize, to_square: isize) -> Option<isize> {
+    let square_delta = to_square - from_square;
+    let distance = util::distance(from_square, to_square);
+    let square_increment = square_delta / distance;
+    if from_square + square_increment * distance == to_square {
+        Some(square_increment)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::cmp::max;
     use crate::board::PieceColor::{Black, White};
     use crate::board::PieceType::{Bishop, King, Pawn, Rook};
+    use crate::r#move::BaseMove;
     use super::*;
     #[test]
     fn test_rank_capture_move() {
@@ -231,16 +257,16 @@ mod tests {
 
     #[test]
     fn test_static_exchange_evaluation() {
-        // let fen = "4k3/8/2n5/1P6/8/8/8/4K3 w - - 1 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), true);
-        //
-        // let fen = "4k3/1p6/2p5/1B6/8/8/8/4K3 w - - 1 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), false);
-        //
+        let fen = "4k3/8/2n5/1P6/8/8/8/4K3 w - - 1 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
+        assert_eq!(good_capture(&position, &mov), true);
+        
+        let fen = "4k3/1p6/2p5/1B6/8/8/8/4K3 w - - 1 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
+        assert_eq!(good_capture(&position, &mov), false);
+        
         // let fen = "4k3/1p6/2b5/1B6/8/8/8/4K3 w - - 1 1";
         // let position: Position = Position::from(fen);
         // let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
@@ -280,4 +306,111 @@ mod tests {
         // let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
         // assert_eq!(static_exchange_evaluation(&position, &mov), false); // this really should be true!!!!
     }
+
+    #[test]
+    fn test_score_array() {
+        let mut gain = [0; 8];
+        gain[0] = 1;
+        gain[1] = 8;
+        gain[2] = 3;
+        gain[3] = 4;
+        gain[4] = 5;
+        gain[5] = 6;
+        gain[6] = 7;
+        gain[7] = 8;
+        
+        let mut depth = 4;
+        
+        while depth > 1 {
+            gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
+            depth -= 1;
+        }
+        assert_eq!(-gain[0].max(-gain[1]), 22);
+    }
+    #[test]
+    fn test_find_discovered_attacker() {
+        let fen = "3r4/4bk2/8/8/8/8/3R4/3RK3 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let square_index = find_discovered_attacker(&position, sq!("d8"), sq!("d2"), White, position.board().bitboard_all_pieces());
+        assert_eq!(square_index, Some(sq!("d1")));
+        
+        let fen = "4k3/5r2/8/3B3b/8/1Q6/8/4K3 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let square_index = find_discovered_attacker(&position, sq!("f7"), sq!("d5"), White, position.board().bitboard_all_pieces());
+        assert_eq!(square_index, Some(sq!("b3")));
+    }
+    #[test]
+    fn test_find_square_increment() {
+        assert_eq!(find_square_increment(sq!("a1"), sq!("a2")), Some(8));
+        assert_eq!(find_square_increment(sq!("a1"), sq!("a8")), Some(8));
+        assert_eq!(find_square_increment(sq!("a8"), sq!("a1")), Some(-8));
+        assert_eq!(find_square_increment(sq!("a1"), sq!("a2")), Some(8));
+        assert_eq!(find_square_increment(sq!("a1"), sq!("b2")), Some(9));
+        assert_eq!(find_square_increment(sq!("a2"), sq!("b1")), Some(-7));
+        assert_eq!(find_square_increment(sq!("a2"), sq!("b5")), None);
+        assert_eq!(find_square_increment(sq!("h8"), sq!("h6")), Some(-8));
+        assert_eq!(find_square_increment(sq!("h8"), sq!("g1")), None);
+        assert_eq!(find_square_increment(sq!("a6"), sq!("c4")), Some(-7));
+        assert_eq!(find_square_increment(sq!("c4"), sq!("a6")), Some(7));
+    }
 }
+
+// with delta pruning
+// fn static_exchange_eval(position: &Position, mv: &Move) -> i32 {
+//     let target_square = mv.to();
+//     let moving_piece = position.piece_on(mv.from());
+//     let captured_piece = position.piece_on(target_square);
+// 
+//     let mut gain = Vec::new();
+//     gain.push(piece_value(captured_piece)); // First gain: captured piece value
+// 
+//     let mut occupied = position.all_pieces();
+//     let mut attackers = position.attackers_to(target_square, occupied);
+// 
+//     let mut side_to_move = position.side_to_move();
+// 
+//     // Remove moving piece from occupied and attackers
+//     occupied.clear_bit(mv.from());
+//     attackers[side_to_move].clear_bit(mv.from());
+// 
+//     let mut depth = 0;
+// 
+//     loop {
+//         if let Some(from_square) = select_least_valuable_attacker(&attackers[side_to_move], position) {
+//             let piece = position.piece_on(from_square);
+//             occupied.clear_bit(from_square);
+// 
+//             // Update attackers (X-rays etc.)
+//             attackers = position.attackers_to(target_square, occupied);
+// 
+//             depth += 1;
+//             let last_gain = gain[depth - 1];
+//             gain.push(piece_value(piece) - last_gain);
+// 
+//             // **Delta pruning: early abort**
+//             if side_to_move == position.side_to_move() {
+//                 // Our move: maximize
+//                 if gain[depth] < 0 {
+//                     break; // Already worse, stop
+//                 }
+//             } else {
+//                 // Opponent's move: minimize
+//                 if -gain[depth] <= gain[depth - 1] {
+//                     break; // No way to recover, stop
+//                 }
+//             }
+// 
+//             side_to_move = side_to_move.opposite();
+//         } else {
+//             break; // No more attackers
+//         }
+//     }
+// 
+//     // Walk back to find best gain
+//     while depth > 0 {
+//         gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
+//         depth -= 1;
+//     }
+// 
+//     gain[0]
+// } 
