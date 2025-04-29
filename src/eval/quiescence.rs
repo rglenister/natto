@@ -47,7 +47,7 @@ fn quiescence_search(position: &Position, alpha: isize, beta: isize) -> isize {
             alpha = alpha.max(score);
         }
     }
-    
+
     // 2. Non-capture checks (optional but very strong tactically)
 //    let mut checks = move_generator::generate_checks();
     //checks.sort_by_key(|mv| rank_capture_move(position, mv)); // Optional ordering
@@ -68,51 +68,82 @@ fn quiescence_search(position: &Position, alpha: isize, beta: isize) -> isize {
     alpha
 }
 
-fn static_exchange_eval(position: &Position, mov: &Move) -> isize {
-    let base_move = mov.get_base_move();
-    let target_square = base_move.to;
-    let captured_piece = position.board().get_piece(target_square).unwrap().piece_type;
+// with delta pruning
+fn static_exchange_evaluation(position: &Position, mv: &Move) -> isize {
+    let attacked_square = mv.get_base_move().to;
+    let attacking_square = mv.get_base_move().from;
+    let attacking_piece = piece_on(position, attacking_square);
 
-    let mut gain = [ 0; MAXIMUM_SEARCH_DEPTH];
-//    gain.push(PIECE_SCORES[captured_piece as usize]); // First gain: captured piece value
+    let mut gain = Vec::new();
+    let mut attacked_piece = piece_on(position, attacked_square);
+    gain.push(PIECE_SCORES[attacked_piece as usize]); // First gain: captured piece value
 
     let mut occupied = position.board().bitboard_all_pieces();
-    let mut attackers = attackers_to(position, target_square, occupied);
+    let mut attackers = attackers_to(&position, attacked_square, occupied);
     let mut side_to_move = position.side_to_move();
 
-    // Remove the moving piece from occupied and attackers
-    // occupied ^= 1 << base_move.from;
-    // attackers[0] ^= 1 << base_move.from;
+    // Remove moving piece from occupied and attackers
+    occupied ^= 1 << attacking_square;
+    attackers[side_to_move as usize] ^= 1 << attacking_square;
+    if let Some(discovered_attacker_square) = find_discovered_attacker(position, attacked_square as isize, attacking_square as isize, side_to_move, occupied) {
+        attackers[side_to_move as usize] ^= 1 << discovered_attacker_square;
+    }
 
+    attacked_piece = attacking_piece;
     let mut depth = 0;
+    side_to_move = !side_to_move;
+    while let Some(next_attacking_square) = select_least_valuable_attacker(position, side_to_move, attackers[side_to_move as usize]) {
+        let next_attacking_piece = piece_on(position, next_attacking_square);
+        occupied ^= 1 << next_attacking_square;
 
-    // Find the least valuable attacker for side to move
-    while let Some(from_square) = select_least_valuable_attacker(position, side_to_move, attackers[side_to_move as usize]) {
-        // Update occupied and attackers
-        let piece_type = position.board().get_piece(from_square).unwrap().piece_type;
-        occupied ^= 1 << from_square;
-
-        // Update attackers due to new X-ray attacks (like rooks, bishops, queens behind pawns)
-        attackers = attackers_to(position, target_square, occupied);
+        // Update attackers (X-rays etc.)
+//        attackers = attackers_to(position, target_square, occupied);
+        attackers[side_to_move as usize] ^= 1 << next_attacking_square;
 
         depth += 1;
         let last_gain = gain[depth - 1];
-//        gain.push(PIECE_SCORES[piece_type as usize] - last_gain);
+        gain.push(PIECE_SCORES[attacked_piece as usize] - last_gain);
 
-        // Switch side
-        side_to_move = side_to_move.opposite();
+        // **Delta pruning: early abort**
+        // if side_to_move == position.side_to_move() {
+        //     // Our move: maximize
+        //     if gain[depth] < 0 {
+        //         break; // Already worse, stop
+        //     }
+        // } else {
+        //     // Opponent's move: minimize
+        //     if -gain[depth] <= gain[depth - 1] {
+        //         break; // No way to recover, stop
+        //     }
+        // }
+
+        if let Some(discovered_attacker_square) = find_discovered_attacker(position, attacked_square as isize, next_attacking_square as isize, side_to_move, occupied) {
+            attackers[side_to_move as usize] ^= 1 << discovered_attacker_square;
+        }
+        attacked_piece = next_attacking_piece;
+        side_to_move = !side_to_move;
     }
 
-    // Now, walk back through the gains to find best result
+    // Walk back to find best gain
+    // while depth > 0 {
+    //     gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
+    //     depth -= 1;
+    // }
     while depth > 0 {
-        gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
-        depth -= 1;
+        if gain[depth - 1] > -gain[depth] {
+            gain[depth - 1] = -gain[depth];
+        }
+        depth = depth - 1;
     }
-
     gain[0]
 }
+
+fn piece_on(position: &Position, source_square: usize) -> PieceType {
+    position.board().get_piece(source_square).unwrap().piece_type
+}
+
 fn good_capture(position: &Position, mov: &Move) -> bool {
-    static_exchange_eval(position,&mov) >= 0
+    static_exchange_evaluation(position, &mov) >= 0
 }
 fn attackers_to(position: &Position, target_index: usize, occupied: u64) -> [u64; 2] {
     let white_attackers = move_generator::square_attacks_finder(position, PieceColor::White, target_index) & occupied;
@@ -260,80 +291,82 @@ mod tests {
         let fen = "4k3/8/2n5/1P6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
         let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        assert_eq!(good_capture(&position, &mov), true);
-        
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300); // should be +300?
+
         let fen = "4k3/1p6/2p5/1B6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
         let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        assert_eq!(good_capture(&position, &mov), false);
-        
-        // let fen = "4k3/1p6/2b5/1B6/8/8/8/4K3 w - - 1 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), false);
-        //
-        // let fen = "4k3/1p6/2b5/1B1P4/8/8/8/4K3 w - - 1 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), false);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("d5"), to: sq!("c6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), true);
+        assert_eq!(static_exchange_evaluation(&position, &mov), -200); // should be -200
+
+        let fen = "4k3/1p6/2b5/1B6/8/8/8/4K3 w - - 1 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), 0); // should be zero
+
+        let fen = "4k3/1p6/2b5/1B1P4/8/8/8/4K3 w - - 1 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d5"), to: sq!("c6"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300); // should be +300
     }
 
     #[test]
     fn test_see_double_rooks_attacking_double_rooks() {
-        // // a winning capture that SEE misses because the doubled rook isn't directly attacking the enemy rook
-        // let fen = "3r4/4bk2/8/8/8/8/3R4/3RK3 w - - 0 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), false);
-        //
-        // // undoubling the rooks produces the correct result
-        // let fen = "R2r4/4bk2/8/8/8/8/3R4/4K3 w - - 0 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), true); // this really should be false!!!!
-        //
-        // // a losing capture because SEE misses the doubled rooks
-        // let fen = "3r4/4bk2/3P4/8/8/8/3R4/3RK3 b - - 0 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), false);
-        //
-        // // a winning capture because SE
-        // let fen = "3r4/4bk2/3P4/8/8/8/8/3RK3 b - - 0 1";
-        // let position: Position = Position::from(fen);
-        // let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
-        // assert_eq!(static_exchange_evaluation(&position, &mov), false); // this really should be true!!!!
+        // a winning capture that static SEE misses because the doubled rook isn't directly attacking the enemy rook
+        let fen = "3r4/4bk2/8/8/8/8/3R4/3RK3 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300);
+        
+        // undoubling the rooks produces the correct result
+        let fen = "R2r4/4bk2/8/8/8/8/3R4/4K3 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300);
+        
+        // a losing capture because SEE misses the doubled rooks
+        let fen = "3r4/4bk2/3P4/8/8/8/3R4/3RK3 b - - 0 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), -200);
+        
+        // a winning capture because SE
+        let fen = "3r4/4bk2/3P4/8/8/8/8/3RK3 b - - 0 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), 100);
+
+        let fen = "3r4/3br3/7k/8/3R4/3R4/8/3QK3 w - - 0 1";
+        let position: Position = Position::from(fen);
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d4"), to: sq!("d7"), capture: true }};
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300);
     }
 
-    #[test]
-    fn test_score_array() {
-        let mut gain = [0; 8];
-        gain[0] = 1;
-        gain[1] = 8;
-        gain[2] = 3;
-        gain[3] = 4;
-        gain[4] = 5;
-        gain[5] = 6;
-        gain[6] = 7;
-        gain[7] = 8;
-        
-        let mut depth = 4;
-        
-        while depth > 1 {
-            gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
-            depth -= 1;
-        }
-        assert_eq!(-gain[0].max(-gain[1]), 22);
-    }
+    // #[test]
+    // fn test_score_array() {
+    //     let mut gain = [0; 7];
+    //     gain[0] = 1;
+    //     gain[1] = 8;
+    //
+    //     let mut depth = 2;
+    //
+    //     while depth > 0 {
+    //         gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
+    //         depth -= 1;
+    //     }        // while depth > 1 {
+    //     //     depth -= 1;
+    //     //     if gain[depth - 1] > -gain[depth] {
+    //     //         gain[depth - 1] = -gain[depth];
+    //     //     };
+    //     // }
+    //     assert_eq!(-gain[0].max(-gain[1]), 22);
+    // }
     #[test]
     fn test_find_discovered_attacker() {
         let fen = "3r4/4bk2/8/8/8/8/3R4/3RK3 w - - 0 1";
         let position: Position = Position::from(fen);
         let square_index = find_discovered_attacker(&position, sq!("d8"), sq!("d2"), White, position.board().bitboard_all_pieces());
         assert_eq!(square_index, Some(sq!("d1")));
-        
+
         let fen = "4k3/5r2/8/3B3b/8/1Q6/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
         let square_index = find_discovered_attacker(&position, sq!("f7"), sq!("d5"), White, position.board().bitboard_all_pieces());
@@ -355,62 +388,3 @@ mod tests {
     }
 }
 
-// with delta pruning
-// fn static_exchange_eval(position: &Position, mv: &Move) -> i32 {
-//     let target_square = mv.to();
-//     let moving_piece = position.piece_on(mv.from());
-//     let captured_piece = position.piece_on(target_square);
-// 
-//     let mut gain = Vec::new();
-//     gain.push(piece_value(captured_piece)); // First gain: captured piece value
-// 
-//     let mut occupied = position.all_pieces();
-//     let mut attackers = position.attackers_to(target_square, occupied);
-// 
-//     let mut side_to_move = position.side_to_move();
-// 
-//     // Remove moving piece from occupied and attackers
-//     occupied.clear_bit(mv.from());
-//     attackers[side_to_move].clear_bit(mv.from());
-// 
-//     let mut depth = 0;
-// 
-//     loop {
-//         if let Some(from_square) = select_least_valuable_attacker(&attackers[side_to_move], position) {
-//             let piece = position.piece_on(from_square);
-//             occupied.clear_bit(from_square);
-// 
-//             // Update attackers (X-rays etc.)
-//             attackers = position.attackers_to(target_square, occupied);
-// 
-//             depth += 1;
-//             let last_gain = gain[depth - 1];
-//             gain.push(piece_value(piece) - last_gain);
-// 
-//             // **Delta pruning: early abort**
-//             if side_to_move == position.side_to_move() {
-//                 // Our move: maximize
-//                 if gain[depth] < 0 {
-//                     break; // Already worse, stop
-//                 }
-//             } else {
-//                 // Opponent's move: minimize
-//                 if -gain[depth] <= gain[depth - 1] {
-//                     break; // No way to recover, stop
-//                 }
-//             }
-// 
-//             side_to_move = side_to_move.opposite();
-//         } else {
-//             break; // No more attackers
-//         }
-//     }
-// 
-//     // Walk back to find best gain
-//     while depth > 0 {
-//         gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
-//         depth -= 1;
-//     }
-// 
-//     gain[0]
-// } 
