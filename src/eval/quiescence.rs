@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 use crate::board::{Board, PieceColor, PieceType};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
@@ -68,15 +69,19 @@ fn quiescence_search(position: &Position, alpha: isize, beta: isize) -> isize {
     alpha
 }
 
+fn good_capture(position: &Position, mov: &Move) -> bool {
+    static_exchange_evaluation(position, &mov) >= 0
+}
+
 // with delta pruning
 fn static_exchange_evaluation(position: &Position, mv: &Move) -> isize {
     let attacked_square = mv.get_base_move().to;
     let attacking_square = mv.get_base_move().from;
     let attacking_piece = piece_on(position, attacking_square);
 
-    let mut gain = Vec::new();
+    let mut gain: ArrayVec<isize, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
     let mut attacked_piece = piece_on(position, attacked_square);
-    gain.push(PIECE_SCORES[attacked_piece as usize]); // First gain: captured piece value
+    gain.push(PIECE_SCORES[attacked_piece as usize]);
 
     let mut occupied = position.board().bitboard_all_pieces();
     let mut attackers = attackers_to(&position, attacked_square, occupied);
@@ -133,7 +138,7 @@ fn static_exchange_evaluation(position: &Position, mv: &Move) -> isize {
         if gain[depth - 1] > -gain[depth] {
             gain[depth - 1] = -gain[depth];
         }
-        depth = depth - 1;
+        depth -= 1;
     }
     gain[0]
 }
@@ -142,9 +147,6 @@ fn piece_on(position: &Position, source_square: usize) -> PieceType {
     position.board().get_piece(source_square).unwrap().piece_type
 }
 
-fn good_capture(position: &Position, mov: &Move) -> bool {
-    static_exchange_evaluation(position, &mov) >= 0
-}
 fn attackers_to(position: &Position, target_index: usize, occupied: u64) -> [u64; 2] {
     let white_attackers = move_generator::square_attacks_finder(position, PieceColor::White, target_index) & occupied;
     let black_attackers = move_generator::square_attacks_finder(position, PieceColor::Black, target_index) & occupied;
