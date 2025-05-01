@@ -13,7 +13,7 @@ use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
-use crate::eval::evaluation;
+use crate::eval::{evaluation, quiescence};
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::eval::ttable::{BoundType, TRANSPOSITION_TABLE};
@@ -104,11 +104,11 @@ impl SearchParams {
         SearchParams::new(usize::MAX, max_depth, usize::MAX)
     }
 }
-struct SearchContext<'a> {
+pub struct SearchContext<'a> {
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
     sorted_root_moves: RefCell<SortedMoveList>,
-    repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
+    pub repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
 }
 
 impl SearchContext<'_> {
@@ -221,7 +221,12 @@ fn negamax_search(
         }
         best_score
     } else {
-        evaluation::evaluate(position, max_depth - depth, search_context.repeat_position_counts.as_ref())
+        let score = evaluation::evaluate(position, max_depth - depth, search_context.repeat_position_counts.as_ref());
+        if is_terminal_score(score) {
+            score
+        } else {
+            quiescence::quiescence_search(position, (max_depth - depth + 1) as isize, alpha, beta)
+        }
     }
 }
 
@@ -304,6 +309,10 @@ fn is_drawing_score(score: isize) -> bool {
     score == 0
 }
 
+fn is_terminal_score(score: isize) -> bool {
+    is_mating_score(score) || is_drawing_score(score)
+}
+
 
 fn used_allocated_move_time(search_params: &SearchParams) -> bool {
     let stats = node_counter_stats();
@@ -360,7 +369,7 @@ mod tests {
         let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -980);
+        assert_eq!(search_results.score, -1270);
         let best_line = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.best_line).unwrap().join(", ");
         assert_eq!(best_line, "♞c4xe5");
     }
@@ -575,7 +584,7 @@ mod tests {
         test_eq(
             &drawn_search_results,
             &SearchResults {
-                score: -660,
+                score: -550,
                 depth: 2,
                 best_line: vec![],
                 game_status: InProgress,

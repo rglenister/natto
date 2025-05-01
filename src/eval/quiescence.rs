@@ -10,13 +10,13 @@ use crate::r#move::{Move};
 
 include!("../util/generated_macro.rs");
 
-fn quiescence_search(position: &Position, alpha: isize, beta: isize) -> isize {
+pub fn quiescence_search(position: &Position, depth: isize, alpha: isize, beta: isize) -> isize {
     if move_generator::is_check(position) {
         // If in check: must respond with evasions
-        let mut best_score = -MAXIMUM_SCORE;
+        let mut best_score = -MAXIMUM_SCORE + depth;
         for mov in move_generator::generate_moves(position) {
             if let Some(new_position) = position.make_move(&mov) {
-                let score = -quiescence_search(&new_position.0, -beta, -alpha);
+                let score = -quiescence_search(&new_position.0, depth + 1, -beta, -alpha);
                 best_score = best_score.max(score);
                 if best_score >= beta {
                     break;
@@ -41,7 +41,7 @@ fn quiescence_search(position: &Position, alpha: isize, beta: isize) -> isize {
             continue; // Skip bad captures by SEE
         }
         if let Some(next_position) = position.make_move(&mov) {
-            let score = -quiescence_search(&next_position.0, -beta, -alpha);
+            let score = -quiescence_search(&next_position.0, depth + 1, -beta, -alpha);
             if score >= beta {
                 return score;
             }
@@ -165,7 +165,7 @@ fn select_least_valuable_attacker(position: &Position, attacking_color: PieceCol
 }
 
 fn generate_sorted_captures(position: &Position) -> Vec<Move> {
-    let mut capture_moves = move_generator::generate_capture_moves(position);
+    let mut capture_moves = move_generator::generate_basic_capture_moves(position);
     // Sort captures using MVV-LVA most valuable - victim least valuable attacker
     capture_moves.sort_by(|a, b| rank_capture_move(position, b).cmp(&rank_capture_move(position, a)));
     capture_moves
@@ -180,6 +180,9 @@ fn rank_capture_move(position: &Position, mov: &Move) -> isize {
 }
 
 fn piece_value(position: &Position, square_index: usize) -> isize {
+    if position.board().get_piece(square_index).is_none() {
+        return 100;
+    }
     PIECE_SCORES[position.board().get_piece(square_index).unwrap().piece_type as usize]
 }
 

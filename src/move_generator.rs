@@ -50,11 +50,14 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
     moves
 }
 
-pub(crate) fn generate_capture_moves(position: &Position) -> Vec<Move> {
+pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
     let mut moves: Vec<Move> = vec!();
     let mut process_move = |mv: &Move| -> Option<()> {
         if mv.get_base_move().capture {
-            moves.push(*mv);
+            match mv {
+                Move::Basic { base_move } => { moves.push(*mv) }
+                _ => {}
+            }
         }
         Some(())
     };
@@ -813,7 +816,7 @@ mod tests {
         let all_moves = generate_moves(&position);
         assert_eq!(all_moves.len(), 20);
 
-        let capturing_moves = generate_capture_moves(&position);
+        let capturing_moves = generate_basic_capture_moves(&position);
         assert_eq!(capturing_moves.len(), 1);
     }
 
