@@ -2,7 +2,7 @@ use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 use crate::board::{Board, PieceColor, PieceType};
 use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::eval::evaluation::{evaluate, score_pieces, PIECE_SCORES};
+use crate::eval::evaluation::{score_pieces, PIECE_SCORES};
 use crate::eval::search::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::{move_generator, util};
 use crate::position::Position;
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_piece_value() {
-        let position: Position = Position::default();
+        let position: Position = Position::new_game();
         assert_eq!(piece_value(&position, sq!("e1")), 10000);
         assert_eq!(piece_value(&position, sq!("d1")), 900);
         assert_eq!(piece_value(&position, sq!("h2")), 100);
@@ -296,22 +296,22 @@ mod tests {
         let fen = "4k3/8/2n5/1P6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
         let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        assert_eq!(static_exchange_evaluation(&position, &mov), 300); // should be +300?
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300);
 
         let fen = "4k3/1p6/2p5/1B6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
         let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        assert_eq!(static_exchange_evaluation(&position, &mov), -200); // should be -200
+        assert_eq!(static_exchange_evaluation(&position, &mov), -200);
 
         let fen = "4k3/1p6/2b5/1B6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
         let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
-        assert_eq!(static_exchange_evaluation(&position, &mov), 0); // should be zero
+        assert_eq!(static_exchange_evaluation(&position, &mov), 0);
 
         let fen = "4k3/1p6/2b5/1B1P4/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
         let mov = Move::Basic { base_move: BaseMove { from: sq!("d5"), to: sq!("c6"), capture: true }};
-        assert_eq!(static_exchange_evaluation(&position, &mov), 300); // should be +300
+        assert_eq!(static_exchange_evaluation(&position, &mov), 300);
     }
 
     #[test]
@@ -346,25 +346,6 @@ mod tests {
         assert_eq!(static_exchange_evaluation(&position, &mov), 300);
     }
 
-    // #[test]
-    // fn test_score_array() {
-    //     let mut gain = [0; 7];
-    //     gain[0] = 1;
-    //     gain[1] = 8;
-    //
-    //     let mut depth = 2;
-    //
-    //     while depth > 0 {
-    //         gain[depth - 1] = -gain[depth - 1].max(-gain[depth]);
-    //         depth -= 1;
-    //     }        // while depth > 1 {
-    //     //     depth -= 1;
-    //     //     if gain[depth - 1] > -gain[depth] {
-    //     //         gain[depth - 1] = -gain[depth];
-    //     //     };
-    //     // }
-    //     assert_eq!(-gain[0].max(-gain[1]), 22);
-    // }
     #[test]
     fn test_find_discovered_attacker() {
         let fen = "3r4/4bk2/8/8/8/8/3R4/3RK3 w - - 0 1";

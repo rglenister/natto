@@ -59,17 +59,28 @@ impl TranspositionTable {
             BoundType::Exact
         };
         let do_store = {
-            if let Some(current_entry) = self.retrieve(position.hash_code()) {
+            if let Some(current_entry) = self.probe(position.hash_code()) {
                 depth > current_entry.depth ||
-                    (depth == current_entry.depth && 
+                    (depth == current_entry.depth &&
                         (bound_type == BoundType::Exact && current_entry.bound_type != BoundType::Exact ||
                         bound_type == BoundType::LowerBound && current_entry.bound_type == BoundType::UpperBound))
             } else {
                 true
-            }       
+            }
         };
         if do_store {
             self.store(position.hash_code(), best_move, depth as u8, best_score as i32, bound_type);
+            //#[cfg(debug_assertions)]
+            if cfg!(debug_assertions)
+            {
+                let entry = self.probe(position.hash_code()).unwrap();
+                println!("Debug info: TranspositionTable size is {}", self.item_count());
+                assert_eq!(entry.zobrist, position.hash_code());
+                assert_eq!(entry.best_move, best_move);
+                assert_eq!(entry.depth, depth);
+                assert_eq!(entry.score, best_score);
+                assert_eq!(entry.bound_type, bound_type);
+            }
         }
     }
 
@@ -80,7 +91,7 @@ impl TranspositionTable {
         self.table[index * 2 + 1].store(packed.1, Ordering::Relaxed);
     }
 
-    pub fn retrieve(&self, zobrist: u64) -> Option<TTEntry> {
+    pub fn probe(&self, zobrist: u64) -> Option<TTEntry> {
         let index = (zobrist as usize) % self.size;
         let packed1 = self.table[index * 2].load(Ordering::Relaxed);
         if packed1 == zobrist {
@@ -229,7 +240,7 @@ mod tests {
 
         let position = Position::new_game();
         table.store(position.hash_code(), Option::from(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
-        let entry = table.retrieve(position.hash_code()).unwrap();
+        let entry = table.probe(position.hash_code()).unwrap();
         assert_eq!(entry.zobrist, position.hash_code());
         assert_eq!(entry.best_move, Some(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }));
         assert_eq!(entry.depth, 8);
