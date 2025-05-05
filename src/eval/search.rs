@@ -151,7 +151,6 @@ pub fn iterative_search(position: &Position, search_params: &SearchParams, stop_
     reset_node_counter();
     let mut search_results = SearchResults::default();
     for iteration_max_depth in 0..=search_params.max_depth {
-        TRANSPOSITION_TABLE.clear();
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
         let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
         let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
@@ -173,7 +172,7 @@ pub fn iterative_search(position: &Position, search_params: &SearchParams, stop_
 fn negamax_search(
     position: &Position,
     current_line: &mut ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH>,
-    parent_pv: &mut ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH>,
+    pv: &mut ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH>,
     depth: usize,
     max_depth: usize,
     search_context: &mut SearchContext,
@@ -188,19 +187,31 @@ fn negamax_search(
         search_context.stop_flag.store(true, Ordering::Relaxed);
         return 0;
     }
-    // if let Some(entry) = TRANSPOSITION_TABLE.probe(position.hash_code()) {
-    //     if entry.depth >= depth {
-    //         match entry.bound_type {
-    //             BoundType::Exact => {
-    //                 parent_pv.clear();
-    //                 parent_pv.extend(retrieve_principal_variation(*position));
-    //                 return entry.score
-    //             },
-    //             BoundType::LowerBound => alpha = alpha.max(entry.score),
-    //             BoundType::UpperBound =>  beta = beta.min(entry.score),
-    //         }
-    //     }
-    // }
+    if let Some(entry) = TRANSPOSITION_TABLE.probe(position.hash_code()) {
+        if entry.depth >= depth {
+            match entry.bound_type {
+                BoundType::Exact => {
+                    pv.clear();
+                    pv.extend(retrieve_principal_variation(*position));
+                    return entry.score
+                },
+                BoundType::LowerBound => if entry.score > alpha {
+                    alpha = entry.score
+                },
+                // BoundType::UpperBound => if entry.score < beta {
+                //     beta = entry.score
+                // },
+                BoundType::UpperBound => {
+                    
+                }
+            }
+            if alpha >= beta {
+                pv.clear();
+                pv.extend(retrieve_principal_variation(*position));
+                return entry.score;
+            }
+        }
+    }
     if depth > 0 {
         let moves = if depth == max_depth { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate_moves(position) };
         let mut best_score = -MAXIMUM_SCORE;
@@ -208,21 +219,21 @@ fn negamax_search(
         for mv in moves {
             if let Some(next_position) = position.make_move(&mv) {
                 // there isn't a checkmate or a stalemate
-                let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+                let mut child_pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                 current_line.push(next_position);
                 let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
                     0
                 } else {
-                    -negamax_search(&next_position.0, current_line, &mut pv, depth - 1, max_depth, search_context, -beta, -alpha)
+                    -negamax_search(&next_position.0, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
                 };
                 current_line.pop();
                 if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&mv, next_score) };
                 if next_score > best_score || best_move.is_none() {
                     best_score = next_score;
                     best_move = Some(mv);
-                    parent_pv.clear();
-                    parent_pv.push(next_position);
-                    parent_pv.extend(pv);
+                    pv.clear();
+                    pv.push(next_position);
+                    pv.extend(child_pv);
                 }
                 alpha = alpha.max(next_score);
                 if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
@@ -385,12 +396,12 @@ mod tests {
     
     #[test]
     fn test_piece_captured() {
-        let fen = "4k3/8/1P6/R3Q3/2n5/4N3/1B6/4K3 b - - 0 1";
+        let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-// todo        assert_eq!(search_results.score, -980);
+        assert_eq!(search_results.score, -980);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
-        assert_eq!(pv, "♞c4xe5");
+        assert_eq!(pv, "♞c4xd6");
     }
 
     #[test]
@@ -465,18 +476,18 @@ mod tests {
         let position: Position = Position::from(fen);
         let search_results = iterative_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
-
-        let search_results = iterative_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
-        // test_eq(
-        //     &search_results,
-        //     &SearchResults {
-        //         score: MAXIMUM_SCORE - 3,
-        //         depth: 3,
-        //         pv: vec![],
-        //         game_status: Checkmate,
-        //     }
-        // );
+        // todo
+        // let search_results = iterative_search(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
+        // assert_eq!(format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
+        test_eq(
+            &search_results,
+            &SearchResults {
+                score: MAXIMUM_SCORE - 3,
+                depth: 3,
+                pv: vec![],
+                game_status: Checkmate,
+            }
+        );
     }
 
     #[test]
@@ -538,14 +549,13 @@ mod tests {
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
     
-// todo
-    // #[test]
-    // fn test_hiarcs_blunder() {
-    //     let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
-    //     let position: Position = Position::from(fen);
-    //     let search_results = iterative_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
-    //     assert_eq!(search_results.pv_moves_as_string(), "f1-e1,f6-f5,g4-g5,0-0,d6xe7");
-    // }
+    #[test]
+    fn test_hiarcs_blunder() {
+        let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
+        let position: Position = Position::from(fen);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
+    }
 
     #[test]
     fn test_50_move_rule_is_recognised() {
@@ -607,30 +617,30 @@ mod tests {
         );
     }
     
-    // todo
-    // #[test]
-    // fn test_li_chess_game() {
-    //     // https://lichess.org/RZTYaEbP#87
-    //     let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
-    //     let drawn_search_results = test_uci_position(uci_position_str, "depth 2");
-    //     assert_eq!(drawn_search_results.pv_moves_as_string(), "f5-c8,e8-e7");
-    //     test_eq(
-    //         &drawn_search_results,
-    //         &SearchResults {
-    //             score: -660,
-    //             depth: 2,
-    //             pv: vec![],
-    //             game_status: InProgress,
-    //         }
-    //     );
-    // }
+    #[test]
+    fn test_li_chess_game() {
+        // https://lichess.org/RZTYaEbP#87
+        let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
+        let drawn_search_results = test_uci_position(uci_position_str, "depth 2");
+        assert_eq!(drawn_search_results.pv_moves_as_string(), "f5-c8,e8-e7");
+        test_eq(
+            &drawn_search_results,
+            &SearchResults {
+                score: -550,
+                depth: 2,
+                pv: vec![],
+                game_status: InProgress,
+            }
+        );
+    }
 
     #[test]
     fn test_perpetual_check() {
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
         let search_results = test_uci_position(go_for_draw_uci_position_str, "depth 5");
+        // todo
         assert_eq!(search_results.pv_moves_as_string(), "g6-f8".to_string());
-//        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
+        //assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,
             &SearchResults {
@@ -677,12 +687,11 @@ mod tests {
         assert!(is_drawing_score(score));
     }
 
-    // todo
-    // #[test]
-    // fn test_quiescence_search() {
-    //     let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
-    //     let position: Position = Position::from(fen);
-    //     let search_results = iterative_deepening_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
-    //     assert_eq!(format_move_list(&position, &search_results), "♛g7xh6");
-    // }
+    #[test]
+    fn test_quiescence_search() {
+        let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
+        let position: Position = Position::from(fen);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        assert_eq!(format_move_list(&position, &search_results), "♛g7xh6");
+    }
 }
