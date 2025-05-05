@@ -50,10 +50,10 @@ impl TranspositionTable {
         table
     }
     
-    pub fn insert(&self, position: &Position, depth: usize, alpha: isize, beta: isize, best_score: isize, best_move: Option<Move>) {
-        let bound_type = if best_score <= alpha {
+    pub fn insert(&self, position: &Position, depth: usize, alpha: isize, beta: isize, score: isize, mov: Option<Move>) {
+        let bound_type = if score <= alpha {
             BoundType::UpperBound
-        } else if best_score >= beta {
+        } else if score >= beta {
             BoundType::LowerBound
         } else {
             BoundType::Exact
@@ -62,23 +62,23 @@ impl TranspositionTable {
             if let Some(current_entry) = self.probe(position.hash_code()) {
                 depth > current_entry.depth ||
                     (depth == current_entry.depth &&
-                        (bound_type == BoundType::Exact && current_entry.bound_type != BoundType::Exact ||
-                        bound_type == BoundType::LowerBound && current_entry.bound_type == BoundType::UpperBound))
+                        ((bound_type == BoundType::Exact && current_entry.bound_type != BoundType::Exact) ||
+                            (bound_type == BoundType::LowerBound && current_entry.bound_type == BoundType::UpperBound)))
             } else {
                 true
             }
         };
         if do_store {
-            self.store(position.hash_code(), best_move, depth as u8, best_score as i32, bound_type);
+            self.store(position.hash_code(), mov, depth as u8, score as i32, bound_type);
             //#[cfg(debug_assertions)]
             if cfg!(debug_assertions)
             {
                 let entry = self.probe(position.hash_code()).unwrap();
                 println!("Debug info: TranspositionTable size is {}", self.item_count());
                 assert_eq!(entry.zobrist, position.hash_code());
-                assert_eq!(entry.best_move, best_move);
+                assert_eq!(entry.best_move, mov);
                 assert_eq!(entry.depth, depth);
-                assert_eq!(entry.score, best_score);
+                assert_eq!(entry.score, score);
                 assert_eq!(entry.bound_type, bound_type);
             }
         }
