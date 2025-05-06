@@ -4,7 +4,6 @@ use log::LevelFilter;
 use once_cell::sync::Lazy;
 
 #[derive(Parser, Debug, Clone)]
-#[clap(author, version, about, long_about = None)]
 pub struct Config {
     pub log_file: String,
     pub log_level: LevelFilter,
@@ -15,8 +14,16 @@ pub struct Config {
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     dotenv().ok();
     let matches = Command::new("Chess Engine")
-        .version("1.0")
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
         .about("A UCI chess engine")
+        .help_template(
+            "{bin} {version}\n\
+            {author}\n\n\
+            {about}\n\n\
+            USAGE:\n    {usage}\n\n\
+            OPTIONS:\n{all-args}",
+        )
         .arg(Arg::new("log-file").short('f').long("log-file").action(ArgAction::Set)
             .required(false)
             .default_value("./natto.log")
@@ -49,7 +56,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .required(false)
             .default_value("1048576")
             .value_parser(is_power_of_two)
-            .help("The maximum full move number of a position that will be considered for the opening book")
+            .help("the maximum number of items that the hash table can hold - must be a power of two")
             .env("ENGINE_HASH_SIZE")
         ).get_matches();
 
