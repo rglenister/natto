@@ -201,8 +201,8 @@ fn negamax_search(
                 // BoundType::UpperBound => if entry.score < beta {
                 //     beta = entry.score
                 // },
-                BoundType::UpperBound => {
-                    
+                BoundType::UpperBound => {  
+                    // do nothing
                 }
             }
             if alpha >= beta {
@@ -243,15 +243,20 @@ fn negamax_search(
         };
         if best_move.is_none() {
             best_score = evaluation::evaluate(position, depth, search_context.repeat_position_counts.as_ref());
+        } else {
+            if !search_context.stop_flag.load(Ordering::Relaxed) {
+                TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, best_move);
+            }
         }
-        TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, best_move);
         best_score
     } else {
         let mut score = evaluation::evaluate(position, ply, search_context.repeat_position_counts.as_ref());
         if !is_terminal_score(score) {
             score = quiescence::quiescence_search(position, (ply + 1) as isize, alpha, beta);
         }
-        TRANSPOSITION_TABLE.insert(position, 0, alpha_original, beta_original, score, None);
+        if !search_context.stop_flag.load(Ordering::Relaxed) {
+            TRANSPOSITION_TABLE.insert(position, 0, alpha_original, beta_original, score, None);
+        }
         score
     }
 }
