@@ -9,6 +9,7 @@ use crate::eval::opening_book::{LiChessOpeningBook, OpeningBook};
 use crate::{fen, uci, util};
 use crate::config::CONFIG;
 use crate::eval::search::iterative_search;
+use crate::eval::ttable::TRANSPOSITION_TABLE;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
 use crate::uci::{UciGoOptions, UciPosition};
@@ -100,17 +101,19 @@ impl Engine {
         let uci_pos = uci::parse_position(&input);
         if let Some(uci_pos) = uci_pos {
             *uci_position = Some(uci_pos.clone());
-            info!("uci set position to [{}] from input [{}]", fen::write(&uci_pos.end_position), &input);
+            info!("uci set position to [{}] with hash code [{}] from input [{}]", fen::write(&uci_pos.end_position), uci_pos.end_position.hash_code(), &input);
         } else {
             error!("failed to parse position from input [{}]", &input)
         }
     }
 
     fn uci_new_game(&self, uci_position: &mut Option<UciPosition>) {
+        info!("UCI new game command received");
         if let Some(book) = &self.opening_book {
             book.reset();
         }
         *uci_position = None;
+        TRANSPOSITION_TABLE.clear();
     }
 
     fn uci_go(&self, search_stop_flag: &&Arc<AtomicBool>, search_handle: &mut Option<JoinHandle<()>>, input: String, uci_position: &Option<UciPosition>) {
