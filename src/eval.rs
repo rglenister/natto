@@ -6,3 +6,5 @@ pub mod opening_book;
 
 pub mod node_counter;
 mod quiescence;
+mod pawns;
+mod kings;
