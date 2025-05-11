@@ -3,10 +3,13 @@ use once_cell::sync::Lazy;
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::{PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{King, Knight, Pawn, Queen};
-use crate::eval::search::MAXIMUM_SCORE;
+use crate::search::negamax::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
 use crate::{game, util};
+use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::eval::kings::score_king_safety;
+use crate::eval::pawns::score_pawn_structure;
 use crate::util::filter_bits;
 
 static COLUMN_SQUARE_INDEXES: Lazy<[u64; 8]> = Lazy::new(|| {
@@ -134,8 +137,11 @@ pub fn score_pieces(position: &Position) -> isize {
         score
     }
 
-    score_board_for_color(position.board(), position.side_to_move())
-        - score_board_for_color(position.board(), position.opposing_side())
+    (position.opposing_side() as isize - position.side_to_move() as isize) *
+        (score_board_for_color(position.board(), White)
+        - score_board_for_color(position.board(), Black)
+        + score_pawn_structure(position))
+        + score_king_safety(position)
 }
 
 #[cfg(test)]
@@ -149,55 +155,55 @@ mod tests {
         assert_eq!(score_pieces(&position), 0);
 
         let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_pieces(&missing_white_pawn), -100);
+        assert_eq!(score_pieces(&missing_white_pawn), -120);
 
         let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_pieces(&missing_black_pawn), 100);
+        assert_eq!(score_pieces(&missing_black_pawn), 120);
 
 
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
         let all_black_no_white: Position = Position::from(fen);
-        assert_eq!(score_pieces(&all_black_no_white), 3780);
+        assert_eq!(score_pieces(&all_black_no_white), 3940);
 
         let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
         let black_pawn_on_seventh_rank: Position = Position::from(fen);
-        assert_eq!(score_pieces(&black_pawn_on_seventh_rank), -260);
+        assert_eq!(score_pieces(&black_pawn_on_seventh_rank), -265);
     }
 
     #[test]
     fn test_pawn_scores() {
         let position: Position = Position::from("4k3/P7/8/8/8/6p1/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), 80);
+        assert_eq!(score_pieces(&position), 78);
     }
 
     #[test]
     fn test_knight_scores() {
         let position: Position = Position::from("N3k3/8/8/4n3/8/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), -60);
+        assert_eq!(score_pieces(&position), -62);
     }
 
     #[test]
     fn test_bishop_scores() {
         let position: Position = Position::from("b3k3/8/8/8/3B4/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), -30);
+        assert_eq!(score_pieces(&position), -32);
     }
 
     #[test]
     fn test_rook_scores() {
         let position: Position = Position::from("4k1r1/8/R7/8/8/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), 0);
+        assert_eq!(score_pieces(&position), -2);
     }
 
     #[test]
     fn test_queen_scores() {
         let position: Position = Position::from("4k1q1/8/QQ6/8/8/8/8/4K3 w - - 0 1");
-        assert_eq!(score_pieces(&position), 900);
+        assert_eq!(score_pieces(&position), 898);
     }
 
     #[test]
     fn test_king_scores() {
         let position: Position = Position::from("8/7k/8/8/8/2K5/8/8 w - - 0 1");
-        assert_eq!(score_pieces(&position), -40);
+        assert_eq!(score_pieces(&position), -38);
     }
 
     #[test]

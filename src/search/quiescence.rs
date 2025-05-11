@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use crate::chessboard::piece::{PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_pieces, PIECE_SCORES};
-use crate::eval::search::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::{move_generator, util};
 use crate::position::Position;
 use crate::r#move::{Move};

@@ -16,13 +16,14 @@ pub mod engine;
 
 pub mod config;
 
-
+mod opening_book;
+mod search;
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
 use log::info;
 use log::error;
-use crate::eval::ttable::TRANSPOSITION_TABLE;
+use crate::search::transposition_table::TRANSPOSITION_TABLE;
 use crate::config::CONFIG;
 
 fn main() {
