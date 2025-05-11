@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use dotenv::var;
 use log::{error, info};
 use once_cell::sync::Lazy;
-use crate::board::BoardSide::{KingSide, QueenSide};
-use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
+use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
+use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
 use crate::config::CONFIG;
 use crate::r#move::{BaseMove, Move};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
@@ -294,8 +294,8 @@ mod tests {
 
         mod move_packing {
             use super::*;
-            use crate::board::BoardSide::KingSide;
-            use crate::board::PieceType::Rook;
+            use crate::chessboard::board::BoardSide::KingSide;
+            use crate::chessboard::piece::PieceType::Rook;
             use crate::r#move::Move::{Castling, EnPassant, Promotion};
             #[test]
             fn test_basic_move() {

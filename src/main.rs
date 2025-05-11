@@ -2,9 +2,8 @@ extern crate core;
 
 use std::io::{self};
 pub mod fen;
-pub mod board;
+pub mod chessboard;
 pub mod r#move;
-pub mod bit_board;
 pub mod position;
 pub mod uci;
 pub mod util;

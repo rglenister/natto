@@ -1,5 +1,5 @@
-use crate::board::PieceColor::{Black, White};
-use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use std::ops::Not;
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 
@@ -38,15 +38,6 @@ pub enum PieceType {
     King
 }
 
-#[derive(Copy, Clone, Debug, Ord, PartialOrd)]
-#[derive(strum_macros::Display)]
-#[derive(EnumCountMacro, EnumIter)]
-#[derive(Eq, Hash, PartialEq)]
-#[repr(u8)]
-pub enum BoardSide {
-    KingSide = 0,
-    QueenSide = 1,
-}
 
 #[derive(Debug, PartialEq)]
 #[derive(Clone)]
@@ -58,16 +49,16 @@ pub struct Piece {
 impl Piece {
     pub fn to_char(&self) -> char {
         let first_letter: char =
-            if self.piece_type != Knight {
+            if self.piece_type != PieceType::Knight {
                 self.piece_type.to_string().chars().next().unwrap()
             } else {
                 'N'
             };
-        if self.piece_color == White { first_letter } else { first_letter.to_ascii_lowercase() }
+        if self.piece_color == PieceColor::White { first_letter } else { first_letter.to_ascii_lowercase() }
     }
 
     pub fn from_char(piece: char) -> Result<Piece, String>{
-        let piece_color = if piece.is_ascii_uppercase() { White } else { Black };
+        let piece_color = if piece.is_ascii_uppercase() { PieceColor::White } else { PieceColor::Black };
         let piece_type: PieceType = PieceType::from_char(piece)?;
         Ok(Piece {piece_type, piece_color})
     }
@@ -105,24 +96,10 @@ impl PieceColor {
     }
 }
 
-
-pub trait Board {
-
-    fn new() -> Self where Self: Sized;
-
-    fn get_piece(&self, square_index: usize) -> Option<Piece>;
-
-    fn put_piece(&mut self, square_index: usize, piece: Piece);
-
-    fn remove_piece(&mut self, square_index: usize) -> Option<Piece>;
-
-    fn clear(&mut self);
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::board::PieceColor::*;
-    use crate::board::{Piece, PieceType::*};
+    use crate::chessboard::piece::PieceColor::*;
+    use crate::chessboard::piece::{Piece, PieceType::*};
 
     #[test]
     fn test_piece_to_char() {
