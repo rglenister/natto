@@ -1,11 +1,10 @@
 use std::collections::HashMap;
-use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
-use crate::board::PieceColor;
-use crate::board::PieceColor::{Black, White};
-use crate::board::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
+use crate::chessboard::piece::PieceColor;
+use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::{move_generator, util};
-use crate::bit_board::BitBoard;
+use crate::chessboard::board::Board;
 use crate::eval::search;
 use crate::position::Position;
 use crate::r#move::Move;
@@ -81,7 +80,7 @@ impl Game {
                 square_indexes[i] = square_index;
                 i += 1;
             });
-            BitBoard::color(square_indexes[0] as usize) == BitBoard::color(square_indexes[1] as usize)
+            Board::color(square_indexes[0] as usize) == Board::color(square_indexes[1] as usize)
         }
 
         let all_bitboards = self.position.board().all_bitboards();

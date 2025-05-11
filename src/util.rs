@@ -1,6 +1,6 @@
-use crate::board;
-use crate::board::PieceColor;
-use crate::board::PieceColor::{Black, White};
+use crate::chessboard::piece;
+use crate::chessboard::piece::PieceColor;
+use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
 use crate::position::Position;
 use once_cell::sync::Lazy;
@@ -31,7 +31,7 @@ pub fn parse_square(square: &str) -> Option<usize> {
 }
 
 pub fn format_square(square_index: usize) -> String {
-    if square_index < board::NUMBER_OF_SQUARES {
+    if square_index < piece::NUMBER_OF_SQUARES {
         ((b'a' + (square_index % 8) as u8) as char).to_string().add(&(square_index / 8 + 1).to_string())
     } else {
         "Invalid square".to_string()
@@ -162,7 +162,7 @@ pub fn moves_string_to_raw_moves(moves: String) -> Option<Vec<RawMove>> {
 pub fn parse_move(raw_move_string: String) -> Option<RawMove> {
     let captures = RAW_MOVE_REGEX.captures(&raw_move_string);
     captures.map(|captures| {
-        let promote_to = captures.name("promote_to").map(|m| board::PieceType::from_char(m.as_str().to_string().chars().next().unwrap()));
+        let promote_to = captures.name("promote_to").map(|m| piece::PieceType::from_char(m.as_str().to_string().chars().next().unwrap()));
         RawMove::new(
             parse_square(captures.name("from").unwrap().as_str()).unwrap(),
             parse_square(captures.name("to").unwrap().as_str()).unwrap(),
@@ -182,9 +182,9 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bit_board::BitBoard;
-    use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::board::{Board, Piece, PieceType};
+    use crate::chessboard::board::Board;
+    use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
+    use crate::chessboard::piece::{Piece, PieceType};
     use crate::fen;
     use crate::r#move::BaseMove;
     use crate::r#move::Move::{Basic, Promotion};
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_print_board() {
-        let mut board = BitBoard::new();
+        let mut board = Board::new();
         board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
         board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
         let string = board.to_string();

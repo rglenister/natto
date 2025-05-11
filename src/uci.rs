@@ -1,4 +1,4 @@
-use crate::board::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
 use crate::position::Position;
 use crate::eval::search::{SearchParams, MAXIMUM_SEARCH_DEPTH};
@@ -156,8 +156,8 @@ pub fn send_to_gui(data: String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::PieceColor;
-    use crate::board::PieceColor::{Black, White};
+    use crate::chessboard::piece::PieceColor;
+    use crate::chessboard::piece::PieceColor::{Black, White};
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {
         let white_to_move = Position::new_game();
         let black_to_move = white_to_move.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None));

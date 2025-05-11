@@ -1,18 +1,19 @@
-use crate::bit_board::BitBoard;
-use crate::board::PieceColor::{Black, White};
-use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::board::{BoardSide, PieceColor, PieceType};
+use crate::chessboard::{board, piece};
+use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+use crate::chessboard::board::{Board, BoardSide};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{BaseMove, Move};
 use crate::position::Position;
 use crate::util::on_board;
-use crate::{bit_board, util};
+use crate::util;
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::option::Option;
 use strum::IntoEnumIterator;
+use crate::chessboard::piece::{PieceColor, PieceType};
 
 include!("util/generated_macro.rs");
 
@@ -79,7 +80,7 @@ pub fn has_legal_move(position: &Position) -> bool {
 
 fn generate_moves_using_callback<F>(position: &Position, process_move: &mut F) -> Option<()> where
     F: FnMut(&Move) -> Option<()> {
-    let board: &BitBoard = position.board();
+    let board: &Board = position.board();
     let occupied_squares = board.bitboard_all_pieces();
     let friendly_squares = board.bitboard_by_color(position.side_to_move());
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
@@ -99,7 +100,7 @@ fn generate_moves_using_callback<F>(position: &Position, process_move: &mut F) -
 
 pub fn get_non_sliding_moves_by_piece_type<F>(
     piece_type: PieceType,
-    square_indexes: usize,
+    square_indexes: u64,
     occupied_squares: u64,
     friendly_squares: u64,
     process_move: &mut F,
@@ -299,7 +300,7 @@ where F: FnMut(&Move) -> Option<()> {
     get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, process_move)?;
     let moves = BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
-            .map(|board_side| { &bit_board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
+            .map(|board_side| { &board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
             .map(|cmd| Castling { base_move: BaseMove::new(cmd.king_from_square, cmd.king_to_square, false), board_side: cmd.board_side })
             .collect::<Vec<_>>();
     for cm in moves {
@@ -311,7 +312,7 @@ where F: FnMut(&Move) -> Option<()> {
 fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()>
 where F: FnMut(&Move) -> Option<()> {
     let create_moves = |from: usize, to: usize, capture: bool| -> Option<()> {
-        if BitBoard::rank(to, position.side_to_move()) != 7 {
+        if Board::rank(to, position.side_to_move()) != 7 {
             process_move.borrow_mut()(&Basic { base_move: BaseMove::new(from, to, capture) })?;
         } else {
             for piece_type in [Knight, Bishop, Rook, Queen] {
@@ -337,7 +338,7 @@ where F: FnMut(&Move) -> Option<()> {
                 if create_moves(square_index as usize, one_step_forward.trailing_zeros() as usize, false).is_none() {
                     quit = true;
                 }
-                if !quit && BitBoard::rank(square_index as usize, side_to_move) == 1 {
+                if !quit && Board::rank(square_index as usize, side_to_move) == 1 {
                     let two_steps_forward = if side_to_move == White { one_step_forward << 8 } else { one_step_forward >> 8 };
                     if (occupied_squares & two_steps_forward) == 0 && create_moves(square_index as usize, two_steps_forward.trailing_zeros() as usize, false).is_none() {
                         quit = true;
@@ -430,7 +431,7 @@ mod tests {
     use crate::r#move::Move::Castling;
     use crate::move_generator::generate_moves;
 
-    use crate::board::BoardSide::{KingSide, QueenSide};
+    use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
     use crate::r#move::BaseMove;
 
     /// Verifies that a knight in a corner square can move to the expected squares

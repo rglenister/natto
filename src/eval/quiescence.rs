@@ -1,7 +1,7 @@
 use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
-use crate::board::{Board, PieceColor, PieceType};
-use crate::board::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+use crate::chessboard::piece::{PieceColor, PieceType};
+use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_pieces, PIECE_SCORES};
 use crate::eval::search::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::{move_generator, util};
@@ -218,8 +218,8 @@ fn find_square_increment(from_square: isize, to_square: isize) -> Option<isize> 
 #[cfg(test)]
 mod tests {
     use std::cmp::max;
-    use crate::board::PieceColor::{Black, White};
-    use crate::board::PieceType::{Bishop, King, Pawn, Rook};
+    use crate::chessboard::piece::PieceColor::{Black, White};
+    use crate::chessboard::piece::PieceType::{Bishop, King, Pawn, Rook};
     use crate::r#move::BaseMove;
     use super::*;
     #[test]

@@ -1,8 +1,10 @@
-use crate::bit_board::{BitBoard, CASTLING_METADATA, KING_HOME_SQUARE};
-use crate::board::BoardSide::{KingSide, QueenSide};
-use crate::board::PieceColor::{Black, White};
-use crate::board::PieceType::{King, Pawn, Rook};
-use crate::board::{Board, BoardSide, Piece, PieceColor};
+use crate::chessboard::board::Board;
+use crate::chessboard::board::{CASTLING_METADATA, KING_HOME_SQUARE};
+use crate::chessboard::board::BoardSide;
+use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
+use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceType::{King, Pawn, Rook};
+use crate::chessboard::piece::{Piece, PieceColor};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{Move, RawMove};
 use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
@@ -12,7 +14,7 @@ use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
-use std::{default, fmt};
+use std::fmt;
 
 include!("util/generated_macro.rs");
 
@@ -64,7 +66,7 @@ static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
 
 #[derive(Copy, Clone, Debug, Default, Eq)]
 pub struct Position {
-    board: BitBoard,
+    board: Board,
     side_to_move: PieceColor,
     castling_rights: [[bool; 2]; 2],
     en_passant_capture_square: Option<usize>,
@@ -96,7 +98,7 @@ impl PartialEq for Position {
 
 impl Position {
     pub(crate) fn new(
-        board: BitBoard,
+        board: Board,
         side_to_move: PieceColor,
         fen_castling_rights: String,
         en_passant_capture_square: Option<usize>,
@@ -121,11 +123,11 @@ impl Position {
         Position::from(NEW_GAME_FEN)
     }
 
-    pub fn board(&self) -> &BitBoard {
+    pub fn board(&self) -> &Board {
         &self.board
     }
 
-    pub fn board_mut(&mut self) -> &mut BitBoard {
+    pub fn board_mut(&mut self) -> &mut Board {
         &mut self.board
     }
 
@@ -320,9 +322,9 @@ impl Position {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bit_board::BitBoard;
-    use crate::board::PieceColor;
-    use crate::board::PieceType::Queen;
+    use crate::chessboard::board::Board;
+    use crate::chessboard::piece::PieceColor;
+    use crate::chessboard::piece::PieceType::Queen;
     use crate::r#move::Move::Castling;
     use crate::move_generator::generate_moves;
 
@@ -330,7 +332,7 @@ mod tests {
     fn test_general_usability() {
         let position: Position =
             Position::new(
-                BitBoard::new(),
+                Board::new(),
                 PieceColor::Black,
                 "KQkq".to_string(),
                 Some(31),

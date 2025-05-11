@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-use crate::bit_board::BitBoard;
-use crate::board::{PieceColor, PieceType};
-use crate::board::PieceType::{King, Knight, Pawn, Queen};
+use crate::chessboard::board::Board;
+use crate::chessboard::piece::{PieceColor, PieceType};
+use crate::chessboard::piece::PieceType::{King, Knight, Pawn, Queen};
 use crate::eval::search::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
@@ -11,7 +11,6 @@ use crate::util::filter_bits;
 
 static COLUMN_SQUARE_INDEXES: Lazy<[u64; 8]> = Lazy::new(|| {
     let mut result = [0; 8];
-    let b: u64 = !0;
     for column_index in 0..8 {
         result[column_index] = filter_bits(!0, |square_index| square_index % 8 == column_index as u64);
     }
@@ -118,7 +117,7 @@ pub fn evaluate(position: &Position, depth: usize, historic_repeat_position_coun
 }
 
 pub fn score_pieces(position: &Position) -> isize {
-    fn score_board_for_color(board: &BitBoard, color: PieceColor) -> isize {
+    fn score_board_for_color(board: &Board, color: PieceColor) -> isize {
         let bitboards = board.bitboards_for_color(color);
         let mut score: isize = 0;
         util::process_bits(bitboards[Pawn as usize], |square_index| {
