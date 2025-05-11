@@ -10,6 +10,7 @@ use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::King;
 use crate::r#move::{Move, RawMove};
 use crate::move_generator::generate_moves;
+use crate::opening_book::opening_book::OpeningBook;
 use crate::position::Position;
 use crate::util::find_generated_move;
 
@@ -30,9 +31,6 @@ pub enum ErrorKind {
     OutOfBook,
 }
 
-pub trait OpeningBook {
-    fn get_opening_move(&self, position: &Position) -> Result<RawMove, ErrorKind>;
-}
 
 pub struct LiChessOpeningBook {
     out_of_book: RefCell<bool>,
@@ -145,7 +143,7 @@ fn validate_move(position: &Position, raw_chess_move: RawMove) -> Result<Move, E
 
 #[cfg(test)]
 mod tests {
-    use crate::eval::opening_book::{get_opening_move, map_castling_move_to_uci_format, ErrorKind, LiChessOpeningBook, OpeningBook};
+    use crate::opening_book::lichess_book::{get_opening_move, map_castling_move_to_uci_format, ErrorKind, LiChessOpeningBook, OpeningBook};
     use crate::position::Position;
 
     #[test]

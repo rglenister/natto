@@ -1,4 +1,3 @@
-use crate::chessboard::board;
 use crate::chessboard::piece::PieceColor::White;
 use crate::chessboard::piece::{Piece};
 use crate::position::Position;
