@@ -7,7 +7,7 @@ use crate::search::negamax::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
 use crate::{game, util};
-use crate::board::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::eval::kings::score_king_safety;
 use crate::eval::pawns::score_pawn_structure;
 use crate::util::filter_bits;

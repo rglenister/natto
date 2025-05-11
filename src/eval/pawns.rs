@@ -1,5 +1,4 @@
-use crate::bit_board::BitBoard;
-use crate::board::{Board, Piece, PieceColor, PieceType};
+use crate::chessboard::piece::{PieceColor, PieceType};
 use crate::position::Position;
 
 pub fn score_pawn_structure(position: &Position) -> isize {
