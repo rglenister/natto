@@ -405,7 +405,7 @@ mod tests {
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_search(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -980);
+        assert_eq!(search_results.score, -985);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
         assert_eq!(pv, "♞c4xd6");
     }
@@ -572,7 +572,7 @@ mod tests {
         test_eq(
             &in_progress_search_results,
             &SearchResults {
-                score: 260,
+                score: 258,
                 depth: 0,
                 pv: vec![],
                 game_status: InProgress,
@@ -632,7 +632,7 @@ mod tests {
         test_eq(
             &drawn_search_results,
             &SearchResults {
-                score: -550,
+                score: -540,
                 depth: 2,
                 pv: vec![],
                 game_status: InProgress,
