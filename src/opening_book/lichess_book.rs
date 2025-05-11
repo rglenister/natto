@@ -16,34 +16,21 @@ include!("../util/generated_macro.rs");
 
 
 pub struct LiChessOpeningBook {
-    out_of_book: RefCell<bool>,
 }
 
 impl LiChessOpeningBook {
     pub fn new() -> LiChessOpeningBook {
         LiChessOpeningBook {
-            out_of_book: RefCell::new(false),
-        }       
+        }
     }
-    pub fn reset(&self) {
-        *self.out_of_book.borrow_mut() = false;
-    }
-
 }
 
 impl OpeningBook for LiChessOpeningBook {
     fn get_opening_move(&self, position: &Position) -> Result<RawMove, ErrorKind> {
-        if !*self.out_of_book.borrow() {
-            let result = get_opening_move(position);
-            match result {
-                Ok(book_move) => Ok(book_move),
-                Err(e) => {
-                    *self.out_of_book.borrow_mut() = true;
-                    Err(e)
-                },
-            }
-        } else {
-            Err(ErrorKind::OutOfBook)
+        let result = get_opening_move(position);
+        match result {
+            Ok(book_move) => Ok(book_move),
+            Err(e) => Err(e),
         }
     }
 }
@@ -135,16 +122,6 @@ mod tests {
         let opening_move = opening_book.get_opening_move(&Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
         let opening_move = opening_move.unwrap();
         assert!(opening_move.promote_to.is_none());
-    }
-
-    #[test]
-    fn test_opening_book_goes_into_out_of_book_state() {
-        let opening_book = LiChessOpeningBook::new();
-        let result = opening_book.get_opening_move(&Position::from("k7/8/8/8/8/8/8/K7 w - - 0 1"));
-        assert_eq!(result.err().unwrap(), ErrorKind::NoOpeningMovesFound);
-
-        let result = opening_book.get_opening_move(&Position::from("k7/8/8/8/8/8/8/K7 w - - 0 1"));
-        assert_eq!(result.err().unwrap(), ErrorKind::OutOfBook);
     }
 
     #[test]

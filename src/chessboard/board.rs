@@ -8,6 +8,10 @@ use strum_macros::EnumIter;
 
 include!("../util/generated_macro.rs");
 
+
+pub(crate) static NUMBER_OF_SQUARES: usize = 64;
+
+
 #[derive(Clone, Debug, Copy, Default)]
 #[derive(PartialEq, Eq)]
 pub struct Board {

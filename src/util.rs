@@ -1,4 +1,4 @@
-use crate::chessboard::piece;
+use crate::chessboard::{board, piece};
 use crate::chessboard::piece::PieceColor;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
@@ -31,7 +31,7 @@ pub fn parse_square(square: &str) -> Option<usize> {
 }
 
 pub fn format_square(square_index: usize) -> String {
-    if square_index < piece::NUMBER_OF_SQUARES {
+    if square_index < board::NUMBER_OF_SQUARES {
         ((b'a' + (square_index % 8) as u8) as char).to_string().add(&(square_index / 8 + 1).to_string())
     } else {
         "Invalid square".to_string()

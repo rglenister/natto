@@ -110,9 +110,6 @@ impl Engine {
 
     fn uci_new_game(&self, uci_position: &mut Option<UciPosition>) {
         info!("UCI new game command received");
-        if let Some(book) = &self.opening_book {
-            book.reset();
-        }
         *uci_position = None;
         TRANSPOSITION_TABLE.clear();
     }

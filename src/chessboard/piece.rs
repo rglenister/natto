@@ -3,8 +3,6 @@ use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Roo
 use std::ops::Not;
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 
-pub(crate) static NUMBER_OF_SQUARES: usize = 64;
-
 #[derive(Debug, EnumCountMacro, EnumIter, Default)]
 #[derive(Clone)]
 #[derive(Copy)]

@@ -1,8 +1,8 @@
 use crate::chessboard::piece::PieceColor::White;
-use crate::chessboard::piece::{Piece};
+use crate::chessboard::piece::Piece;
 use crate::position::Position;
 use crate::util::{create_color, parse_square};
-use crate::chessboard::{piece};
+use crate::chessboard::board;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
@@ -59,11 +59,11 @@ pub fn parse(fen: String) -> Result<Position, ErrorKind> {
         .and_then(|caps| FenParts::try_from(caps).ok())
         .ok_or_else(|| ErrorKind::InvalidFen(fen.clone()))?;
 
-    if fen_parts.board.chars().count() != piece::NUMBER_OF_SQUARES {
+    if fen_parts.board.chars().count() != board::NUMBER_OF_SQUARES {
         return Err(ErrorKind::InvalidFen(fen.clone()));
     }
     let mut board: Board = Board::new();
-    for i in 0..piece::NUMBER_OF_SQUARES {
+    for i in 0..board::NUMBER_OF_SQUARES {
         let ch = fen_parts.board.chars().nth(i).unwrap();
         if !ch.is_whitespace() {
             board.put_piece(i, Piece::from_char(ch).unwrap());
