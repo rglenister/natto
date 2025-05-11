@@ -15,3 +15,5 @@ mod engine;
 
 pub mod config;
 mod chessboard;
+mod opening_book;
+mod search;

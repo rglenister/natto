@@ -8,7 +8,7 @@ use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate_moves;
 use crate::position::Position;
-use crate::eval::search::SearchResults;
+use crate::search::negamax::SearchResults;
 use crate::util;
 use phf::phf_map;
 

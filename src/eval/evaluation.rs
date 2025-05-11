@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::{PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{King, Knight, Pawn, Queen};
-use crate::eval::search::MAXIMUM_SCORE;
+use crate::search::negamax::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
 use crate::{game, util};

@@ -1,7 +1,7 @@
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
 use crate::position::Position;
-use crate::eval::search::{SearchParams, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{SearchParams, MAXIMUM_SEARCH_DEPTH};
 use crate::util;
 use log::{error, info};
 use once_cell::sync::Lazy;

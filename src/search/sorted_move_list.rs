@@ -43,7 +43,7 @@ impl SortedMoveList {
 #[cfg(test)]
 mod tests {
     use crate::r#move::{BaseMove, Move};
-    use crate::eval::sorted_move_list::SortedMoveList;
+    use crate::search::sorted_move_list::SortedMoveList;
 
     #[test]
     fn test_add_zero_moves() {
