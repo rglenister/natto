@@ -1,8 +1,6 @@
 
 pub mod fen;
-mod board;
 mod r#move;
-mod bit_board;
 pub mod position;
 
 
@@ -16,3 +14,6 @@ pub mod eval;
 mod engine;
 
 pub mod config;
+mod chessboard;
+mod opening_book;
+mod search;

@@ -3,7 +3,7 @@ use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::move_generator::generate_moves;
 use crate::position::Position;
-use crate::eval::sorted_move_list::SortedMoveList;
+use crate::search::sorted_move_list::SortedMoveList;
 use crate::{fen, move_generator, r#move, uci};
 use itertools::Itertools;
 use log::{debug, info, error};
@@ -13,10 +13,11 @@ use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
-use crate::eval::{evaluation, quiescence};
+use crate::eval::evaluation;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::eval::ttable::{BoundType, TRANSPOSITION_TABLE};
+use crate::search::quiescence;
+use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
 use crate::util::replay_moves;
 
 include!("../util/generated_macro.rs");
@@ -378,7 +379,7 @@ mod tests {
     use crate::r#move::RawMove;
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
-    use crate::eval::search::{iterative_search, MAXIMUM_SCORE};
+    use crate::search::negamax::{iterative_search, MAXIMUM_SCORE};
     use crate::{move_formatter, uci, util};
 
     fn test_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {

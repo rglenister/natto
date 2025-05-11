@@ -1,15 +1,16 @@
-use crate::board::PieceType::{King, Pawn};
-use crate::board::{Board, BoardSide, Piece, PieceColor, PieceType};
+use crate::chessboard::piece::PieceType::{King, Pawn};
+use crate::chessboard::piece::{Piece, PieceColor, PieceType};
 use crate::util::process_bits;
 use std::fmt;
 use std::fmt::Write;
 use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
-include!("util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 #[derive(Clone, Debug, Copy, Default)]
 #[derive(PartialEq, Eq)]
-pub struct BitBoard {
+pub struct Board {
     bit_boards: [[u64; 6]; 2],
 }
 
@@ -66,7 +67,58 @@ const CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] =
         ]
     ];
 
-impl BitBoard {
+
+#[derive(Copy, Clone, Debug, Ord, PartialOrd)]
+#[derive(strum_macros::Display)]
+#[derive(strum_macros::EnumCount, EnumIter)]
+#[derive(Eq, Hash, PartialEq)]
+#[repr(u8)]
+pub enum BoardSide {
+    KingSide = 0,
+    QueenSide = 1,
+}
+
+
+impl Board {
+    pub fn new() -> Self {
+        Self {
+            bit_boards: [[0; 6]; 2]
+        }
+    }
+
+    pub fn get_piece(&self, square_index: usize) -> Option<Piece> {
+        let mask: u64 = 1 << square_index;
+        for piece_color in PieceColor::iter() {
+            for piece_type in PieceType::iter() {
+                if self.bit_boards[piece_color as usize][piece_type.clone() as usize] & mask != 0 {
+                    return Some(Piece { piece_color, piece_type });
+                }
+            }
+        }
+        None
+    }
+
+    pub fn put_piece(&mut self, square_index: usize, piece: Piece) {
+        self.remove_piece(square_index);
+        self.bit_boards[piece.piece_color as usize][piece.piece_type as usize] |= 1 << square_index;
+    }
+
+    pub fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
+        let mask: u64 = 1 << square_index;
+        for piece_color in PieceColor::iter() {
+            for piece_type in PieceType::iter() {
+                if self.bit_boards[piece_color as usize][piece_type as usize] & mask != 0 {
+                    self.bit_boards[piece_color as usize][piece_type as usize] &= !mask;
+                    return Some(Piece { piece_color, piece_type })
+                }
+            }
+        }
+        None
+    }
+
+    pub fn clear(&mut self) {
+        self.bit_boards = [[0; 6]; 2]
+    }
     pub fn all_bitboards(&self) -> [[u64; 6]; 2] {
         self.bit_boards
     }
@@ -74,7 +126,7 @@ impl BitBoard {
         self.bit_boards[piece_color as usize]
     }
     pub fn bitboard_all_pieces(&self) -> u64 {
-        BitBoard::bitboard_by_color(self, PieceColor::White) | BitBoard::bitboard_by_color(self, PieceColor::Black)
+        Board::bitboard_by_color(self, PieceColor::White) | Board::bitboard_by_color(self, PieceColor::Black)
     }
 
     pub fn bitboard_by_color_and_piece_type(&self, piece_color: PieceColor, piece_type: PieceType) -> u64 {
@@ -147,7 +199,7 @@ impl BitBoard {
     }
     
     pub fn color(square_index: usize) -> PieceColor {
-        if BitBoard::row(square_index) & 1 != BitBoard::column(square_index) & 1 {
+        if Board::row(square_index) & 1 != Board::column(square_index) & 1 {
             PieceColor::White
         } else {
             PieceColor::Black
@@ -156,60 +208,18 @@ impl BitBoard {
 
     pub fn rank(square_index: usize, piece_color: PieceColor) -> usize {
         if piece_color == PieceColor::White {
-            BitBoard::row(square_index)
+            Board::row(square_index)
         } else {
-            7 - BitBoard::row(square_index)
+            7 - Board::row(square_index)
         }
     }
 
     pub fn is_along_side(square_1: usize, square_2: usize) -> bool {
-        (square_2 as i32 - square_1 as i32).abs() == 1 && BitBoard::row(square_1) == BitBoard::row(square_2)
+        (square_2 as i32 - square_1 as i32).abs() == 1 && Board::row(square_1) == Board::row(square_2)
     }
 }
 
-impl Board for BitBoard {
-    fn new() -> Self {
-        Self {
-            bit_boards: [[0; 6]; 2]
-        }
-    }
-
-    fn get_piece(&self, square_index: usize) -> Option<Piece> {
-        let mask: u64 = 1 << square_index;
-        for piece_color in PieceColor::iter() {
-            for piece_type in PieceType::iter() {
-                if self.bit_boards[piece_color as usize][piece_type.clone() as usize] & mask != 0 {
-                    return Some(Piece { piece_color, piece_type });
-                }
-            }
-        }
-        None
-    }
-
-    fn put_piece(&mut self, square_index: usize, piece: Piece) {
-        self.remove_piece(square_index);
-        self.bit_boards[piece.piece_color as usize][piece.piece_type as usize] |= 1 << square_index;
-    }
-
-    fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
-        let mask: u64 = 1 << square_index;
-        for piece_color in PieceColor::iter() {
-            for piece_type in PieceType::iter() {
-                if self.bit_boards[piece_color as usize][piece_type as usize] & mask != 0 {
-                    self.bit_boards[piece_color as usize][piece_type as usize] &= !mask;
-                    return Some(Piece { piece_color, piece_type })
-                }
-            }
-        }
-        None
-    }
-
-    fn clear(&mut self) {
-        self.bit_boards = [[0; 6]; 2]
-    }
-}
-
-impl fmt::Display for BitBoard {
+impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for row in (0..8).rev() {
             for col in 0..8 {
@@ -233,29 +243,29 @@ impl fmt::Display for BitBoard {
 mod tests {
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
-    use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
+    use crate::chessboard::board::PieceType::{Bishop, Knight, Queen, Rook};
 
     #[test]
     fn test_get_from_empty_square() {
-        let bit_board: crate::bit_board::BitBoard = BitBoard::new();
-        assert!(bit_board.get_piece(0).is_none());
+        let board: Board = Board::new();
+        assert!(board.get_piece(0).is_none());
     }
 
     #[test]
     fn test_get() {
-        let mut bit_board: crate::bit_board::BitBoard = BitBoard::new();
+        let mut board: Board = Board::new();
         let square_index = 63;
         let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight};
-        bit_board.put_piece(square_index, piece);
-        assert!(bit_board.get_piece(square_index).is_some());
-        let retrieved_piece = bit_board.get_piece(square_index).expect("whatever");
+        board.put_piece(square_index, piece);
+        assert!(board.get_piece(square_index).is_some());
+        let retrieved_piece = board.get_piece(square_index).expect("whatever");
         assert_eq!(retrieved_piece.piece_color, PieceColor::White);
         assert_eq!(retrieved_piece.piece_type, PieceType::Knight);
     }
 
     #[test]
     fn test_remove() {
-        let mut bit_board: BitBoard = BitBoard::new();
+        let mut bit_board: Board = Board::new();
         let square_index = 1;
         assert!(bit_board.remove_piece(square_index).is_none());
         let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight };
@@ -266,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let mut bit_board: BitBoard = BitBoard::new();
+        let mut bit_board: Board = Board::new();
         let square_index = 16;
         assert!(bit_board.get_piece(square_index).is_none());
         bit_board.put_piece(square_index, Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight});
@@ -277,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_king_side_white_castling() {
-        let mut bit_board: BitBoard = BitBoard::new();
+        let mut bit_board: Board = Board::new();
         assert_eq!(bit_board.can_castle(PieceColor::White, &BoardSide::KingSide), false);
         bit_board.put_piece(4, Piece { piece_color: PieceColor::White, piece_type: PieceType::King});
         assert_eq!(bit_board.can_castle(PieceColor::White, &BoardSide::KingSide), false);
@@ -296,7 +306,7 @@ mod tests {
     }
     #[test]
     fn test_queen_side_white_castling() {
-        let mut bit_board: BitBoard = BitBoard::new();
+        let mut bit_board: Board = Board::new();
         assert_eq!(bit_board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
         bit_board.put_piece(4, Piece { piece_color: PieceColor::White, piece_type: PieceType::King});
         assert_eq!(bit_board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
@@ -321,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_king_side_black_castling() {
-        let mut bit_board: BitBoard = BitBoard::new();
+        let mut bit_board: Board = Board::new();
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::KingSide), false);
         bit_board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: PieceType::King});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::KingSide), false);
@@ -341,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_queen_side_black_castling() {
-        let mut bit_board: BitBoard = BitBoard::new();
+        let mut bit_board: Board = Board::new();
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         bit_board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: King});
         assert_eq!(bit_board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
@@ -366,8 +376,8 @@ mod tests {
 
     #[test]
     fn test_equals() {
-        let mut bit_board1: BitBoard = BitBoard::new();
-        let mut bit_board2: BitBoard = BitBoard::new();
+        let mut bit_board1: Board = Board::new();
+        let mut bit_board2: Board = Board::new();
         assert_eq!(bit_board1, bit_board2);
 
         bit_board1.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
@@ -379,11 +389,11 @@ mod tests {
 
     #[test]
     fn test_color() {
-        assert_eq!(BitBoard::color(0), PieceColor::Black);
-        assert_eq!(BitBoard::color(1), PieceColor::White);
-        assert_eq!(BitBoard::color(8), PieceColor::White);
-        assert_eq!(BitBoard::color(9), PieceColor::Black);
-        assert_eq!(BitBoard::color(17), PieceColor::White);
-        assert_eq!(BitBoard::color(63), PieceColor::Black);
+        assert_eq!(Board::color(0), PieceColor::Black);
+        assert_eq!(Board::color(1), PieceColor::White);
+        assert_eq!(Board::color(8), PieceColor::White);
+        assert_eq!(Board::color(9), PieceColor::Black);
+        assert_eq!(Board::color(17), PieceColor::White);
+        assert_eq!(Board::color(63), PieceColor::Black);
     }
 }

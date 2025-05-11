@@ -1,5 +1,6 @@
-use crate::board::BoardSide::KingSide;
-use crate::board::{BoardSide, PieceType};
+use crate::chessboard::board::BoardSide::KingSide;
+use crate::chessboard::board::BoardSide;
+use crate::chessboard::piece::PieceType;
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::util::format_square;
 use std::fmt;
@@ -108,8 +109,9 @@ pub fn convert_chess_move_to_raw(chess_move: &Move) -> RawMove {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::PieceType::Rook;
-    use crate::board::{BoardSide, PieceType};
+    use crate::chessboard::piece::PieceType::Rook;
+    use crate::chessboard::board::BoardSide;
+    use crate::chessboard::piece::PieceType;
     use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
     use crate::r#move::{convert_chess_moves_to_raw, BaseMove, Move, RawMove};
 

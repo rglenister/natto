@@ -1,13 +1,14 @@
-use crate::bit_board::BitBoard;
-use crate::board::PieceColor::White;
-use crate::board::{Board, Piece};
+use crate::chessboard::piece::PieceColor::White;
+use crate::chessboard::piece::{Piece};
 use crate::position::Position;
 use crate::util::{create_color, parse_square};
-use crate::{board, util};
+use crate::chessboard::{piece};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use thiserror::Error;
+use crate::chessboard::board::Board;
+use crate::util;
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
     r"^(?<board>((?<RankItem>[pnbrqkPNBRQK1-8]{1,8})/?){8})\s+(?<side_to_move>[bw])\s+(?<castling_rights>-|K?Q?k?q?)\s+(?<en_passant_target_square>-|[a-h][3-6])\s+(?<halfmove_clock>\d+)\s+(?<fullmove_number>\d+)\s*$"
@@ -58,11 +59,11 @@ pub fn parse(fen: String) -> Result<Position, ErrorKind> {
         .and_then(|caps| FenParts::try_from(caps).ok())
         .ok_or_else(|| ErrorKind::InvalidFen(fen.clone()))?;
 
-    if fen_parts.board.chars().count() != board::NUMBER_OF_SQUARES {
+    if fen_parts.board.chars().count() != piece::NUMBER_OF_SQUARES {
         return Err(ErrorKind::InvalidFen(fen.clone()));
     }
-    let mut board: BitBoard = BitBoard::new();
-    for i in 0..board::NUMBER_OF_SQUARES {
+    let mut board: Board = Board::new();
+    for i in 0..piece::NUMBER_OF_SQUARES {
         let ch = fen_parts.board.chars().nth(i).unwrap();
         if !ch.is_whitespace() {
             board.put_piece(i, Piece::from_char(ch).unwrap());
@@ -88,7 +89,7 @@ pub fn write(position: &Position) -> String {
                    position.half_move_clock(),
                    position.full_move_number());
 
-    fn write_board(board: &BitBoard) -> String {
+    fn write_board(board: &Board) -> String {
         return (0..64)
             .map(|sq| board.get_piece(sq))
             .map(|p| p.map_or(' ', |p| p.to_char()))
@@ -96,7 +97,7 @@ pub fn write(position: &Position) -> String {
             .chunks(8)
             .rev()
             .map(|c| c.iter().collect::<String>())
-            .map(|row| encode_row(&row))
+            .map(|row| encode_row(row.as_str()))
             .join("/");
 
         fn encode_row(row: &str) -> String {
@@ -154,7 +155,7 @@ fn reverse_rows(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::PieceColor::White;
+    use crate::chessboard::piece::PieceColor::White;
     use crate::position::NEW_GAME_FEN;
 
     #[test]

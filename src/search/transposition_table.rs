@@ -2,12 +2,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use dotenv::var;
 use log::{error, info};
 use once_cell::sync::Lazy;
-use crate::board::BoardSide::{KingSide, QueenSide};
-use crate::board::PieceType::{Bishop, Knight, Queen, Rook};
+use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
+use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
 use crate::config::CONFIG;
 use crate::r#move::{BaseMove, Move};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-pub use crate::eval::search::MAXIMUM_SCORE;
+pub use crate::search::negamax::MAXIMUM_SCORE;
 use crate::position::Position;
 
 pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
@@ -213,7 +213,7 @@ pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::ttable::BoundType::{LowerBound, UpperBound};
+    use crate::search::transposition_table::BoundType::{LowerBound, UpperBound};
     use crate::position::Position;
     
     #[test]
@@ -261,7 +261,7 @@ mod tests {
     }
 
     mod entry_packing {
-        use crate::eval::ttable::BoundType::Exact;
+        use crate::search::transposition_table::BoundType::Exact;
         use crate::game::GameStatus::DrawnByInsufficientMaterial;
         use super::*;
 
@@ -294,8 +294,8 @@ mod tests {
 
         mod move_packing {
             use super::*;
-            use crate::board::BoardSide::KingSide;
-            use crate::board::PieceType::Rook;
+            use crate::chessboard::board::BoardSide::KingSide;
+            use crate::chessboard::piece::PieceType::Rook;
             use crate::r#move::Move::{Castling, EnPassant, Promotion};
             #[test]
             fn test_basic_move() {
