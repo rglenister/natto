@@ -151,7 +151,7 @@ impl SearchResults {
 pub fn iterative_search(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
     let mut search_results = SearchResults::default();
-    for iteration_max_depth in 0..=search_params.max_depth {
+    for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
         let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
         let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
@@ -161,6 +161,7 @@ pub fn iterative_search(position: &Position, search_params: &SearchParams, stop_
             uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
             if search_results.game_status == Checkmate {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
+                TRANSPOSITION_TABLE.clear();
                 break;
             }
         } else {
@@ -243,7 +244,7 @@ fn negamax_search(
             }
         };
         if best_move.is_none() {
-            best_score = evaluation::evaluate(position, depth, search_context.repeat_position_counts.as_ref());
+            best_score = evaluation::evaluate(position, depth - 1, search_context.repeat_position_counts.as_ref());
         } else {
             if !search_context.stop_flag.load(Ordering::Relaxed) {
                 TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, best_move);
@@ -414,12 +415,12 @@ mod tests {
     fn test_already_checkmated() {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(
             search_results,
             SearchResults {
                 score: -100_000,
-                depth: 0,
+                depth: 1,
                 pv: vec![],
                 game_status: Checkmate,
             }
@@ -430,12 +431,12 @@ mod tests {
     fn test_already_stalemated() {
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_search(&position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_search(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
         assert_eq!(
             search_results,
             SearchResults {
                 score: 0,
-                depth: 0,
+                depth: 1,
                 pv: vec![],
                 game_status: Stalemate,
             }
@@ -565,28 +566,28 @@ mod tests {
 
     #[test]
     fn test_50_move_rule_is_recognised() {
-        let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 99 76";
+        let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 98 76";
         let in_progress_position: Position = Position::from(fen);
-        let in_progress_search_results = iterative_search(&in_progress_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(in_progress_search_results.pv_moves_as_string(), "".to_string());
+        let in_progress_search_results = iterative_search(&in_progress_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        assert_eq!(in_progress_search_results.pv_moves_as_string(), "h5-f4".to_string());
         test_eq(
             &in_progress_search_results,
             &SearchResults {
-                score: 258,
-                depth: 0,
+                score: 302,
+                depth: 1,
                 pv: vec![],
                 game_status: InProgress,
             }
         );
 
         let drawn_position = in_progress_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
-        let drawn_position_search_results = iterative_search(&drawn_position, &SearchParams::new_by_depth(0), Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(drawn_position_search_results.pv_moves_as_string(), "".to_string());
+        let drawn_position_search_results = iterative_search(&drawn_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
             &drawn_position_search_results,
             &SearchResults {
                 score: 0,
-                depth: 0,
+                depth: 1,
                 pv: vec![],
                 game_status: DrawnByFiftyMoveRule,
             }

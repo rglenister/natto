@@ -82,6 +82,7 @@ impl Engine {
     fn main_loop(&self, rx: &Receiver<String>, search_handle: &mut Option<JoinHandle<()>>, uci_position: &mut Option<UciPosition>) {
         while !self.main_loop_quit_flag.load(Ordering::Relaxed) {
             if let Ok(input) = rx.recv() {
+                debug!("Received from engine host: {}", input);
                 let command = UciCommand::from_input(&input);
                 match command {
                     UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
