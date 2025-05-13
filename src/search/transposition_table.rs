@@ -74,7 +74,6 @@ impl TranspositionTable {
             if cfg!(debug_assertions)
             {
                 let entry = self.probe(position.hash_code()).unwrap();
-                println!("Debug info: TranspositionTable size is {}", self.item_count());
                 assert_eq!(entry.zobrist, position.hash_code());
                 assert_eq!(entry.best_move, mov);
                 assert_eq!(entry.depth, depth);

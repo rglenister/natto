@@ -117,24 +117,27 @@ pub fn iterative_search(position: &Position, search_params: &SearchParams, stop_
     let mut search_results_stack = vec!();
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
-        let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-        let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            let search_results = create_search_results(position, score, iteration_max_depth, pv.to_vec(), search_context);
-            debug!("Search results for depth {}: {}", iteration_max_depth, search_results);
-            uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
-            if search_results.game_status == Checkmate {
-                info!("Found mate at depth {} - stopping search", iteration_max_depth);
-                TRANSPOSITION_TABLE.clear();
-                search_results_stack.push(search_results);
-                break;
-            }
+            let search_results = negamax(position, iteration_max_depth, &mut search_context);
             search_results_stack.push(search_results);
         } else {
             break;
         }
     }
     search_results_stack.pop().unwrap()
+}
+
+fn negamax(position: &Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
+    let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+    let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+    let search_results = create_search_results(position, score, max_depth, pv.to_vec(), search_context);
+    debug!("Search results for depth {}: {}", max_depth, search_results);
+    uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
+    if search_results.game_status == Checkmate {
+        info!("Found mate at depth {} - stopping search", max_depth);
+        TRANSPOSITION_TABLE.clear();
+    }
+    search_results
 }
 
 fn negamax_search(
@@ -229,22 +232,21 @@ fn negamax_search(
     }
 }
 
-fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: SearchContext) -> SearchResults {
+fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
     let last_position = pv.last().map_or(position, |m| &m.0);
-    let game_status = get_game_status(last_position, search_context.repeat_position_counts);
+    let game_status = get_game_status(last_position, search_context.repeat_position_counts.clone());
     if pv.len() > 0 && search_context.best_move.is_some() {
         if pv[0].1 != search_context.best_move.unwrap() {
             error!("Best move [{}] does not match best move in PV [{}]", r#move::convert_chess_move_to_raw(&search_context.best_move.unwrap()).to_string(), r#move::convert_chess_move_to_raw(&pv[0].1).to_string());
         }
     }
-    let results = SearchResults {
+    SearchResults {
         position: position.clone(),
         score,
         depth,
         pv: pv,
         game_status,
-    };
-    results
+    }
 }
 
 fn retrieve_principal_variation(position: Position) -> Vec<(Position, Move)> {
@@ -441,7 +443,7 @@ mod tests {
             &SearchResults {
                 position,
                 score: MAXIMUM_SCORE - 1,
-                depth: 1,
+                depth: 3,
                 pv: vec![],
                 game_status: Checkmate,
             }
