@@ -372,5 +372,59 @@ mod tests {
         assert_eq!(find_square_increment(sq!("a6"), sq!("c4")), Some(-7));
         assert_eq!(find_square_increment(sq!("c4"), sq!("a6")), Some(7));
     }
+    
+    mod q_search {
+        use crate::position::Position;
+        use crate::search::negamax::MAXIMUM_SCORE;
+        use crate::search::quiescence::quiescence_search;
+
+        #[test]
+        fn test_only_kings() {
+            let fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            assert_eq!(score, -2);
+        }
+
+        #[test]
+        fn test_queening_by_capturing() {
+            let fen = "4q3/3P4/8/8/8/7k/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            assert_eq!(score, 928);
+        }
+
+        #[test]
+        fn test_multiple_capture_options() {
+            let fen = "5rk1/2q2pbp/1p2pnp1/pP1pP3/P2P1P2/2N2BN1/6PP/R2Q1RK1 w - - 0 1";
+            let position: Position = Position::from(fen);
+            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            assert_eq!(score, 955);
+        }
+
+        #[test]
+        fn test_white_king_under_attack() {
+            let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
+            let position: Position = Position::from(fen);
+            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            assert_eq!(score, -444);
+        }
+
+        #[test]
+        fn test_no_good_capture() {
+            let fen = "r4rk1/pp3ppp/2n1b3/3p4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
+            let position: Position = Position::from(fen);
+            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            assert_eq!(score, -20);
+        }
+
+        #[test]
+        fn test_good_capture() {
+            let fen = "r4rk1/pp3ppp/2n1b3/3q4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
+            let position: Position = Position::from(fen);
+            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            assert_eq!(score, 755);
+        }
+    }
 }
 
