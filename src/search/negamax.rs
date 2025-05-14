@@ -83,7 +83,6 @@ pub struct SearchContext<'a> {
     stop_flag: Arc<AtomicBool>,
     sorted_root_moves: RefCell<SortedMoveList>,
     pub repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
-    pub best_move: Option<Move>,
 }
 
 impl SearchContext<'_> {
@@ -98,7 +97,6 @@ impl SearchContext<'_> {
             stop_flag,
             sorted_root_moves: RefCell::new(SortedMoveList::new(&moves)),
             repeat_position_counts,
-            best_move: None,
         }
     }
 }
@@ -213,13 +211,13 @@ fn negamax_search(
                 }
             }
         };
-        if best_move.is_none() {
-            best_score = evaluation::evaluate(position, depth - 1, search_context.repeat_position_counts.as_ref());
-        } else {
+        if best_move.is_some() {
             if !search_context.stop_flag.load(Ordering::Relaxed) {
                 TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, best_move);
             }
-        }
+        } else {
+            best_score = evaluation::evaluate(position, depth - 1, search_context.repeat_position_counts.as_ref());
+        }     
         best_score
     } else {
         let mut score = evaluation::evaluate(position, ply, search_context.repeat_position_counts.as_ref());
@@ -236,11 +234,6 @@ fn negamax_search(
 fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
     let last_position = pv.last().map_or(position, |m| &m.0);
     let game_status = get_game_status(last_position, search_context.repeat_position_counts.as_ref());
-    if pv.len() > 0 && search_context.best_move.is_some() {
-        if pv[0].1 != search_context.best_move.unwrap() {
-            error!("Best move [{}] does not match best move in PV [{}]", r#move::convert_chess_move_to_raw(&search_context.best_move.unwrap()).to_string(), r#move::convert_chess_move_to_raw(&pv[0].1).to_string());
-        }
-    }
     SearchResults {
         position: *position,
         score,
@@ -451,7 +444,7 @@ mod tests {
             &SearchResults {
                 position,
                 score: MAXIMUM_SCORE - 1,
-                depth: 3,
+                depth: 1,
                 pv: vec![],
                 game_status: Checkmate,
             }
