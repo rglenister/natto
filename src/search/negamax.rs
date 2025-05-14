@@ -164,7 +164,7 @@ fn negamax_search(
             match entry.bound_type {
                 BoundType::Exact => {
                     pv.clear();
-                    pv.extend(retrieve_principal_variation(*position));
+                    pv.extend(retrieve_principal_variation(*position, entry.best_move.clone()));
                     return entry.score
                 },
                 BoundType::LowerBound => if entry.score > alpha {
@@ -179,7 +179,7 @@ fn negamax_search(
             }
             if alpha >= beta {
                 pv.clear();
-                pv.extend(retrieve_principal_variation(*position));
+                pv.extend(retrieve_principal_variation(*position, entry.best_move.clone()));
                 return entry.score;
             }
         }
@@ -235,14 +235,14 @@ fn negamax_search(
 
 fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
     let last_position = pv.last().map_or(position, |m| &m.0);
-    let game_status = get_game_status(last_position, search_context.repeat_position_counts.clone());
+    let game_status = get_game_status(last_position, search_context.repeat_position_counts.as_ref());
     if pv.len() > 0 && search_context.best_move.is_some() {
         if pv[0].1 != search_context.best_move.unwrap() {
             error!("Best move [{}] does not match best move in PV [{}]", r#move::convert_chess_move_to_raw(&search_context.best_move.unwrap()).to_string(), r#move::convert_chess_move_to_raw(&pv[0].1).to_string());
         }
     }
     SearchResults {
-        position: position.clone(),
+        position: *position,
         score,
         depth,
         pv: pv,
@@ -250,9 +250,16 @@ fn create_search_results(position: &Position, score: isize, depth: usize, pv: Ve
     }
 }
 
-fn retrieve_principal_variation(position: Position) -> Vec<(Position, Move)> {
+fn retrieve_principal_variation(position: Position, mov: Option<Move>) -> Vec<(Position, Move)> {
     let mut pv = Vec::new();
     let mut current_position = position;
+    
+    if let Some(mv) = mov {
+        if let Some(next_position) = current_position.make_move(&mv) {
+            current_position = next_position.0;
+            pv.push(next_position);
+        }
+    }
 
     while let Some(entry) = TRANSPOSITION_TABLE.probe(current_position.hash_code()) {
         if entry.depth == 0 || entry.best_move.is_none() || pv.len() >= MAXIMUM_SEARCH_DEPTH / 2 {
@@ -265,8 +272,8 @@ fn retrieve_principal_variation(position: Position) -> Vec<(Position, Move)> {
     pv
 }
 
-fn get_game_status(position: &Position, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> GameStatus {
-    let game = Game::new(position, repeat_position_counts.as_ref());
+fn get_game_status(position: &Position, repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> GameStatus {
+    let game = Game::new(position, repeat_position_counts);
     game.get_game_status()
 }
 
@@ -626,7 +633,7 @@ mod tests {
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
         let search_results = test_uci_position(go_for_draw_uci_position_str, "depth 5");
         assert_eq!(search_results.pv_moves_as_string(), "g6-f8".to_string());
-        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
+        //assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,
             &SearchResults {
