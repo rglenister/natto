@@ -115,9 +115,17 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
     let mut search_results_stack = vec!();
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
+        let search_results = negamax(position, iteration_max_depth, &mut search_context);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            let search_results = negamax(position, iteration_max_depth, &mut search_context);
+            debug!("Search results for depth {}: {}", iteration_max_depth, search_results);
+            uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
+            let is_checkmate = search_results.game_status == Checkmate;
             search_results_stack.push(search_results);
+            if is_checkmate {
+                info!("Found mate at depth {} - stopping search", iteration_max_depth);
+                TRANSPOSITION_TABLE.clear();
+                break;
+            }
         } else {
             break;
         }
@@ -128,15 +136,7 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
 fn negamax(position: &Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
     let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
     let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-    let search_results = create_search_results(position, score, max_depth, pv.to_vec(), search_context);
-    debug!("Search results for depth {}: {}", max_depth, search_results);
-    uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
-    if search_results.game_status == Checkmate {
-        info!("Found mate at depth {} - stopping search", max_depth);
-        search_context.stop_flag.store(true, Ordering::Relaxed);
-        TRANSPOSITION_TABLE.clear();
-    }
-    search_results
+    create_search_results(position, score, max_depth, pv.to_vec(), search_context)
 }
 
 fn negamax_search(
