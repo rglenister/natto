@@ -9,7 +9,7 @@ use crate::opening_book::lichess_book::LiChessOpeningBook;
 use crate::opening_book::opening_book::OpeningBook;
 use crate::{fen, uci, util};
 use crate::config::CONFIG;
-use crate::search::negamax::iterative_search;
+use crate::search::negamax::iterative_deepening;
 use crate::search::transposition_table::TRANSPOSITION_TABLE;
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
@@ -133,7 +133,7 @@ impl Engine {
                     let stop_flag = Arc::clone(&search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
                     *search_handle = Some(thread::spawn(move || {
-                        let search_results = iterative_search(&uci_pos_clone.end_position, &search_params, stop_flag, repeat_position_counts);
+                        let search_results = iterative_deepening(&uci_pos_clone.end_position, &search_params, stop_flag, repeat_position_counts);
                         let best_move = search_results.pv.first().map(|cm| convert_chess_move_to_raw(&cm.1));
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {}", best_move));
