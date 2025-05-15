@@ -138,9 +138,11 @@ impl Board {
     pub fn clear(&mut self) {
         self.bit_boards = [[0; 6]; 2]
     }
+    
     pub fn all_bitboards(&self) -> [[u64; 6]; 2] {
         self.bit_boards
     }
+    
     pub fn bitboards_for_color(&self, piece_color: PieceColor) -> [u64; 6] {
         self.bit_boards[piece_color as usize]
     }
@@ -245,6 +247,7 @@ impl Board {
         let bishops = self.bit_boards[piece_color as usize][Bishop as usize];
         bishops & BLACK_SQUARES_MASK != 0 && bishops & WHITE_SQUARES_MASK != 0
     }
+    
     pub fn has_bishops_on_same_color_squares(&self, piece_color: PieceColor) -> bool {
         let mut counts = [0; 2];
         let bishops = self.bit_boards[piece_color as usize][Bishop as usize];

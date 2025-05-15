@@ -8,13 +8,9 @@ pub fn score_pawn_structure(position: &Position) -> isize {
     let black_pawns = board.bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
     let mut score = 0;
 
-    // Score white pawns
     score += evaluate_pawns(white_pawns, PieceColor::White);
-
-    // Score black pawns (negative for white's perspective)
     score -= evaluate_pawns(black_pawns, PieceColor::Black);
-
-    if position.side_to_move() == White { score } else { -score }
+    score
 }
 
 fn evaluate_pawns(pawns: u64, color: PieceColor) -> isize {

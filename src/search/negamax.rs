@@ -613,7 +613,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -560,
+                score: -540,
                 depth: 2,
                 pv: vec![],
                 game_status: InProgress,
