@@ -1,5 +1,6 @@
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::PieceColor;
+use crate::chessboard::piece::PieceColor::White;
 use crate::position::Position;
 
 pub fn score_king_safety(position: &Position) -> isize {
@@ -15,7 +16,7 @@ pub fn score_king_safety(position: &Position) -> isize {
     // Evaluate black king safety (negative for white's perspective)
     score -= evaluate_king_safety(PieceColor::Black, black_king_square, board);
 
-    score
+    if position.side_to_move() == White { score } else { -score }
 }
 
 fn evaluate_king_safety(color: PieceColor, king_square: usize, board: &Board) -> isize {
