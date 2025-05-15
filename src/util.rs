@@ -69,6 +69,7 @@ pub fn print_bitboard(bitboard: u64) {
         println!()
     }
     println!();
+    println!("{:0x}", bitboard);
     println!("{:064b}", bitboard);
     println!();
 }

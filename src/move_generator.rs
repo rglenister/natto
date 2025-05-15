@@ -115,7 +115,6 @@ where F: FnMut(&Move) -> Option<()> {
     });
     if quit { None } else { Some(()) }
 }
-
 pub fn get_sliding_moves_by_piece_type<F>(
     piece_type: PieceType,
     square_indexes: u64,
@@ -405,8 +404,11 @@ pub fn is_en_passant_capture_possible(position: &Position) -> bool {
         false
     }
 }
+pub fn non_sliding_piece_attacks_empty_board(piece_type: PieceType, square_index: usize) -> u64 {
+    NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index]
+}
 
-fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: usize) -> u64 {
+pub fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: usize) -> u64 {
     let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
     let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
     moves & enemy_squares

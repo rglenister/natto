@@ -1,34 +1,30 @@
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::PieceColor;
+use crate::chessboard::piece::PieceColor::White;
 use crate::position::Position;
+use crate::{move_generator, util};
+use crate::chessboard::piece::PieceType::King;
 
 pub fn score_king_safety(position: &Position) -> isize {
-    let board = position.board();
-    let white_king_square = board.king_square(PieceColor::White);
-    let black_king_square = board.king_square(PieceColor::Black);
-
     let mut score = 0;
-
-    // Evaluate white king safety
-    score += evaluate_king_safety(PieceColor::White, white_king_square, board);
-
-    // Evaluate black king safety (negative for white's perspective)
-    score -= evaluate_king_safety(PieceColor::Black, black_king_square, board);
-
+    score += evaluate_king_safety(position, PieceColor::White);
+    score -= evaluate_king_safety(position, PieceColor::Black);
     score
 }
 
-fn evaluate_king_safety(color: PieceColor, king_square: usize, board: &Board) -> isize {
+fn evaluate_king_safety(position: &Position, color: PieceColor) -> isize {
+    let board = position.board();
+    let king_square = position.board().king_square(color);
     let mut score = 0;
-
+    
     // Exposing the king is penalized
-    if is_king_exposed(king_square, color, board) {
+    if is_king_exposed(position, king_square, color) {
         score -= 50; // Example penalty for exposing the king
     }
 
     // Bonus for castling - safer positioning of the king
-    if !board.can_castle(color, &crate::chessboard::board::BoardSide::KingSide)
-        && !board.can_castle(color, &crate::chessboard::board::BoardSide::QueenSide)
+    if !position.can_castle(color, &crate::chessboard::board::BoardSide::KingSide)
+        && !position.can_castle(color, &crate::chessboard::board::BoardSide::QueenSide)
     {
         score -= 30; // Penalty for no castling rights left
     }
@@ -41,44 +37,19 @@ fn evaluate_king_safety(color: PieceColor, king_square: usize, board: &Board) ->
     score
 }
 
-fn is_king_exposed(king_square: usize, color: PieceColor, board: &Board) -> bool {
+fn is_king_exposed(position: &Position, king_square: usize, color: PieceColor) -> bool {
     // Check the squares around the king for pawn protection
-    let king_attacks = king_attack_mask(king_square);
+    let board = position.board();
+    let king_attacks = move_generator::non_sliding_piece_attacks_empty_board(King, king_square);
     match color {
         PieceColor::White => king_attacks & board.white_pawn_attacks() == 0,
         PieceColor::Black => king_attacks & board.black_pawn_attacks() == 0,
     }
 }
 
-fn king_attack_mask(square: usize) -> u64 {
-    let mut mask = 0;
-    let (row, col) = (square / 8, square % 8);
-
-    // Generate mask for surrounding king moves (8 surrounding squares)
-    for d_row in -1..=1 {
-        for d_col in -1..=1 {
-            if d_row == 0 && d_col == 0 {
-                continue; // Skip king's current position
-            }
-            let new_row = row as i32 + d_row;
-            let new_col = col as i32 + d_col;
-
-            if new_row >= 0 && new_row < 8 && new_col >= 0 && new_col < 8 {
-                mask |= 1 << (new_row * 8 + new_col);
-            }
-        }
-    }
-
-    mask
-}
-
 fn is_endgame(board: &Board) -> bool {
-    // Define endgame as both sides having only kings with one or no minor pieces
-    let white_pieces = board.bitboard_by_color(PieceColor::White);
-    let black_pieces = board.bitboard_by_color(PieceColor::Black);
-    let total_pieces = u64::count_ones(white_pieces) + u64::count_ones(black_pieces);
-
-    total_pieces <= 6 // Endgame threshold - can be adjusted
+    let total_pieces = u64::count_ones(board.bitboard_all_pieces());
+    total_pieces <= 6
 }
 
 fn evaluate_king_centralization(king_square: usize, color: PieceColor) -> isize {

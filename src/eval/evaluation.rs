@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::{PieceColor, PieceType};
-use crate::chessboard::piece::PieceType::{King, Knight, Pawn, Queen};
+use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen};
 use crate::search::negamax::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
@@ -84,7 +84,7 @@ pub const PAWN_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 2] = [
 
 pub const KING_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 2] = [
     [ // white
-        20, 30, 10, 00, 00, 10, 30, 20,
+        20, 50, 30, 00, 00, 30, 50, 20,
         20, 20, 00, 00, 00, 00, 20, 20,
         -20, -20, -20, -20, -20, -20, -20, -80,
         -30, -40, -40, -50, -50, -40, -40, -30,
@@ -101,7 +101,7 @@ pub const KING_SCORE_ADJUSTMENT_TABLE: [[isize; 64]; 2] = [
         -30, -40, -40, -50, -50, -40, -40, -30,
         -20, -20, -20, -20, -20, -20, -20, -20,
         20, 20, 00, 00, 00, 00, 20, 20,
-        20, 30, 10, 00, 00, 10, 30, 20,
+        20, 50, 30, 00, 00, 30, 50, 20,
     ]
 ];
 
@@ -131,17 +131,21 @@ pub fn score_pieces(position: &Position) -> isize {
                 score += PIECE_SCORES[piece_type] + PIECE_SCORE_ADJUSTMENT_TABLE[piece_type][square_index as usize];
             });
         }
-        util::process_bits(bitboards[King as usize], |square_index| {
-            score += PIECE_SCORES[King as usize] + KING_SCORE_ADJUSTMENT_TABLE[color as usize][square_index as usize];
-        });
+        score += PIECE_SCORES[King as usize] + KING_SCORE_ADJUSTMENT_TABLE[color as usize][board.king_square(color)];
         score
     }
-
-    (position.opposing_side() as isize - position.side_to_move() as isize) *
-        (score_board_for_color(position.board(), White)
-        - score_board_for_color(position.board(), Black)
-        + score_pawn_structure(position))
+    
+    let mut score = score_board_for_color(position.board(), White) - score_board_for_color(position.board(), Black)
+        + score_pawn_structure(position)
         + score_king_safety(position)
+        + score_bishops(position);
+    
+    if position.side_to_move() == White { score } else { -score }
+}
+
+pub fn score_bishops(position: &Position) -> isize {
+    let board = position.board();
+    board.has_bishop_pair(White) as isize * 50 - board.has_bishop_pair(Black) as isize * 50
 }
 
 #[cfg(test)]
@@ -163,7 +167,7 @@ mod tests {
 
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
         let all_black_no_white: Position = Position::from(fen);
-        assert_eq!(score_pieces(&all_black_no_white), 3940);
+        assert_eq!(score_pieces(&all_black_no_white), 3990);
 
         let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
         let black_pawn_on_seventh_rank: Position = Position::from(fen);
@@ -211,4 +215,12 @@ mod tests {
         assert_eq!(COLUMN_SQUARE_INDEXES[0], 1 << 0 | 1 << 8 | 1 << 16 | 1 << 24 | 1 << 32 | 1 << 40 | 1 << 48 | 1 << 56);
         assert_eq!(COLUMN_SQUARE_INDEXES[7], 1 << 7 | 1 << 15 | 1 << 23 | 1 << 31 | 1 << 39 | 1 << 47 | 1 << 55 | 1 << 63);
     }
+
+    #[test]
+    fn test_score_bishops() {
+        let position: Position = Position::from("r2qk1nr/pppb1ppp/2n1b3/3pp3/3PP3/3B1N2/PPPB1PPP/RN1QK2R w KQkq - 0 1");
+        assert_eq!(score_bishops(&position), 50);
+    }
+
+
 }

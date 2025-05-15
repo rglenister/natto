@@ -4,9 +4,7 @@ use crate::chessboard::piece::PieceColor;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::{move_generator, search, util};
-use crate::chessboard::board::Board;
 use crate::position::Position;
-use crate::r#move::Move;
 
 include!("util/generated_macro.rs");
 
@@ -72,17 +70,8 @@ impl Game {
     }
 
     pub fn has_insufficient_material(&self) -> bool {
-        fn has_bishops_on_same_color_squares(all_bitboards: [u64; 6]) -> bool {
-            let mut i = 0;
-            let mut square_indexes = [0; 2];
-            util::process_bits(all_bitboards[Bishop as usize], |square_index| {
-                square_indexes[i] = square_index;
-                i += 1;
-            });
-            Board::color(square_indexes[0] as usize) == Board::color(square_indexes[1] as usize)
-        }
-
-        let all_bitboards = self.position.board().all_bitboards();
+        let board = self.position.board();
+        let all_bitboards = &board.all_bitboards();
         for piece_color in PieceColor::iter() {
             for piece_type in [Pawn, Rook, Queen] {
                 if all_bitboards[piece_color as usize][piece_type as usize] != 0 {
@@ -90,23 +79,23 @@ impl Game {
                 }
             }
         }
-        let white_bishop_count = u64::count_ones(all_bitboards[White as usize][Bishop as usize]);
-        let black_bishop_count = u64::count_ones(all_bitboards[Black as usize][Bishop as usize]);
-        let white_knight_count = u64::count_ones(all_bitboards[White as usize][Knight as usize]);
-        let black_knight_count = u64::count_ones(all_bitboards[Black as usize][Knight as usize]);
-        let white_minor_piece_count = white_bishop_count + white_knight_count;
-        let black_minor_piece_count = black_bishop_count + black_knight_count;
+        let whites_bishop_count = board.get_piece_count(White, Bishop);
+        let blacks_bishop_count = board.get_piece_count(Black, Bishop);
+        let whites_knight_count = board.get_piece_count(White, Knight);
+        let blacks_knight_count = board.get_piece_count(Black, Knight);
+        let whites_minor_piece_count = whites_bishop_count + whites_knight_count;
+        let blacks_minor_piece_count = blacks_bishop_count + blacks_knight_count;
 
-        if (white_minor_piece_count <= 1) && (black_minor_piece_count <= 1) {
+        if (whites_minor_piece_count <= 1) && (blacks_minor_piece_count <= 1) {
             return true;
         }
         
-        if black_minor_piece_count == 0 && white_minor_piece_count == 2 {
-            if white_knight_count == 2 || (white_bishop_count == 2 && has_bishops_on_same_color_squares(all_bitboards[White as usize])) {
+        if blacks_minor_piece_count == 0 && whites_minor_piece_count == 2 {
+            if whites_knight_count == 2 || (whites_bishop_count == 2 && board.has_bishops_on_same_color_squares(White)) {
                 return true;
             }
-        } else if white_minor_piece_count == 0 && black_minor_piece_count == 2 {
-            if black_knight_count == 2 || (black_bishop_count == 2 && has_bishops_on_same_color_squares(all_bitboards[Black as usize])) {
+        } else if whites_minor_piece_count == 0 && blacks_minor_piece_count == 2 {
+            if blacks_knight_count == 2 || (blacks_bishop_count == 2 && board.has_bishops_on_same_color_squares(Black)) {
                 return true;
             }   
         }
