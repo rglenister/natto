@@ -12,19 +12,6 @@ include!("../util/generated_macro.rs");
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
 
-const BLACK_SQUARES_MASK: u64 = {
-    let mut result = 0u64;
-    let mut i = 0;
-    while i < 64 {
-        if !Board::is_white_square(i) {
-            result |= 1 << i;
-        }
-        i += 1;
-    }
-    result
-};
-
-const WHITE_SQUARES_MASK: u64 = !BLACK_SQUARES_MASK;
 
 #[derive(Clone, Debug, Copy, Default)]
 #[derive(PartialEq, Eq)]
@@ -40,6 +27,20 @@ pub struct CastlingMetadata {
     pub(crate) rook_from_square: usize,
     pub(crate) rook_to_square: usize,
 }
+
+const BLACK_SQUARES_MASK: u64 = {
+    let mut result = 0u64;
+    let mut i = 0;
+    while i < 64 {
+        if !Board::is_white_square(i) {
+            result |= 1 << i;
+        }
+        i += 1;
+    }
+    result
+};
+
+const WHITE_SQUARES_MASK: u64 = !BLACK_SQUARES_MASK;
 
 pub const CASTLING_METADATA: [[CastlingMetadata; 2]; 2] =
     [
@@ -222,6 +223,10 @@ impl Board {
     
     pub const fn is_white_square(square_index: usize) -> bool {
         Board::row(square_index) & 1 != Board::column(square_index) & 1
+    }
+
+    pub const fn is_black_square(square_index: usize) -> bool {
+        !Self::is_white_square(square_index)
     }
 
     pub fn rank(square_index: usize, piece_color: PieceColor) -> usize {
@@ -422,13 +427,17 @@ mod tests {
     }
 
     #[test]
-    fn test_color() {
-        assert_eq!(Board::is_white_square(0), false);
-        assert_eq!(Board::is_white_square(1), true);
-        assert_eq!(Board::is_white_square(8), true);
-        assert_eq!(Board::is_white_square(9), false);
-        assert_eq!(Board::is_white_square(17), true);
-        assert_eq!(Board::is_white_square(63), false);
+    fn test_square_color() {
+        assert_eq!(Board::is_white_square(sq!("a1")), false);
+        assert_eq!(Board::is_white_square(sq!("b1")), true);
+        assert_eq!(Board::is_white_square(sq!("a2")), true);
+        assert_eq!(Board::is_white_square(sq!("b2")), false);
+        assert_eq!(Board::is_white_square(sq!("b3")), true);
+        assert_eq!(Board::is_white_square(sq!("h8")), false);
+
+        assert_eq!(Board::is_black_square(sq!("a1")), true);
+        assert_eq!(Board::is_black_square(sq!("e5")), true);
+        assert_eq!(Board::is_black_square(sq!("e6")), false);
     }
 
     #[test]
@@ -475,7 +484,7 @@ mod tests {
 
         board.remove_piece(sq!("c1"));
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
-        
+
         board.put_piece(sq!("d1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
 

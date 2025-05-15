@@ -9,14 +9,9 @@ pub fn score_king_safety(position: &Position) -> isize {
     let black_king_square = board.king_square(PieceColor::Black);
 
     let mut score = 0;
-
-    // Evaluate white king safety
     score += evaluate_king_safety(PieceColor::White, white_king_square, board);
-
-    // Evaluate black king safety (negative for white's perspective)
     score -= evaluate_king_safety(PieceColor::Black, black_king_square, board);
-
-    if position.side_to_move() == White { score } else { -score }
+    score
 }
 
 fn evaluate_king_safety(color: PieceColor, king_square: usize, board: &Board) -> isize {

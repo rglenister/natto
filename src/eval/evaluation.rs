@@ -131,16 +131,12 @@ pub fn score_pieces(position: &Position) -> isize {
                 score += PIECE_SCORES[piece_type] + PIECE_SCORE_ADJUSTMENT_TABLE[piece_type][square_index as usize];
             });
         }
-        util::process_bits(bitboards[King as usize], |square_index| {
-            score += PIECE_SCORES[King as usize] + KING_SCORE_ADJUSTMENT_TABLE[color as usize][square_index as usize];
-        });
+        score += PIECE_SCORES[King as usize] + KING_SCORE_ADJUSTMENT_TABLE[color as usize][board.king_square(color)];
         score
     }
 
-    (position.opposing_side() as isize - position.side_to_move() as isize) *
-        (score_board_for_color(position.board(), White)
-        - score_board_for_color(position.board(), Black)
-        + score_pawn_structure(position))
+    score_board_for_color(position.board(), White) - score_board_for_color(position.board(), Black)
+        + score_pawn_structure(position)
         + score_king_safety(position)
 }
 

@@ -19,7 +19,6 @@ pub fn score_pawn_structure(position: &Position) -> isize {
 
 fn evaluate_pawns(pawns: u64, color: PieceColor) -> isize {
     let mut score = 0;
-
     let mut pawn_positions = pawns;
     while pawn_positions != 0 {
         let pawn_square = pawn_positions.trailing_zeros() as usize;
@@ -87,7 +86,7 @@ fn is_passed_pawn(square: usize, pawns: u64, color: PieceColor) -> bool {
 
 mod tests {
     use crate::chessboard::piece::{PieceColor, PieceType};
-    use crate::chessboard::piece::PieceColor::White;
+    use crate::chessboard::piece::PieceColor::{White, Black};
     use crate::eval::pawns::{is_doubled_pawn, is_isolated_pawn, is_passed_pawn};
     use crate::position::Position;
 
@@ -110,7 +109,10 @@ mod tests {
         let position: Position = Position::from(fen);
         let pawn_bitboard = position.board().bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
         assert_eq!(is_isolated_pawn(sq!("a5"), pawn_bitboard), true);
-
+        assert_eq!(is_isolated_pawn(sq!("c3"), pawn_bitboard), false);
+        assert_eq!(is_isolated_pawn(sq!("d5"), pawn_bitboard), false);
+        assert_eq!(is_isolated_pawn(sq!("g3"), pawn_bitboard), true);
+        assert_eq!(is_isolated_pawn(sq!("g6"), pawn_bitboard), true);
     }
 
     #[test]
@@ -123,5 +125,54 @@ mod tests {
         assert_eq!(is_passed_pawn(sq!("d5"), pawn_bitboard, White), true);
         assert_eq!(is_passed_pawn(sq!("g3"), pawn_bitboard, White), false);
         assert_eq!(is_passed_pawn(sq!("g6"), pawn_bitboard, White), true);
+    }
+
+    #[test]
+    fn test_simple_white_passed_pawn() {
+        let fen = "8/8/8/4P3/8/8/8/5k1K w - - 0 1";
+        let position: Position = Position::from(fen);
+        let pawns = position.board().bitboard_by_color_and_piece_type(White, PieceType::Pawn);
+        assert!(is_passed_pawn(sq!("e5"), pawns, White));
+    }
+
+    #[test]
+    fn test_simple_black_passed_pawn() {
+        let fen = "8/8/8/4p3/8/8/8/5k1K b - - 0 1";
+        let position: Position = Position::from(fen);
+        let pawns = position.board().bitboard_by_color_and_piece_type(Black, PieceType::Pawn);
+        assert!(is_passed_pawn(sq!("e5"), pawns, Black));
+    }
+
+    #[test]
+    fn test_protected_white_passed_pawn() {
+        let fen = "8/8/8/3Pp3/8/8/8/k6K w - - 0 1";
+        let position: Position = Position::from(fen);
+        let pawns = position.board().bitboard_by_color_and_piece_type(White, PieceType::Pawn);
+        assert!(is_passed_pawn(sq!("d5"), pawns, White));
+    }
+
+    #[test]
+    fn test_not_a_passed_pawn_blocked() {
+        let fen = "8/8/8/3Pp3/8/8/8/k6K w - - 0 1";
+        let position: Position = Position::from(fen);
+        let pawns = position.board().bitboard_by_color_and_piece_type(White, PieceType::Pawn);
+        assert!(is_passed_pawn(sq!("e5"), pawns, White));
+    }
+
+    #[test]
+    fn test_not_a_passed_pawn_adjacent_opponent() {
+        let fen = "8/8/8/3pP3/8/8/8/k6K w - - 0 1";
+        let position: Position = Position::from(fen);
+        let pawns = position.board().bitboard_by_color_and_piece_type(White, PieceType::Pawn);
+        assert!(is_passed_pawn(sq!("e5"), pawns, White));
+    }
+
+    #[test]
+    fn test_connected_passed_pawns() { // ok
+        let fen = "8/8/8/3PP3/8/8/8/k6K w - - 0 1";
+        let position: Position = Position::from(fen);
+        let pawns = position.board().bitboard_by_color_and_piece_type(White, PieceType::Pawn);
+        assert!(is_passed_pawn(sq!("d5"), pawns, White));
+        assert!(is_passed_pawn(sq!("e5"), pawns, White));
     }
 }
