@@ -3,10 +3,10 @@ use strum::IntoEnumIterator;
 use crate::chessboard::piece::PieceColor;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
-use crate::{move_generator, search, util};
+use crate::{move_generator, search, chess_util};
 use crate::position::Position;
 
-include!("util/generated_macro.rs");
+include!("chess_util/generated_macro.rs");
 
 #[derive(Copy, Clone, Debug)]
 #[derive(Eq, Hash, PartialEq)]

@@ -6,16 +6,16 @@ use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen};
 use crate::search::negamax::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
-use crate::{game, util};
+use crate::{game, chess_util};
+use crate::chess_util::util;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::eval::kings::score_king_safety;
 use crate::eval::pawns::score_pawn_structure;
-use crate::util::filter_bits;
 
 static COLUMN_SQUARE_INDEXES: Lazy<[u64; 8]> = Lazy::new(|| {
     let mut result = [0; 8];
     for column_index in 0..8 {
-        result[column_index] = filter_bits(!0, |square_index| square_index % 8 == column_index as u64);
+        result[column_index] = util::filter_bits(!0, |square_index| square_index % 8 == column_index as u64);
     }
     result
 });

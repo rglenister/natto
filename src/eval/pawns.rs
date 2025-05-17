@@ -86,7 +86,7 @@ mod tests {
     use crate::eval::pawns::{is_doubled_pawn, is_isolated_pawn, is_passed_pawn};
     use crate::position::Position;
 
-    include!("../util/generated_macro.rs");
+    include!("../chess_util/generated_macro.rs");
 
     #[test]
     fn test_is_doubled_pawn() {

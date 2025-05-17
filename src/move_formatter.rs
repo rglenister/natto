@@ -9,10 +9,11 @@ use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::search::negamax::SearchResults;
-use crate::util;
+use crate::chess_util;
 use phf::phf_map;
+use crate::chess_util::util;
 
-include!("util/generated_macro.rs");
+include!("chess_util/generated_macro.rs");
 
 pub const SHORT_FORMATTER: MoveFormatter = MoveFormatter::new(ShortAlgebraic);
 pub const LONG_FORMATTER: MoveFormatter = MoveFormatter::new(LongAlgebraic);

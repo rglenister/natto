@@ -13,14 +13,14 @@ use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
+use crate::chess_util::util;
 use crate::eval::evaluation;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::search::quiescence;
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
-use crate::util::replay_moves;
 
-include!("../util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
@@ -294,7 +294,7 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
         .collect::<Vec<String>>()
         .join(" ");
     
-    let moves = replay_moves(position, moves_string.clone());
+    let moves = util::replay_moves(position, moves_string.clone());
     if moves.is_none() {
         error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
     }
@@ -351,7 +351,7 @@ mod tests {
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
-    use crate::{move_formatter, uci, util};
+    use crate::{move_formatter, uci, chess_util};
 
     fn test_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
         let uci_position = uci::parse_position(uci_position_str).unwrap();

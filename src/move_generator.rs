@@ -5,29 +5,28 @@ use crate::chessboard::board::{Board, BoardSide};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{BaseMove, Move};
 use crate::position::Position;
-use crate::util::on_board;
-use crate::util;
+
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::option::Option;
 use strum::IntoEnumIterator;
+use crate::chess_util::bitboard_iterator::BitboardIterator;
+use crate::chess_util::util;
 use crate::chessboard::piece::{PieceColor, PieceType};
 
-include!("util/generated_macro.rs");
+include!("chess_util/generated_macro.rs");
 
 struct MoveProcessor {
     moves: Vec<Move>,
 }
 
 impl MoveProcessor {
-    fn get_closure(&mut self) -> Box<dyn FnMut(&Move) -> Option<()> + '_> {
+    fn get_closure(&mut self) -> Box<dyn FnMut(&Move) + '_> {
         let moves = RefCell::new(&mut self.moves);
 
-        Box::new(move |cm: &Move| -> Option<()> {
+        Box::new(move |cm: &Move| {
             moves.borrow_mut().push(*cm);
-            Some(())
         })
     }
 
@@ -38,13 +37,12 @@ impl MoveProcessor {
 pub fn generate_moves(position: &Position) -> Vec<Move> {
     let mut moves: Vec<Move> = vec!();
     let mut non_capture_moves: Vec<Move> = vec!();
-    let mut process_move = |chess_move: &Move| -> Option<()> {
-        if chess_move.get_base_move().capture {
-            moves.push(*chess_move);
+    let mut process_move = |mov: &Move| {
+        if mov.get_base_move().capture {
+            moves.push(*mov);
         } else {
-            non_capture_moves.push(*chess_move);
+            non_capture_moves.push(*mov);
         }
-        Some(())
     };
     generate_moves_using_callback(position, &mut process_move);
     moves.extend(non_capture_moves);
@@ -53,14 +51,13 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
 
 pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
     let mut moves: Vec<Move> = vec!();
-    let mut process_move = |mv: &Move| -> Option<()> {
+    let mut process_move = |mv: &Move| {
         if mv.get_base_move().capture {
             match mv {
                 Move::Basic { base_move } => { moves.push(*mv) }
                 _ => {}
             }
         }
-        Some(())
     };
     generate_moves_using_callback(position, &mut process_move);
     moves
@@ -68,34 +65,32 @@ pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
 
 pub fn has_legal_move(position: &Position) -> bool {
     let mut found_legal_move: bool = false;
-    let mut process_move = |chess_move: &Move| -> Option<()> {
+    let mut process_move = |chess_move: &Move| {
         if !found_legal_move {
             found_legal_move = position.make_move(chess_move).is_some();
         }
-        if found_legal_move { None } else { Some(()) }
     };
     generate_moves_using_callback(position, &mut process_move);
     found_legal_move
 }
 
-fn generate_moves_using_callback<F>(position: &Position, process_move: &mut F) -> Option<()> where
-    F: FnMut(&Move) -> Option<()> {
+fn generate_moves_using_callback<F>(position: &Position, process_move: &mut F) where
+    F: FnMut(&Move) {
     let board: &Board = position.board();
     let occupied_squares = board.bitboard_all_pieces();
     let friendly_squares = board.bitboard_by_color(position.side_to_move());
     let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
 
-    generate_pawn_moves(position, bitboards[PieceType::Pawn as usize], occupied_squares, RefCell::new(&mut *process_move))?;
-    get_non_sliding_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares, process_move)?;
-    get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares, process_move)?;
-    get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares, process_move)?;
+    generate_pawn_moves(position, bitboards[PieceType::Pawn as usize], occupied_squares, RefCell::new(&mut *process_move));
+    get_non_sliding_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares, process_move);
+    get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares, process_move);
+    get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares, process_move);
 
     // combine bishop and rook to derive the queen moves
-    get_sliding_moves_by_piece_type(Bishop, bitboards[Queen as usize], occupied_squares, friendly_squares, process_move)?;
-    get_sliding_moves_by_piece_type(Rook, bitboards[Queen as usize], occupied_squares, friendly_squares, process_move)?;
+    get_sliding_moves_by_piece_type(Bishop, bitboards[Queen as usize], occupied_squares, friendly_squares, process_move);
+    get_sliding_moves_by_piece_type(Rook, bitboards[Queen as usize], occupied_squares, friendly_squares, process_move);
 
-    generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares, process_move)?;
-    Some(())
+    generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares, process_move);
 }
 
 pub fn get_non_sliding_moves_by_piece_type<F>(
@@ -104,16 +99,13 @@ pub fn get_non_sliding_moves_by_piece_type<F>(
     occupied_squares: u64,
     friendly_squares: u64,
     process_move: &mut F,
-) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    let mut quit = false;
-    util::process_bits(square_indexes.try_into().unwrap(), |square_index| {
-        let destinations = NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index as usize];
-        if generate_moves_for_destinations(square_index as usize, destinations, occupied_squares, friendly_squares, process_move).is_none() {
-            quit = true;
-        }
-    });
-    if quit { None } else { Some(()) }
+)
+where F: FnMut(&Move) {
+    let mut iterator = BitboardIterator::new(square_indexes);
+    while let Some(square_index) = iterator.next() {
+        let destinations = NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index];
+        generate_moves_for_destinations(square_index as usize, destinations, occupied_squares, friendly_squares, process_move);
+    }
 }
 pub fn get_sliding_moves_by_piece_type<F>(
     piece_type: PieceType,
@@ -121,16 +113,16 @@ pub fn get_sliding_moves_by_piece_type<F>(
     occupied_squares: u64,
     friendly_squares: u64,
     process_move: &mut F
-) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    util::process_bits(square_indexes, |square_index| {
+)
+where F: FnMut(&Move) {
+    let mut iterator = BitboardIterator::new(square_indexes);
+    while let Some(square_index) = iterator.next() {
         let valid_moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index, occupied_squares);
         generate_moves_for_destinations(square_index as usize, valid_moves, occupied_squares, friendly_squares, process_move);
-    });
-    Some(())
+    }
 }
 
-fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: u64, occupied_squares: u64) -> u64 {
+fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
     let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
@@ -138,15 +130,14 @@ fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, squa
     valid_moves
 }
 
-fn generate_moves_for_destinations<F>(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    let mut quit = false;
-    util::process_bits(destinations, |to: u64| {
-        if !quit && friendly_squares & (1 << to) == 0 && process_move(&Basic { base_move: BaseMove::new(from, to as usize, occupied_squares & (1 << to) != 0)}).is_none() {
-            quit = true;
+fn generate_moves_for_destinations<F>(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F)
+where F: FnMut(&Move) {
+    let mut iterator = BitboardIterator::new(destinations);
+    while let Some(to) = iterator.next() {
+        if friendly_squares & (1 << to) == 0 {
+            process_move(&Basic { base_move: BaseMove::new(from, to, occupied_squares & (1 << to) != 0)});
         }
-    });
-    if !quit { Some(()) } else { None }
+    }
 }
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
@@ -274,8 +265,8 @@ fn generate_move_bitboard(
         sliding: bool,
     ) -> u64 {
         let destination_square: isize = source_square + increment;
-        if on_board(source_square, destination_square) &&
-            (!generating_blocking_square_mask || on_board(destination_square, destination_square + increment)) {
+        if util::on_board(source_square, destination_square) &&
+            (!generating_blocking_square_mask || util::on_board(destination_square, destination_square + increment)) {
             let result = 1 << destination_square;
             if sliding && blocking_pieces_bitboard & (1 << destination_square) == 0 {
                 result | generate_move_bitboard_for_increment(
@@ -294,81 +285,65 @@ fn generate_move_bitboard(
     }
 }
 
-fn generate_king_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, process_move)?;
+fn generate_king_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F)
+where F: FnMut(&Move) {
+    get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, process_move);
     let moves = BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
             .map(|board_side| { &board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
             .map(|cmd| Castling { base_move: BaseMove::new(cmd.king_from_square, cmd.king_to_square, false), board_side: cmd.board_side })
             .collect::<Vec<_>>();
     for cm in moves {
-        process_move(&cm)?;
+        process_move(&cm);
     }
-    Some(())
 }
 
-fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    let create_moves = |from: usize, to: usize, capture: bool| -> Option<()> {
+fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>)
+where F: FnMut(&Move) {
+    let create_moves = |from: usize, to: usize, capture: bool| {
         if Board::rank(to, position.side_to_move()) != 7 {
-            process_move.borrow_mut()(&Basic { base_move: BaseMove::new(from, to, capture) })?;
+            process_move.borrow_mut()(&Basic { base_move: BaseMove::new(from, to, capture) });
         } else {
             for piece_type in [Knight, Bishop, Rook, Queen] {
-                process_move.borrow_mut()(&Promotion { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type })?;
+                process_move.borrow_mut()(&Promotion { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type });
             }
         }
-        Some(())
     };
 
-    let mut quit = false;
     let side_to_move = position.side_to_move();
     let opposing_side = !side_to_move;
     let opposing_side_bitboard = position.board().bitboard_by_color(opposing_side);
 
-    util::process_bits(square_indexes, |square_index| {
+    let mut iterator = BitboardIterator::new(square_indexes);
+    while let Some(square_index) = iterator.next() {
 
-        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index as usize];
-
-        if !quit {
-            // generate forward moves
-            let one_step_forward: u64 = if side_to_move == White { 1 << (square_index + 8) } else { 1 << (square_index - 8) };
-            if occupied_squares & one_step_forward == 0 {
-                if create_moves(square_index as usize, one_step_forward.trailing_zeros() as usize, false).is_none() {
-                    quit = true;
-                }
-                if !quit && Board::rank(square_index as usize, side_to_move) == 1 {
-                    let two_steps_forward = if side_to_move == White { one_step_forward << 8 } else { one_step_forward >> 8 };
-                    if (occupied_squares & two_steps_forward) == 0 && create_moves(square_index as usize, two_steps_forward.trailing_zeros() as usize, false).is_none() {
-                        quit = true;
-                    }
+        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index];
+        // generate forward moves
+        let one_step_forward: u64 = if side_to_move == White { 1 << (square_index + 8) } else { 1 << (square_index - 8) };
+        if occupied_squares & one_step_forward == 0 {
+            create_moves(square_index, one_step_forward.trailing_zeros() as usize, false);
+            if Board::rank(square_index, side_to_move) == 1 {
+                let two_steps_forward = if side_to_move == White { one_step_forward << 8 } else { one_step_forward >> 8 };
+                if (occupied_squares & two_steps_forward) == 0 {
+                    create_moves(square_index, two_steps_forward.trailing_zeros() as usize, false);
                 }
             }
         }
-        if !quit {
-            // generate standard captures
-            let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
-            util::process_bits(attacked_opposing_piece_squares, |attacked_square_index| {
-                if create_moves(square_index as usize, attacked_square_index as usize, true).is_none() {
-                    quit = true;
-                }
-            });
+        // generate standard captures
+        let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
+        let mut iterator = BitboardIterator::new(attacked_opposing_piece_squares);
+        while let Some(attacked_square_index) = iterator.next() {
+            create_moves(square_index, attacked_square_index, true);
         }
-        if !quit {
-            // generate en passant capture
-            if let Some(ep_square) = position.en_passant_capture_square() {
-                if ((1 << ep_square) & attacked_squares) != 0 {
-                    let one_step_backward: isize = if side_to_move == White { -8 } else { 8 };
-                    let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize + one_step_backward) as usize };
-                    if process_move.borrow_mut()(&ep_move).is_none() {
-                        quit = true;
-                    }
-                }
+        // generate en passant capture
+        if let Some(ep_square) = position.en_passant_capture_square() {
+            if ((1 << ep_square) & attacked_squares) != 0 {
+                let one_step_backward: isize = if side_to_move == White { -8 } else { 8 };
+                let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize + one_step_backward) as usize };
+                process_move.borrow_mut()(&ep_move);
             }
         }
-    });
-
-    if quit { None } else { Some(()) }
+    }
 }
 
 pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
@@ -379,11 +354,12 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
     for piece_type in [Bishop, Rook] {
         let moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index.try_into().unwrap(), occupied_squares);
         let possible_attackers = moves & enemy_squares;
-        util::process_bits(possible_attackers, |square_index| {
+        let mut iterator = BitboardIterator::new(possible_attackers);
+        while let Some(square_index) = iterator.next() {
             if (enemy_queens | position.board().bitboard_by_color_and_piece_type(attacking_color, piece_type)) & (1 << square_index) != 0 {
                 attacking_squares |= 1 << square_index;
             }
-        })
+        }
     }
     attacking_squares |= non_sliding_piece_attacks(position, King, attacking_color, square_index);
     attacking_squares |= non_sliding_piece_attacks(position, Knight, attacking_color, square_index);

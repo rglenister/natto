@@ -1,4 +1,5 @@
-use crate::util::process_bits;
+#[macro_use]
+use crate::chess_util::util::process_bits;
 use std::fmt;
 use std::fmt::Write;
 use std::iter::Iterator;
@@ -7,7 +8,7 @@ use strum_macros::EnumIter;
 use crate::chessboard::piece::{Piece, PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{Bishop, King, Pawn};
 
-include!("../util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
@@ -285,7 +286,7 @@ mod tests {
     //    use crate::board::{PieceColor, PieceType};
     use super::*;
     use crate::chessboard::board::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::util;
+    use crate::chess_util;
 
     #[test]
     fn test_get_from_empty_square() {
