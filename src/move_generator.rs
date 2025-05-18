@@ -34,6 +34,106 @@ impl MoveProcessor {
         self.moves.clone()
     }
 }
+
+static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
+    let mut table = HashMap::new();
+    // the white table contains the attacks by white pawns on a square
+    table.insert(&White, generate_move_table([7, 9]));
+    // the black table contains the attacks by black pawns on a square
+    table.insert(&Black, generate_move_table([-7, -9]));
+    fn generate_move_table(increments: [isize; 2]) -> [u64; 64] {
+        let mut squares: [u64; 64] = [0; 64];
+        for square_index in 0..64 {
+            let move_squares: u64 = generate_move_bitboard(
+                square_index,
+                (increments).to_vec(),
+                0,
+                false,
+                false,
+            );
+            squares[square_index as usize] = move_squares;
+        }
+        squares
+    }
+    table
+});
+
+static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<isize>>> = Lazy::new(|| {
+    let mut table = HashMap::new();
+    table.insert(&Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
+    table.insert(&Bishop, vec![9, 7, -9, -7]);
+    table.insert(&Rook, vec![1, 8, -1, -8]);
+    table.insert(&Queen, table.get(&Bishop).unwrap().iter().chain(table.get(&Rook).unwrap()).cloned().collect());
+    table.insert(&King, table.get(&Queen).unwrap().clone());
+    table
+});
+
+static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, [u64; 64]>> = Lazy::new(|| {
+    let move_table = [PieceType::Knight, PieceType::King]
+        .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
+    fn generate_move_table(piece_type: PieceType) -> [u64; 64] {
+        let mut squares: [u64; 64] = [0; 64];
+        let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
+        for square_index in 0..64 {
+            let move_squares: u64 = generate_move_bitboard(
+                square_index,
+                increments.to_vec(),
+                0,
+                false,
+                false,
+            );
+            squares[square_index as usize] = move_squares;
+        }
+        squares
+    }
+    move_table
+});
+
+struct TableEntry {
+    blocking_squares_bitboard: u64,
+    moves_bitboard: Vec<u64>,
+}
+
+static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Lazy::new(|| {
+    let move_table = [Bishop, Rook]
+        .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
+    fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
+        let mut squares: Vec<TableEntry> = Vec::new();
+        for square_index in 0..64 {
+            let blocking_squares_bitboard: u64 =
+                generate_move_bitboard(
+                    square_index,
+                    PIECE_INCREMENTS_TABLE[&piece_type].clone(),
+                    0,
+                    true,
+                    true
+                );
+            let n_ones = blocking_squares_bitboard.count_ones() as u64;
+            let table_size: u64 = 2_i32.pow((n_ones as i32).try_into().unwrap()) as u64;
+            let mut moves_bitboard: Vec<u64> = Vec::new();
+            for table_index in 0..table_size {
+                let blocking_pieces_bitboard: u64 = table_index.pdep(blocking_squares_bitboard);
+                let sliding_move_bitboard = generate_move_bitboard(
+                    square_index,
+                    PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap().clone(),
+                    blocking_pieces_bitboard,
+                    false,
+                    true,
+                );
+                moves_bitboard.push(sliding_move_bitboard);
+            }
+            let table_entry: TableEntry = TableEntry {
+                blocking_squares_bitboard,
+                moves_bitboard,
+            };
+            squares.push(table_entry);
+        }
+        squares
+    }
+
+    move_table
+});
+
 pub fn generate_moves(position: &Position) -> Vec<Move> {
     let mut moves: Vec<Move> = vec!();
     let mut non_capture_moves: Vec<Move> = vec!();
@@ -140,104 +240,6 @@ where F: FnMut(&Move) {
     }
 }
 
-static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
-    let mut table = HashMap::new();
-    // the white table contains the attacks by white pawns on a square
-    table.insert(&White, generate_move_table([7, 9]));
-    // the black table contains the attacks by black pawns on a square
-    table.insert(&Black, generate_move_table([-7, -9]));
-    fn generate_move_table(increments: [isize; 2]) -> [u64; 64] {
-        let mut squares: [u64; 64] = [0; 64];
-        for square_index in 0..64 {
-            let move_squares: u64 = generate_move_bitboard(
-                square_index,
-                (increments).to_vec(),
-                0,
-                false,
-                false,
-            );
-            squares[square_index as usize] = move_squares;
-        }
-        squares
-    }
-    table
-});
-
-static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<isize>>> = Lazy::new(|| {
-    let mut table = HashMap::new();
-    table.insert(&Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
-    table.insert(&Bishop, vec![9, 7, -9, -7]);
-    table.insert(&Rook, vec![1, 8, -1, -8]);
-    table.insert(&Queen, table.get(&Bishop).unwrap().iter().chain(table.get(&Rook).unwrap()).cloned().collect());
-    table.insert(&King, table.get(&Queen).unwrap().clone());
-    table
-});
-
-static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, [u64; 64]>> = Lazy::new(|| {
-    let move_table = [PieceType::Knight, PieceType::King]
-        .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
-    fn generate_move_table(piece_type: PieceType) -> [u64; 64] {
-        let mut squares: [u64; 64] = [0; 64];
-        let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
-        for square_index in 0..64 {
-            let move_squares: u64 = generate_move_bitboard(
-                square_index,
-                increments.to_vec(),
-                0,
-                false,
-                false,
-            );
-            squares[square_index as usize] = move_squares;
-        }
-        squares
-    }
-    move_table
-});
-
-struct TableEntry {
-    blocking_squares_bitboard: u64,
-    moves_bitboard: Vec<u64>,
-}
-
-static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Lazy::new(|| {
-    let move_table = [Bishop, Rook]
-        .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
-    fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
-        let mut squares: Vec<TableEntry> = Vec::new();
-        for square_index in 0..64 {
-            let blocking_squares_bitboard: u64 =
-                generate_move_bitboard(
-                    square_index,
-                    PIECE_INCREMENTS_TABLE[&piece_type].clone(),
-                    0,
-                    true,
-                    true
-                );
-            let n_ones = blocking_squares_bitboard.count_ones() as u64;
-            let table_size: u64 = 2_i32.pow((n_ones as i32).try_into().unwrap()) as u64;
-            let mut moves_bitboard: Vec<u64> = Vec::new();
-            for table_index in 0..table_size {
-                let blocking_pieces_bitboard: u64 = table_index.pdep(blocking_squares_bitboard);
-                let sliding_move_bitboard = generate_move_bitboard(
-                    square_index,
-                    PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap().clone(),
-                    blocking_pieces_bitboard,
-                    false,
-                    true,
-                );
-                moves_bitboard.push(sliding_move_bitboard);
-            }
-            let table_entry: TableEntry = TableEntry {
-                blocking_squares_bitboard,
-                moves_bitboard,
-            };
-            squares.push(table_entry);
-        }
-        squares
-    }
-
-    move_table
-});
 
 /// Pre-calculates the bitmaps
 fn generate_move_bitboard(
@@ -288,14 +290,11 @@ fn generate_move_bitboard(
 fn generate_king_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F)
 where F: FnMut(&Move) {
     get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, process_move);
-    let moves = BoardSide::iter()
+    BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
             .map(|board_side| { &board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
             .map(|cmd| Castling { base_move: BaseMove::new(cmd.king_from_square, cmd.king_to_square, false), board_side: cmd.board_side })
-            .collect::<Vec<_>>();
-    for cm in moves {
-        process_move(&cm);
-    }
+            .for_each(|mv| process_move(&mv));
 }
 
 fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>)
@@ -313,33 +312,35 @@ where F: FnMut(&Move) {
     let side_to_move = position.side_to_move();
     let opposing_side = !side_to_move;
     let opposing_side_bitboard = position.board().bitboard_by_color(opposing_side);
+    let pawn_increment: isize = if side_to_move == White { 8 } else { -8 };
 
     let mut iterator = BitboardIterator::new(square_indexes);
     while let Some(square_index) = iterator.next() {
 
-        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index];
         // generate forward moves
-        let one_step_forward: u64 = if side_to_move == White { 1 << (square_index + 8) } else { 1 << (square_index - 8) };
+        let one_step_forward: u64 = 1 << ((square_index as isize + pawn_increment) as usize);
         if occupied_squares & one_step_forward == 0 {
             create_moves(square_index, one_step_forward.trailing_zeros() as usize, false);
             if Board::rank(square_index, side_to_move) == 1 {
-                let two_steps_forward = if side_to_move == White { one_step_forward << 8 } else { one_step_forward >> 8 };
+                let two_steps_forward = 1 << ((square_index as isize + pawn_increment * 2) as usize);
                 if (occupied_squares & two_steps_forward) == 0 {
                     create_moves(square_index, two_steps_forward.trailing_zeros() as usize, false);
                 }
             }
         }
+        
         // generate standard captures
+        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index];
         let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
-        let mut iterator = BitboardIterator::new(attacked_opposing_piece_squares);
-        while let Some(attacked_square_index) = iterator.next() {
-            create_moves(square_index, attacked_square_index, true);
-        }
+        BitboardIterator::new(attacked_opposing_piece_squares)
+            .for_each(|attacked_square_index| {
+                create_moves(square_index, attacked_square_index, true);
+            });
+        
         // generate en passant capture
         if let Some(ep_square) = position.en_passant_capture_square() {
             if ((1 << ep_square) & attacked_squares) != 0 {
-                let one_step_backward: isize = if side_to_move == White { -8 } else { 8 };
-                let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize + one_step_backward) as usize };
+                let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize - pawn_increment) as usize };
                 process_move.borrow_mut()(&ep_move);
             }
         }

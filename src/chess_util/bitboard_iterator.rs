@@ -50,6 +50,23 @@ mod tests {
         assert_eq!(iterator.next(), Some(3));
         assert_eq!(iterator.next(), None);
     }
+
+    #[test]
+    fn test_bitboard_iterator() {
+        // Example bitboard with bits set
+        let bitboard = 0b1001010; // Bits set at positions 1, 3, and 6.
+
+        let squares: Vec<usize> = BitboardIterator::new(bitboard).collect();
+        assert_eq!(squares, vec![1, 3, 6]);
+    }
+
+    #[test]
+    fn test_empty_bitboard_iterator() {
+        let bitboard = 0b0; // No bits set.
+        let squares: Vec<usize> = BitboardIterator::new(bitboard).collect();
+        assert!(squares.is_empty());
+    }
+
 }
 
 
