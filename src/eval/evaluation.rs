@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use crate::chessboard::board::Board;
-use crate::chessboard::piece::{PieceColor, PieceType};
-use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen};
+use crate::chessboard::piece::{PieceColor};
+use crate::chessboard::piece::PieceType::{King, Knight, Pawn, Queen};
 use crate::search::negamax::MAXIMUM_SCORE;
 use crate::game::Game;
 use crate::position::Position;
-use crate::{game, chess_util};
+use crate::game;
 use crate::chess_util::util;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::eval::kings::score_king_safety;
@@ -135,7 +135,7 @@ pub fn score_pieces(position: &Position) -> isize {
         score
     }
     
-    let mut score = score_board_for_color(position.board(), White) - score_board_for_color(position.board(), Black)
+    let score = score_board_for_color(position.board(), White) - score_board_for_color(position.board(), Black)
         + score_pawn_structure(position)
         + score_king_safety(position)
         + score_bishops(position);

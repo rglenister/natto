@@ -2,7 +2,6 @@ use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
 use crate::position::Position;
 use crate::search::negamax::{SearchParams, MAXIMUM_SEARCH_DEPTH};
-use crate::chess_util;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};

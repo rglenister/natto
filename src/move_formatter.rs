@@ -6,12 +6,11 @@ use crate::r#move::Move::{Castling, EnPassant, Promotion};
 use crate::r#move::Move;
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
-use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::search::negamax::SearchResults;
-use crate::chess_util;
 use phf::phf_map;
 use crate::chess_util::util;
+use crate::move_generator::generate_moves;
 
 include!("chess_util/generated_macro.rs");
 
@@ -171,7 +170,7 @@ impl MoveFormatter {
 
     fn get_short_algebraic_from_square_for_piece(&self, game_move: &GameMove) -> String {
         let cm = game_move.chess_move;
-        let moves = generate_moves(&game_move.position);
+        let moves: Vec<Move> = generate_moves(&game_move.position);
         let other_moves_to_the_same_square: Vec<_> = moves
             .iter().filter(|m|
                     m.get_base_move().to == cm.get_base_move().to

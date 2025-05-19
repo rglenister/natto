@@ -9,7 +9,7 @@ use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{Move, RawMove};
 use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::chess_util::util::distance;
-use crate::{fen, move_generator, chess_util};
+use crate::{fen, move_generator};
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;

@@ -27,7 +27,7 @@ impl Iterator for BitboardIterator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::chess_util::bitboard_iterator::BitboardIterator;
 
     #[test]
     fn test_empty_bitboard() {

@@ -19,7 +19,7 @@ fn test_fen_new_game_position() {
     let position = Position::from(NEW_GAME_FEN);
     let node_count_stats = node_counter::count_nodes(&position, 6);
     println!("{:?}", node_count_stats);
-    assert_eq!(node_count_stats.node_count, 119060324);
+    assert_eq!(node_count_stats.node_count, 119_060_324);
 }
 
 #[test]

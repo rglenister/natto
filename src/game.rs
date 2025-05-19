@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use crate::chessboard::piece::PieceColor;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
-use crate::{move_generator, search, chess_util};
+use crate::{move_generator, search};
 use crate::position::Position;
 
 include!("chess_util/generated_macro.rs");

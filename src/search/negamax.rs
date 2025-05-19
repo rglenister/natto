@@ -1,7 +1,6 @@
 use crate::game::GameStatus::{Checkmate, InProgress};
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
-use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::search::sorted_move_list::SortedMoveList;
 use crate::{fen, move_generator, r#move, uci};
@@ -17,6 +16,7 @@ use crate::chess_util::util;
 use crate::eval::evaluation;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
+use crate::move_generator::generate_moves;
 use crate::search::quiescence;
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
 
@@ -147,7 +147,7 @@ fn negamax_search(
     max_depth: usize,
     search_context: &mut SearchContext,
     mut alpha: isize,
-    mut beta: isize,
+    beta: isize,
 ) -> isize {
     increment_node_counter();
     let ply = max_depth - depth;
