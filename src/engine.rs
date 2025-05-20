@@ -7,7 +7,7 @@ use std::thread::JoinHandle;
 use log::{debug, error, info};
 use crate::opening_book::lichess_book::LiChessOpeningBook;
 use crate::opening_book::opening_book::OpeningBook;
-use crate::{fen, uci, util};
+use crate::{fen, uci, chess_util::util};
 use crate::config::CONFIG;
 use crate::search::negamax::iterative_deepening;
 use crate::search::transposition_table::TRANSPOSITION_TABLE;

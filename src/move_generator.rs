@@ -1,153 +1,21 @@
-use crate::chessboard::{board, piece};
+
+use crate::chessboard::board;
 use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::chessboard::board::{Board, BoardSide};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{BaseMove, Move};
 use crate::position::Position;
-use crate::util::on_board;
-use crate::util;
+
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::option::Option;
 use strum::IntoEnumIterator;
+use crate::chess_util::bitboard_iterator::BitboardIterator;
+use crate::chess_util::util;
 use crate::chessboard::piece::{PieceColor, PieceType};
 
-include!("util/generated_macro.rs");
+include!("chess_util/generated_macro.rs");
 
-struct MoveProcessor {
-    moves: Vec<Move>,
-}
-
-impl MoveProcessor {
-    fn get_closure(&mut self) -> Box<dyn FnMut(&Move) -> Option<()> + '_> {
-        let moves = RefCell::new(&mut self.moves);
-
-        Box::new(move |cm: &Move| -> Option<()> {
-            moves.borrow_mut().push(*cm);
-            Some(())
-        })
-    }
-
-    fn get_moves(&self) -> Vec<Move> {
-        self.moves.clone()
-    }
-}
-pub fn generate_moves(position: &Position) -> Vec<Move> {
-    let mut moves: Vec<Move> = vec!();
-    let mut non_capture_moves: Vec<Move> = vec!();
-    let mut process_move = |chess_move: &Move| -> Option<()> {
-        if chess_move.get_base_move().capture {
-            moves.push(*chess_move);
-        } else {
-            non_capture_moves.push(*chess_move);
-        }
-        Some(())
-    };
-    generate_moves_using_callback(position, &mut process_move);
-    moves.extend(non_capture_moves);
-    moves
-}
-
-pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
-    let mut moves: Vec<Move> = vec!();
-    let mut process_move = |mv: &Move| -> Option<()> {
-        if mv.get_base_move().capture {
-            match mv {
-                Move::Basic { base_move } => { moves.push(*mv) }
-                _ => {}
-            }
-        }
-        Some(())
-    };
-    generate_moves_using_callback(position, &mut process_move);
-    moves
-}
-
-pub fn has_legal_move(position: &Position) -> bool {
-    let mut found_legal_move: bool = false;
-    let mut process_move = |chess_move: &Move| -> Option<()> {
-        if !found_legal_move {
-            found_legal_move = position.make_move(chess_move).is_some();
-        }
-        if found_legal_move { None } else { Some(()) }
-    };
-    generate_moves_using_callback(position, &mut process_move);
-    found_legal_move
-}
-
-fn generate_moves_using_callback<F>(position: &Position, process_move: &mut F) -> Option<()> where
-    F: FnMut(&Move) -> Option<()> {
-    let board: &Board = position.board();
-    let occupied_squares = board.bitboard_all_pieces();
-    let friendly_squares = board.bitboard_by_color(position.side_to_move());
-    let bitboards: [u64; 6] = board.bitboards_for_color(position.side_to_move());
-
-    generate_pawn_moves(position, bitboards[PieceType::Pawn as usize], occupied_squares, RefCell::new(&mut *process_move))?;
-    get_non_sliding_moves_by_piece_type(Knight, bitboards[Knight as usize].try_into().unwrap(), occupied_squares, friendly_squares, process_move)?;
-    get_sliding_moves_by_piece_type(Bishop, bitboards[Bishop as usize], occupied_squares, friendly_squares, process_move)?;
-    get_sliding_moves_by_piece_type(Rook, bitboards[Rook as usize], occupied_squares, friendly_squares, process_move)?;
-
-    // combine bishop and rook to derive the queen moves
-    get_sliding_moves_by_piece_type(Bishop, bitboards[Queen as usize], occupied_squares, friendly_squares, process_move)?;
-    get_sliding_moves_by_piece_type(Rook, bitboards[Queen as usize], occupied_squares, friendly_squares, process_move)?;
-
-    generate_king_moves(position, bitboards[King as usize], occupied_squares, friendly_squares, process_move)?;
-    Some(())
-}
-
-pub fn get_non_sliding_moves_by_piece_type<F>(
-    piece_type: PieceType,
-    square_indexes: u64,
-    occupied_squares: u64,
-    friendly_squares: u64,
-    process_move: &mut F,
-) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    let mut quit = false;
-    util::process_bits(square_indexes.try_into().unwrap(), |square_index| {
-        let destinations = NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index as usize];
-        if generate_moves_for_destinations(square_index as usize, destinations, occupied_squares, friendly_squares, process_move).is_none() {
-            quit = true;
-        }
-    });
-    if quit { None } else { Some(()) }
-}
-pub fn get_sliding_moves_by_piece_type<F>(
-    piece_type: PieceType,
-    square_indexes: u64,
-    occupied_squares: u64,
-    friendly_squares: u64,
-    process_move: &mut F
-) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    util::process_bits(square_indexes, |square_index| {
-        let valid_moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index, occupied_squares);
-        generate_moves_for_destinations(square_index as usize, valid_moves, occupied_squares, friendly_squares, process_move);
-    });
-    Some(())
-}
-
-fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: u64, occupied_squares: u64) -> u64 {
-    let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
-    let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
-    let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
-    let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
-    valid_moves
-}
-
-fn generate_moves_for_destinations<F>(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    let mut quit = false;
-    util::process_bits(destinations, |to: u64| {
-        if !quit && friendly_squares & (1 << to) == 0 && process_move(&Basic { base_move: BaseMove::new(from, to as usize, occupied_squares & (1 << to) != 0)}).is_none() {
-            quit = true;
-        }
-    });
-    if !quit { Some(()) } else { None }
-}
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
     let mut table = HashMap::new();
@@ -174,11 +42,11 @@ static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy:
 
 static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<isize>>> = Lazy::new(|| {
     let mut table = HashMap::new();
-    table.insert(&Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
-    table.insert(&Bishop, vec![9, 7, -9, -7]);
-    table.insert(&Rook, vec![1, 8, -1, -8]);
-    table.insert(&Queen, table.get(&Bishop).unwrap().iter().chain(table.get(&Rook).unwrap()).cloned().collect());
-    table.insert(&King, table.get(&Queen).unwrap().clone());
+    table.insert(&PieceType::Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
+    table.insert(&PieceType::Bishop, vec![9, 7, -9, -7]);
+    table.insert(&PieceType::Rook, vec![1, 8, -1, -8]);
+    table.insert(&PieceType::Queen, table.get(&PieceType::Bishop).unwrap().iter().chain(table.get(&PieceType::Rook).unwrap()).cloned().collect());
+    table.insert(&PieceType::King, table.get(&PieceType::Queen).unwrap().clone());
     table
 });
 
@@ -209,7 +77,7 @@ struct TableEntry {
 }
 
 static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Lazy::new(|| {
-    let move_table = [Bishop, Rook]
+    let move_table = [PieceType::Bishop, PieceType::Rook]
         .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
     fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
         let mut squares: Vec<TableEntry> = Vec::new();
@@ -248,6 +116,210 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
     move_table
 });
 
+trait MoveProcessor {
+    type Output;
+    fn process_move(&mut self, move_: Move);
+    fn continue_processing(&mut self) -> bool;
+    fn get_result(&self) -> Self::Output;
+}
+
+struct MoveListMoveProcessor {
+    capture_moves: Vec<Move>,
+    non_capture_moves: Vec<Move>,
+    move_filter: Box<dyn Fn(&Move) -> bool>,
+}
+
+struct HasLegalMoveProcessor {
+    position: Position,
+    found_legal_move: bool,
+}
+
+impl MoveProcessor for MoveListMoveProcessor {
+    type Output = Vec<Move>;
+
+    fn process_move(&mut self, mov: Move) {
+        if (self.move_filter)(&mov) {
+            if mov.get_base_move().capture {
+                self.capture_moves.push(mov);
+            } else {
+                self.non_capture_moves.push(mov);
+            }
+        }
+    }
+
+    fn continue_processing(&mut self) -> bool {
+        true
+    }
+
+    fn get_result(&self) -> Self::Output {
+        let mut moves = self.capture_moves.clone();
+        moves.extend(&self.non_capture_moves);
+        moves
+    }
+}
+impl MoveProcessor for HasLegalMoveProcessor {
+    type Output = bool;
+    fn process_move(&mut self, mov: Move) {
+        if !self.found_legal_move {
+            self.found_legal_move = self.position.make_move(&mov).is_some();
+        }
+    }
+
+    fn continue_processing(&mut self) -> bool {
+        !self.found_legal_move
+    }
+
+    fn get_result(&self) -> bool {
+        self.found_legal_move
+    }
+}
+
+impl MoveListMoveProcessor {
+    fn new() -> Self {
+        MoveListMoveProcessor {
+            capture_moves: vec!(),
+            non_capture_moves: vec!(),
+            move_filter: Box::new(|_| true),
+        }
+    }
+    
+    fn set_filter(&mut self, filter: impl Fn(&Move) -> bool + 'static) {
+        self.move_filter = Box::new(filter)
+    }
+}
+impl HasLegalMoveProcessor {
+    fn new(position: Position) -> Self {
+        HasLegalMoveProcessor {
+            position,
+            found_legal_move: false,
+        }
+    }
+}
+
+struct MoveGeneratorImpl<P: MoveProcessor> {
+    position: Position,
+    move_processor: P,
+    occupied_squares: u64,
+    friendly_squares: u64,
+}
+
+impl<P: MoveProcessor + std::any::Any> MoveGeneratorImpl<P> {
+    fn new(position: Position, move_processor: P) -> Self {
+        let occupied_squares = position.board().bitboard_all_pieces();
+        let friendly_squares = position.board().bitboard_by_color(position.side_to_move());
+        MoveGeneratorImpl {
+            position,
+            move_processor,
+            occupied_squares,
+            friendly_squares,
+        }
+    }
+    fn generate(&mut self) where P: MoveProcessor {
+        let board: &Board = self.position.board();
+        let bitboards: [u64; 6] = board.bitboards_for_color(self.position.side_to_move());
+        for piece_type in [PieceType::King, PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen, PieceType::Pawn] {
+            if self.move_processor.continue_processing() {
+                self.generate_moves_for_piece_type(piece_type, bitboards[piece_type as usize]);
+            } else {
+                break;
+            }
+        }
+    }
+    fn generate_moves_for_piece_type(&mut self, piece_type: PieceType, bitboard: u64) {
+        match piece_type {
+            PieceType::Pawn => {
+                generate_pawn_moves::<P, <P as MoveProcessor>::Output>(&self.position, bitboard, self.occupied_squares, &mut self.move_processor);
+            }
+            PieceType::Knight => {
+                get_non_sliding_moves_by_piece_type::<P, <P as MoveProcessor>::Output>(PieceType::Knight, bitboard, self.occupied_squares, self.friendly_squares, &mut self.move_processor);
+            }
+            PieceType::Bishop => {
+                get_sliding_moves_by_piece_type(PieceType::Bishop, bitboard, self.occupied_squares, self.friendly_squares, &mut self.move_processor);
+            }
+            PieceType::Rook => {
+                get_sliding_moves_by_piece_type(PieceType::Rook, bitboard, self.occupied_squares, self.friendly_squares, &mut self.move_processor);
+            }
+            PieceType::Queen => {
+                get_sliding_moves_by_piece_type(PieceType::Bishop, bitboard, self.occupied_squares, self.friendly_squares, &mut self.move_processor);
+                get_sliding_moves_by_piece_type(PieceType::Rook, bitboard, self.occupied_squares, self.friendly_squares, &mut self.move_processor);
+            }
+            PieceType::King => {
+                generate_king_moves::<P, <P as MoveProcessor>::Output>(&self.position, bitboard, self.occupied_squares, self.friendly_squares, &mut self.move_processor);
+            },
+        }
+    }
+}
+
+pub fn generate_moves(position: &Position) -> Vec<Move> {
+    let mut move_generator = MoveGeneratorImpl::new(position.clone(), MoveListMoveProcessor::new()); 
+    move_generator.generate();
+    move_generator.move_processor.get_result().clone()
+}
+
+pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
+    let mut move_processor = MoveListMoveProcessor::new();
+    move_processor.set_filter(|mov| mov.get_base_move().capture && matches!(mov, Move::Basic { .. }));
+    let mut move_generator = MoveGeneratorImpl::new(position.clone(), move_processor);
+    move_generator.generate();
+    move_generator.move_processor.get_result()
+}
+
+pub fn has_legal_move(position: &Position) -> bool {
+    let mut move_generator = MoveGeneratorImpl {
+        position: position.clone(),
+        move_processor: HasLegalMoveProcessor::new(position.clone()),
+        occupied_squares: position.board().bitboard_all_pieces(),
+        friendly_squares: position.board().bitboard_by_color(position.side_to_move()),
+    };
+    move_generator.generate();
+    move_generator.move_processor.get_result()
+}
+
+fn get_non_sliding_moves_by_piece_type<T, U>(
+    piece_type: PieceType,
+    square_indexes: u64,
+    occupied_squares: u64,
+    friendly_squares: u64,
+    move_processor: &mut (impl MoveProcessor<Output=U> + Sized)
+) {
+    let mut square_iterator = BitboardIterator::new(square_indexes);
+    while let Some(square_index) = square_iterator.next() {
+        let destinations = NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index];
+        generate_moves_for_destinations(square_index as usize, destinations, occupied_squares, friendly_squares, move_processor);
+    }
+}
+fn get_sliding_moves_by_piece_type<T>(
+    piece_type: PieceType,
+    square_indexes: u64,
+    occupied_squares: u64,
+    friendly_squares: u64,
+    move_processor: &mut (impl MoveProcessor<Output=T> + Sized)
+) {
+    let mut square_iterator = BitboardIterator::new(square_indexes);
+    while let Some(square_index) = square_iterator.next() {
+        let valid_moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index, occupied_squares);
+        generate_moves_for_destinations(square_index as usize, valid_moves, occupied_squares, friendly_squares, move_processor);
+    }
+}
+
+fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
+    let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
+    let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
+    let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
+    let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
+    valid_moves
+}
+
+fn generate_moves_for_destinations<T>(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64, move_processor: &mut (impl MoveProcessor<Output=T> + Sized)) {
+    let mut square_iterator = BitboardIterator::new(destinations);
+    while let Some(to) = square_iterator.next() {
+        if friendly_squares & (1 << to) == 0 {
+            move_processor.process_move(Basic { base_move: BaseMove::new(from, to, occupied_squares & (1 << to) != 0) });
+        }
+    }
+}
+
+
 /// Pre-calculates the bitmaps
 fn generate_move_bitboard(
     source_square: isize,
@@ -274,8 +346,8 @@ fn generate_move_bitboard(
         sliding: bool,
     ) -> u64 {
         let destination_square: isize = source_square + increment;
-        if on_board(source_square, destination_square) &&
-            (!generating_blocking_square_mask || on_board(destination_square, destination_square + increment)) {
+        if util::on_board(source_square, destination_square) &&
+            (!generating_blocking_square_mask || util::on_board(destination_square, destination_square + increment)) {
             let result = 1 << destination_square;
             if sliding && blocking_pieces_bitboard & (1 << destination_square) == 0 {
                 result | generate_move_bitboard_for_increment(
@@ -294,102 +366,87 @@ fn generate_move_bitboard(
     }
 }
 
-fn generate_king_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, process_move: &mut F) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    get_non_sliding_moves_by_piece_type(King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, process_move)?;
-    let moves = BoardSide::iter()
+fn generate_king_moves<T, U>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, move_processor: &mut (impl MoveProcessor<Output=U> + Sized)) {
+//    let position2 = move_processor.
+    get_non_sliding_moves_by_piece_type::<T, U>(PieceType::King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, move_processor);
+    BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
             .map(|board_side| { &board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
             .map(|cmd| Castling { base_move: BaseMove::new(cmd.king_from_square, cmd.king_to_square, false), board_side: cmd.board_side })
-            .collect::<Vec<_>>();
-    for cm in moves {
-        process_move(&cm)?;
-    }
-    Some(())
+            .for_each(|mv| move_processor.process_move(mv));
 }
 
-fn generate_pawn_moves<F>(position: &Position, square_indexes: u64, occupied_squares: u64, process_move: RefCell<F>) -> Option<()>
-where F: FnMut(&Move) -> Option<()> {
-    let create_moves = |from: usize, to: usize, capture: bool| -> Option<()> {
+fn generate_pawn_moves<P, U>(position: &Position, square_indexes: u64, occupied_squares: u64, move_processor: &mut P)
+where
+    P: MoveProcessor<Output=U> + Sized,
+{
+    let create_moves = |from: usize, to: usize, capture: bool, move_processor: &mut P| {
         if Board::rank(to, position.side_to_move()) != 7 {
-            process_move.borrow_mut()(&Basic { base_move: BaseMove::new(from, to, capture) })?;
+            move_processor.process_move(Basic { base_move: BaseMove::new(from, to, capture) });
         } else {
-            for piece_type in [Knight, Bishop, Rook, Queen] {
-                process_move.borrow_mut()(&Promotion { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type })?;
+            for piece_type in [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
+                move_processor.process_move(Promotion { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type });
             }
         }
-        Some(())
     };
 
-    let mut quit = false;
     let side_to_move = position.side_to_move();
     let opposing_side = !side_to_move;
     let opposing_side_bitboard = position.board().bitboard_by_color(opposing_side);
+    let pawn_increment: isize = if side_to_move == White { 8 } else { -8 };
 
-    util::process_bits(square_indexes, |square_index| {
+    let mut square_iterator = BitboardIterator::new(square_indexes);
+    while let Some(square_index) = square_iterator.next() {
 
-        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index as usize];
-
-        if !quit {
-            // generate forward moves
-            let one_step_forward: u64 = if side_to_move == White { 1 << (square_index + 8) } else { 1 << (square_index - 8) };
-            if occupied_squares & one_step_forward == 0 {
-                if create_moves(square_index as usize, one_step_forward.trailing_zeros() as usize, false).is_none() {
-                    quit = true;
-                }
-                if !quit && Board::rank(square_index as usize, side_to_move) == 1 {
-                    let two_steps_forward = if side_to_move == White { one_step_forward << 8 } else { one_step_forward >> 8 };
-                    if (occupied_squares & two_steps_forward) == 0 && create_moves(square_index as usize, two_steps_forward.trailing_zeros() as usize, false).is_none() {
-                        quit = true;
-                    }
+        // generate forward moves
+        let one_step_forward: u64 = 1 << ((square_index as isize + pawn_increment) as usize);
+        if occupied_squares & one_step_forward == 0 {
+            create_moves(square_index, one_step_forward.trailing_zeros() as usize, false, move_processor);
+            if Board::rank(square_index, side_to_move) == 1 {
+                let two_steps_forward = 1 << ((square_index as isize + pawn_increment * 2) as usize);
+                if (occupied_squares & two_steps_forward) == 0 {
+                    create_moves(square_index, two_steps_forward.trailing_zeros() as usize, false, move_processor);
                 }
             }
         }
-        if !quit {
-            // generate standard captures
-            let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
-            util::process_bits(attacked_opposing_piece_squares, |attacked_square_index| {
-                if create_moves(square_index as usize, attacked_square_index as usize, true).is_none() {
-                    quit = true;
-                }
-            });
+
+        // generate standard captures
+        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index];
+        let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
+        for attacked_square_index in BitboardIterator::new(attacked_opposing_piece_squares) {
+            create_moves(square_index, attacked_square_index, true, move_processor);
         }
-        if !quit {
-            // generate en passant capture
-            if let Some(ep_square) = position.en_passant_capture_square() {
-                if ((1 << ep_square) & attacked_squares) != 0 {
-                    let one_step_backward: isize = if side_to_move == White { -8 } else { 8 };
-                    let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize + one_step_backward) as usize };
-                    if process_move.borrow_mut()(&ep_move).is_none() {
-                        quit = true;
-                    }
-                }
+
+        // generate en passant capture
+        if let Some(ep_square) = position.en_passant_capture_square() {
+            if ((1 << ep_square) & attacked_squares) != 0 {
+                let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize - pawn_increment) as usize };
+                move_processor.process_move(ep_move);
             }
         }
-    });
-
-    if quit { None } else { Some(()) }
+    }
 }
 
 pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
     let occupied_squares = position.board().bitboard_all_pieces();
     let enemy_squares = position.board().bitboard_by_color(attacking_color);
-    let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, Queen);
+    let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, PieceType::Queen);
     let mut attacking_squares = 0;
-    for piece_type in [Bishop, Rook] {
+    for piece_type in [PieceType::Bishop, PieceType::Rook] {
         let moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index.try_into().unwrap(), occupied_squares);
         let possible_attackers = moves & enemy_squares;
-        util::process_bits(possible_attackers, |square_index| {
+        let mut square_iterator = BitboardIterator::new(possible_attackers);
+        while let Some(square_index) = square_iterator.next() {
             if (enemy_queens | position.board().bitboard_by_color_and_piece_type(attacking_color, piece_type)) & (1 << square_index) != 0 {
                 attacking_squares |= 1 << square_index;
             }
-        })
+        }
     }
-    attacking_squares |= non_sliding_piece_attacks(position, King, attacking_color, square_index);
-    attacking_squares |= non_sliding_piece_attacks(position, Knight, attacking_color, square_index);
+    attacking_squares |= non_sliding_piece_attacks(position, PieceType::King, attacking_color, square_index);
+    attacking_squares |= non_sliding_piece_attacks(position, PieceType::Knight, attacking_color, square_index);
 
     let pawn_attack_squares = PAWN_ATTACKS_TABLE[&!attacking_color][square_index as usize];
-    let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, Pawn);
+    let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, PieceType::Pawn);
     let attacking_pawn = pawn_attack_squares & attacking_pawns;
     attacking_squares |= attacking_pawn;
 
@@ -398,7 +455,7 @@ pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, s
 
 pub fn is_en_passant_capture_possible(position: &Position) -> bool {
     if let Some(en_passant_capture_square) = position.en_passant_capture_square() {
-        position.board().bitboard_by_color_and_piece_type(position.side_to_move(), Pawn) &
+        position.board().bitboard_by_color_and_piece_type(position.side_to_move(), PieceType::Pawn) &
             PAWN_ATTACKS_TABLE[&position.opposing_side()][en_passant_capture_square] != 0
     } else {
         false
@@ -430,62 +487,8 @@ pub fn is_check(position: &Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::r#move::Move::Castling;
     use crate::move_generator::generate_moves;
-
-    use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
     use crate::r#move::BaseMove;
-
-    /// Verifies that a knight in a corner square can move to the expected squares
-    #[test]
-    fn test_knight_on_corner_square() {
-        let mut move_processor = MoveProcessor { moves: vec!() };
-        get_non_sliding_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 0, &mut move_processor.get_closure());
-        let moves = move_processor.moves;
-        assert_eq!(
-            moves,
-            vec!(Basic { base_move: { BaseMove::new(0, 10, false) }},
-                 Basic {  base_move: { BaseMove::new(0, 17, false)}})
-        );
-    }
-
-    /// Verifies that a knight cannot capture a friendly piece
-    #[test]
-    fn test_knight_attacking_friendly_piece() {
-        let mut move_processor = MoveProcessor { moves: vec!() };
-        get_non_sliding_moves_by_piece_type(PieceType::Knight, 1 << 0, 0, 1 << 10, &mut move_processor.get_closure());
-        let moves = move_processor.moves;
-        assert_eq!(
-            moves,
-            vec!(Basic { base_move: { BaseMove::new(0, 17, false)}})
-        );
-    }
-
-    /// Verifies that a knight can capture an enemy piece
-    #[test]
-    fn test_knight_attacking_enemy_piece() {
-        let mut move_processor = MoveProcessor { moves: vec!() };
-        get_non_sliding_moves_by_piece_type(PieceType::Knight, 1 << 0, 1 << 10, 0, &mut move_processor.get_closure());
-        let moves = move_processor.moves;
-        assert_eq!(
-            moves,
-            vec!(Basic { base_move: { BaseMove::new(0, 10, true )}},
-                 Basic { base_move: { BaseMove::new(0, 17, false )}})
-        );
-    }
-
-    #[test]
-    fn test_king_lookup_table() {
-        let mut move_processor = MoveProcessor { moves: vec!() };
-        get_non_sliding_moves_by_piece_type(PieceType::King, 1 << 0, 0, 0, &mut move_processor.get_closure());
-        let moves = move_processor.moves;
-        assert_eq!(
-            moves,
-            vec!(Basic { base_move: { BaseMove::new(0, 1, false)}},
-                 Basic { base_move: { BaseMove::new(0, 8, false)}},
-                 Basic { base_move: { BaseMove::new(0, 9, false)}})
-        );
-    }
 
     /// 20 moves are generated from the initial position
     #[test]
@@ -662,10 +665,10 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate_moves(&position), 50);
         assert_eq!(moves.len(), 4);
-        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: Queen });
+        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Knight });
+        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Rook });
+        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Queen });
     }
 
     /// Black pawns can be promoted
@@ -676,10 +679,10 @@ mod tests {
         let moves = util::filter_moves_by_from_square(generate_moves(&position), 14);
         assert_eq!(moves.len(), 4);
 
-        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Queen });
+        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Knight });
+        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Rook });
+        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Queen });
     }
 
     /// Black pawns can be promoted by capturing
@@ -690,21 +693,20 @@ mod tests {
         let moves = util::filter_moves_by_from_square(generate_moves(&position), 14);
         assert_eq!(moves.len(), 12);
 
-        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: Knight });
-        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: Bishop });
-        assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: Rook });
-        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: Queen });
+        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Knight });
+        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Rook });
+        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Queen });
 
-        assert_eq!(*moves.get(4).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: Knight });
-        assert_eq!(*moves.get(5).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: Bishop });
-        assert_eq!(*moves.get(6).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: Rook });
-        assert_eq!(*moves.get(7).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: Queen });
+        assert_eq!(*moves.get(4).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Knight });
+        assert_eq!(*moves.get(5).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(6).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Rook });
+        assert_eq!(*moves.get(7).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Queen });
 
-        assert_eq!(*moves.get(8).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Knight });
-        assert_eq!(*moves.get(9).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Bishop });
-        assert_eq!(*moves.get(10).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Rook });
-        assert_eq!(*moves.get(11).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: Queen });
-
+        assert_eq!(*moves.get(8).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Knight });
+        assert_eq!(*moves.get(9).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(10).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Rook });
+        assert_eq!(*moves.get(11).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Queen });
     }
 
     /// Test white king moves
@@ -718,8 +720,8 @@ mod tests {
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. }))
                 .collect();
         assert_eq!(castling_moves.len(), 2);
-        assert_eq!(**castling_moves.get(0).unwrap(), Castling { base_move: BaseMove::new(sq!("e1"), sq!("g1"), false), board_side: KingSide });
-        assert_eq!(**castling_moves.get(1).unwrap(), Castling { base_move: BaseMove::new(sq!("e1"), sq!("c1"), false), board_side: QueenSide });
+        assert_eq!(**castling_moves.get(0).unwrap(), Castling { base_move: BaseMove::new(sq!("e1"), sq!("g1"), false), board_side: BoardSide::KingSide });
+        assert_eq!(**castling_moves.get(1).unwrap(), Castling { base_move: BaseMove::new(sq!("e1"), sq!("c1"), false), board_side: BoardSide::QueenSide });
     }
 
     /// Test black king moves
@@ -733,8 +735,8 @@ mod tests {
             moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. }))
                 .collect();
         assert_eq!(castling_moves.len(), 2);
-        assert_eq!(**castling_moves.get(0).unwrap(), Castling { base_move: BaseMove::new(sq!("e8"), sq!("g8"), false), board_side: KingSide });
-        assert_eq!(**castling_moves.get(1).unwrap(), Castling { base_move: BaseMove::new(sq!("e8"), sq!("c8"), false), board_side: QueenSide });
+        assert_eq!(**castling_moves.get(0).unwrap(), Castling { base_move: BaseMove::new(sq!("e8"), sq!("g8"), false), board_side: BoardSide::KingSide });
+        assert_eq!(**castling_moves.get(1).unwrap(), Castling { base_move: BaseMove::new(sq!("e8"), sq!("c8"), false), board_side: BoardSide::QueenSide });
     }
 
     /// Test square attacks finder
@@ -811,7 +813,7 @@ mod tests {
         assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 22);
         assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 38);
     }
-    
+
     #[test]
     fn test_generate_capture_moves() {
         let fen = "8/4k3/Q7/8/8/8/3K4/r7 b - - 0 1";

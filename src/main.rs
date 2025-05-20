@@ -6,7 +6,7 @@ pub mod chessboard;
 pub mod r#move;
 pub mod position;
 pub mod uci;
-pub mod util;
+pub mod chess_util;
 pub mod move_generator;
 pub mod game;
 pub mod move_formatter;

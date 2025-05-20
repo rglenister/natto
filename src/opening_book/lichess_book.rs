@@ -1,18 +1,17 @@
-use std::cell::RefCell;
-use crate::{fen, util};
+use crate::chess_util::util;
+use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::chessboard::piece::PieceType::King;
+use crate::chessboard::piece::{Piece, PieceColor};
+use crate::opening_book::opening_book::{ErrorKind, OpeningBook};
+use crate::position::Position;
+use crate::r#move::{Move, RawMove};
+use crate::fen;
 use rand::{rng, Rng};
 use reqwest;
 use serde::{Deserialize, Serialize};
-use crate::chessboard::piece::{Piece, PieceColor};
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::King;
-use crate::r#move::{Move, RawMove};
 use crate::move_generator::generate_moves;
-use crate::opening_book::opening_book::{ErrorKind, OpeningBook};
-use crate::position::Position;
-use crate::util::find_generated_move;
 
-include!("../util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 
 pub struct LiChessOpeningBook {
@@ -108,12 +107,12 @@ fn parse_move(move_string: &str) -> Result<RawMove, ErrorKind> {
 }
 
 fn validate_move(position: &Position, raw_chess_move: RawMove) -> Result<Move, ErrorKind> {
-    find_generated_move(generate_moves(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
+    util::find_generated_move(generate_moves(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::opening_book::lichess_book::{get_opening_move, map_castling_move_to_uci_format, ErrorKind, LiChessOpeningBook, OpeningBook};
+    use crate::opening_book::lichess_book::{map_castling_move_to_uci_format, ErrorKind, LiChessOpeningBook, OpeningBook};
     use crate::position::Position;
 
     #[test]

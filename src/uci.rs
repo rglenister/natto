@@ -2,13 +2,13 @@ use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
 use crate::position::Position;
 use crate::search::negamax::{SearchParams, MAXIMUM_SEARCH_DEPTH};
-use crate::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
+use crate::chess_util::util;
 
-include!("util/generated_macro.rs");
+include!("chess_util/generated_macro.rs");
 
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
 
