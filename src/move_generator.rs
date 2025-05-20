@@ -250,7 +250,7 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
 
 pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
     let moves = generate_moves(position);
-    moves.into_iter().filter(|mov| mov.get_base_move().capture).collect()
+    moves.into_iter().filter(|mov| mov.get_base_move().capture && matches!(mov, Castling { .. })).collect()
 }
 
 pub fn has_legal_move(position: &Position) -> bool {
