@@ -8,15 +8,16 @@ use crate::chessboard::piece::{Piece, PieceColor};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{Move, RawMove};
 use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
-use crate::util::distance;
-use crate::{fen, move_generator, util};
+use crate::chess_util::util::distance;
+use crate::{fen, move_generator};
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use std::fmt;
+use crate::chess_util::util;
 
-include!("util/generated_macro.rs");
+include!("chess_util/generated_macro.rs");
 
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -449,7 +450,7 @@ mod tests {
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
         assert_eq!(position.castling_rights_as_u64(), 15);
         let moves = generate_moves(&position);
-        let king_moves: Vec<_> = util::filter_moves_by_from_square(moves,sq!("e1"));
+        let king_moves: Vec<_> = util::filter_moves_by_from_square(moves, sq!("e1"));
         assert_eq!(king_moves.len(), 7);
         let new_position = position.make_move(&king_moves[0]).unwrap();
         assert_eq!(new_position.0.castling_rights[White as usize], [false, false]);

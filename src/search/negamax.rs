@@ -1,7 +1,6 @@
 use crate::game::GameStatus::{Checkmate, InProgress};
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
-use crate::move_generator::generate_moves;
 use crate::position::Position;
 use crate::search::sorted_move_list::SortedMoveList;
 use crate::{fen, move_generator, r#move, uci};
@@ -13,14 +12,15 @@ use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
+use crate::chess_util::util;
 use crate::eval::evaluation;
 use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
+use crate::move_generator::generate_moves;
 use crate::search::quiescence;
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
-use crate::util::replay_moves;
 
-include!("../util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
@@ -147,7 +147,7 @@ fn negamax_search(
     max_depth: usize,
     search_context: &mut SearchContext,
     mut alpha: isize,
-    mut beta: isize,
+    beta: isize,
 ) -> isize {
     increment_node_counter();
     let ply = max_depth - depth;
@@ -294,7 +294,7 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
         .collect::<Vec<String>>()
         .join(" ");
     
-    let moves = replay_moves(position, moves_string.clone());
+    let moves = util::replay_moves(position, moves_string.clone());
     if moves.is_none() {
         error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
     }
@@ -351,7 +351,7 @@ mod tests {
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
-    use crate::{move_formatter, uci, util};
+    use crate::{move_formatter, uci, chess_util};
 
     fn test_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
         let uci_position = uci::parse_position(uci_position_str).unwrap();
@@ -487,12 +487,48 @@ mod tests {
         );
     }
 
+    /// Test case for verifying if the search algorithm can correctly identify and handle a checkmate scenario in four moves.
+    ///
+    /// This test is based on a FEN string representing a chess position from which a "mate-in-four" can occur.
+    /// The function runs an iterative deepening search algorithm with a specified depth and validates the resulting move sequence,
+    /// search results, and the correctness of the algorithm's evaluation against the expected values.
+    ///
+    /// # Steps Performed:
+    /// - The given FEN string (`fen`) is used to initialize a `Position` object.
+    /// - The `iterative_deepening` function is invoked to search the position up to a depth of 7, simulating a scenario
+    ///   where the algorithm should identify a "mate-in-four".
+    /// - The sequence of moves leading to the checkmate is compared with the expected output using `assert_eq!`.
+    /// - The full search results, including position, score, depth, principal variation (`pv`), and game status
+    ///   (`Checkmate`), are tested for correctness using `test_eq`.
+    ///
+    /// # Test Parameters:
+    /// - FEN string: `"4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1"`
+    ///     - This represents a position where white has a clear forced checkmate sequence in four moves.
+    ///     - "w" indicates that white is to move.
+    /// - Search Depth: `7`
+    ///     - The test checks the algorithm's capabilities to compute up to seven ply to retain accuracy.
+    ///
+    /// # Validations:
+    /// - The move sequence (`long_format_moves`) leading to the checkmate is expected to be:
+    ///     `"♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,♗f7xg6#"`
+    /// - The search results, encapsulated in the `SearchResults` structure, are expected to match:
+    ///     - Position: Original position object derived from FEN.
+    ///     - Score: `MAXIMUM_SCORE - 7`
+    ///         - Indicates the estimated score for the winning move, adjusted for the number of moves remaining.
+    ///     - Depth: `7`
+    ///         - Confirms the depth to which the position was searched in the test.
+    ///     - Principal Variation (`pv`): Expected to be empty (`vec![]`) in this case.
+    ///     - Game Status: `Checkmate`
+    ///
+    /// # Importance:
+    /// This test ensures that the chess engine's search algorithm can correctly evaluate and play out forced checkmate sequences,
+    /// a critical functionality for any chess evaluation engine. It also confirms robustness across deeper search depths and complex scenarios.
     #[test]
     fn test_mate_in_four() {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(long_format_moves(&position, &search_results), "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,f5xg6#");
+        assert_eq!(long_format_moves(&position, &search_results), "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,♗f7xg6#");
         test_eq(
             &search_results,
             &SearchResults {

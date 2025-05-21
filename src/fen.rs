@@ -1,14 +1,13 @@
 use crate::chessboard::piece::PieceColor::White;
 use crate::chessboard::piece::Piece;
 use crate::position::Position;
-use crate::util::{create_color, parse_square};
 use crate::chessboard::board;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use thiserror::Error;
 use crate::chessboard::board::Board;
-use crate::util;
+use crate::chess_util::util;
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
     r"^(?<board>((?<RankItem>[pnbrqkPNBRQK1-8]{1,8})/?){8})\s+(?<side_to_move>[bw])\s+(?<castling_rights>-|K?Q?k?q?)\s+(?<en_passant_target_square>-|[a-h][3-6])\s+(?<halfmove_clock>\d+)\s+(?<fullmove_number>\d+)\s*$"
@@ -72,9 +71,9 @@ pub fn parse(fen: String) -> Result<Position, ErrorKind> {
     
     Ok(Position::new(
         board,
-        create_color(fen_parts.side_to_move).unwrap(),
+        util::create_color(fen_parts.side_to_move).unwrap(),
         fen_parts.castling_rights.to_string(),
-        parse_square(fen_parts.en_passant_target_square),
+        util::parse_square(fen_parts.en_passant_target_square),
         fen_parts.halfmove_clock,
         fen_parts.fullmove_number
     ))

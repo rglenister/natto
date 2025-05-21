@@ -17,7 +17,7 @@ fn generate_macros() {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::sq_macro_generator::generate_macros;
+    use crate::chess_util::sq_macro_generator::generate_macros;
 
     #[test]
     fn test_generate_macros() {

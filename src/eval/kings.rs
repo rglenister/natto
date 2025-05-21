@@ -2,7 +2,7 @@ use crate::chessboard::board::Board;
 use crate::chessboard::piece::PieceColor;
 use crate::chessboard::piece::PieceColor::White;
 use crate::position::Position;
-use crate::{move_generator, util};
+use crate::{move_generator, chess_util};
 use crate::chessboard::piece::PieceType::King;
 
 pub fn score_king_safety(position: &Position) -> isize {

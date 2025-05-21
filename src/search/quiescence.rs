@@ -4,11 +4,12 @@ use crate::chessboard::piece::{PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_pieces, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
-use crate::{move_generator, util};
+use crate::{move_generator, chess_util};
+use crate::chess_util::util;
 use crate::position::Position;
 use crate::r#move::{Move};
 
-include!("../util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 pub fn quiescence_search(position: &Position, depth: isize, alpha: isize, beta: isize) -> isize {
     if move_generator::is_check(position) {

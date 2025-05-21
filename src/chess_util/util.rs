@@ -8,10 +8,8 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Add;
 
-mod sq_macro_generator;
-mod generated_macro;
 
-include!("util/generated_macro.rs");
+include!("generated_macro.rs");
 
 static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
@@ -105,8 +103,8 @@ where
 }
 
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
-    moves.into_iter().filter(|chess_move | {
-        match chess_move {
+    moves.into_iter().filter(|mov| {
+        match mov {
             Move::Basic { base_move, .. } => base_move.from == from_square,
             Move::EnPassant { base_move, .. } => base_move.from == from_square,
             Move::Promotion { base_move, .. } => base_move.from == from_square,
