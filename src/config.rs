@@ -10,6 +10,7 @@ pub struct Config {
     pub use_book: bool,
     pub max_book_depth: usize,
     pub hash_size: usize,
+    pub perft: bool,
 }
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     dotenv().ok();
@@ -58,7 +59,12 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .value_parser(is_power_of_two)
             .help("the maximum number of items that the hash table can hold - must be a power of two")
             .env("ENGINE_HASH_SIZE")
-        ).get_matches();
+        )
+        .arg(Arg::new("perft").short('p').long("perft").action(ArgAction::SetTrue)
+            .required(false)
+            .default_value("false")
+            .help("Run the perft (performance test)")
+    ).get_matches();
 
     Config {
         log_file: matches.get_one::<String>("log-file").unwrap().to_string(),
@@ -72,7 +78,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         },
         use_book: matches.get_one::<String>("use-book").map_or(true, |v| v == "true"),
         max_book_depth: matches.get_one::<u16>("max-book-depth").copied().unwrap() as usize,
-        hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap()
+        hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
+        perft: *matches.get_one::<bool>("perft").unwrap_or(&false)
     }
 });
 
