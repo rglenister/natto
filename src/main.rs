@@ -23,8 +23,11 @@ use dotenv::dotenv;
 use fern::Dispatch;
 use log::info;
 use log::error;
+use chess_engine::eval::node_counter::count_nodes;
+use chess_engine::position::Position;
 use crate::search::transposition_table::TRANSPOSITION_TABLE;
 use crate::config::CONFIG;
+use crate::eval::node_counter;
 
 fn main() {
     dotenv().ok();
@@ -35,9 +38,14 @@ fn main() {
     }).ok();
     info!("Configuration: {:?}", *CONFIG);
     let _ = *TRANSPOSITION_TABLE;
-    info!("Starting engine");
-    engine::run();
-    info!("Engine exited cleanly");
+    if CONFIG.perft {
+        println!("Running perft test");
+        node_counter::perf_t();
+    } else {
+        info!("Starting engine");
+        engine::run(&CONFIG.uci_commands);
+        info!("Engine exited cleanly");
+    }
 }
 
 fn setup_logging() -> Result<(), fern::InitError> {

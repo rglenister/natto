@@ -353,14 +353,6 @@ mod tests {
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
     use crate::{move_formatter, uci, chess_util};
 
-    fn test_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
-        let uci_position = uci::parse_position(uci_position_str).unwrap();
-        let uci_go_options = uci::parse_uci_go_options(Some(go_options_str.to_string()));
-        let search_params = uci::create_search_params(&uci_go_options, &uci_position);
-        let repeat_position_counts = Some(util::create_repeat_position_counts(uci_position.all_game_positions()));
-        iterative_deepening(&uci_position.end_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
-    }
-    
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
         assert_eq!(search_results.depth, expected.depth);
@@ -612,7 +604,7 @@ mod tests {
         let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_for_win_uci_position_str = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_options_str = "depth 1";
-        let drawn_search_results = test_uci_position(go_for_draw_uci_position_str, go_options_str);
+        let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
         assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
         test_eq(
             &drawn_search_results,
@@ -625,7 +617,7 @@ mod tests {
             }
         );
 
-        let win_search_results = test_uci_position(go_for_win_uci_position_str, go_options_str);
+        let win_search_results = uci::run_uci_position(go_for_win_uci_position_str, go_options_str);
         assert_eq!(win_search_results.pv_moves_as_string(), "b8-c6".to_string());
         test_eq(
             &win_search_results,
@@ -643,7 +635,7 @@ mod tests {
     fn test_li_chess_game() {
         // https://lichess.org/RZTYaEbP#87
         let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
-        let drawn_search_results = test_uci_position(uci_position_str, "depth 2");
+        let drawn_search_results = uci::run_uci_position(uci_position_str, "depth 2");
         assert_eq!(drawn_search_results.pv_moves_as_string(), "f5-c8,e8-e7");
         test_eq(
             &drawn_search_results,
@@ -660,7 +652,7 @@ mod tests {
     #[test]
     fn test_perpetual_check() {
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
-        let search_results = test_uci_position(go_for_draw_uci_position_str, "depth 5");
+        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 5");
         assert_eq!(search_results.pv_moves_as_string(), "g6-f8".to_string());
         //assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
