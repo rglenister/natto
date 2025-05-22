@@ -1,12 +1,16 @@
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
 use crate::position::Position;
-use crate::search::negamax::{SearchParams, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use crate::chess_util::util;
+use crate::chess_util::util::create_repeat_position_counts;
+use crate::search;
 
 include!("chess_util/generated_macro.rs");
 
@@ -151,6 +155,14 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
 pub fn send_to_gui(data: String) {
     println!("{}", data);
     info!("UCI Protocol: sending to GUI: {}", data);
+}
+
+pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
+    let uci_position = parse_position(uci_position_str).unwrap();
+    let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
+    let search_params = create_search_params(&uci_go_options, &uci_position);
+    let repeat_position_counts = Some(create_repeat_position_counts(uci_position.all_game_positions()));
+    search::negamax::iterative_deepening(&uci_position.end_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
 }
 
 #[cfg(test)]

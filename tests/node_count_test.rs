@@ -29,7 +29,7 @@ fn test_fens() {
     let mut test_number = 0;
     for test in test_cases {
         let position = fen::parse(test.fen).expect("Failed to parse FEN");
-        let node_count_stats = node_counter::count_nodes(&position, test.depth as i32);
+        let node_count_stats = node_counter::count_nodes(&position, test.depth);
         assert_eq!(node_count_stats.node_count, test.nodes, "Test {}",  test_number);
         test_number += 1;
         println!("{:?}", node_count_stats);
