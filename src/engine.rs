@@ -15,8 +15,8 @@ use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
 use crate::uci::{UciGoOptions, UciPosition};
 
-pub fn run() {
-    Engine::new().run();
+pub fn run(uci_commands: &Option<Vec<String>>) {
+    Engine::new().run(uci_commands);
 }
 
 enum UciCommand {
@@ -62,7 +62,7 @@ impl Engine {
         }
     }
 
-    fn run(&self) {
+    fn run(&self, uci_commands: &Option<Vec<String>>) {
         // Spawn input-handling thread
         let (tx, rx) = &self.channel;
         let _input_thread = self.start_input_thread(tx.clone());
@@ -70,7 +70,7 @@ impl Engine {
         let mut search_handle: Option<JoinHandle<()>> = None;
         let mut uci_position: Option<UciPosition> = None;
         info!("Chess engine started");
-        self.main_loop(rx, &mut search_handle, &mut uci_position);
+        self.main_loop(rx, &mut search_handle, &mut uci_position, uci_commands);
         if let Some(handle) = search_handle {
             handle.join().unwrap();
             info!("Search thread has stopped");
@@ -79,26 +79,37 @@ impl Engine {
         }
     }
 
-    fn main_loop(&self, rx: &Receiver<String>, search_handle: &mut Option<JoinHandle<()>>, uci_position: &mut Option<UciPosition>) {
-        while !self.main_loop_quit_flag.load(Ordering::Relaxed) {
-            if let Ok(input) = rx.recv() {
-                debug!("Received from engine host: {}", input);
-                let command = UciCommand::from_input(&input);
-                match command {
-                    UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
-                    UciCommand::Quit => self.uci_quit(&self.search_stop_flag, &self.main_loop_quit_flag),
-                    UciCommand::Uci => self.uci_uci(),
-                    UciCommand::IsReady => self.uci_is_ready(),
-                    UciCommand::UciNewGame => self.uci_new_game(uci_position),
-                    UciCommand::Position(_position_str) => self.uci_set_position(&input.to_string(), uci_position,),
-                    UciCommand::None => self.uci_none(input.to_string()),
-                    UciCommand::Go(_go_options_string) => self.uci_go(&&self.search_stop_flag, search_handle, input.to_string(), uci_position),
+    fn main_loop(&self, rx: &Receiver<String>, search_handle: &mut Option<JoinHandle<()>>, uci_position: &mut Option<UciPosition>, uci_commands: &Option<Vec<String>>) {
+        if let Some(uci_commands) = uci_commands {
+            for uci_command in uci_commands {
+                println!("Running UCI command: {}", uci_command);
+                self.run_uci_command(search_handle, uci_position, &uci_command, UciCommand::from_input(&uci_command));
+            }
+        } else {
+            while !self.main_loop_quit_flag.load(Ordering::Relaxed) {
+                if let Ok(input) = rx.recv() {
+                    debug!("Received from engine host: {}", input);
+                    let command = UciCommand::from_input(&input);
+                    self.run_uci_command(search_handle, uci_position, &input, command);
                 }
             }
         }
         debug!("main loop quit flag is set");
     }
-    
+
+    fn run_uci_command(&self, search_handle: &mut Option<JoinHandle<()>>, uci_position: &mut Option<UciPosition>, input: &String, command: UciCommand) {
+        match command {
+            UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
+            UciCommand::Quit => self.uci_quit(&self.search_stop_flag, &self.main_loop_quit_flag),
+            UciCommand::Uci => self.uci_uci(),
+            UciCommand::IsReady => self.uci_is_ready(),
+            UciCommand::UciNewGame => self.uci_new_game(uci_position),
+            UciCommand::Position(_position_str) => self.uci_set_position(&input.to_string(), uci_position, ),
+            UciCommand::None => self.uci_none(input.to_string()),
+            UciCommand::Go(_go_options_string) => self.uci_go(&&self.search_stop_flag, search_handle, input.to_string(), uci_position),
+        }
+    }
+
     fn uci_set_position(&self, input: &String, uci_position: &mut Option<UciPosition>) {
         let uci_pos = uci::parse_position(&input);
         if let Some(uci_pos) = uci_pos {

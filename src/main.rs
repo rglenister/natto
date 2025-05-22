@@ -39,10 +39,11 @@ fn main() {
     info!("Configuration: {:?}", *CONFIG);
     let _ = *TRANSPOSITION_TABLE;
     if CONFIG.perft {
+        println!("Running perft test");
         node_counter::perf_t();
     } else {
         info!("Starting engine");
-        engine::run();
+        engine::run(&CONFIG.uci_commands);
         info!("Engine exited cleanly");
     }
 }
