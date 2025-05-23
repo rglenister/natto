@@ -2,7 +2,7 @@ use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 use crate::chessboard::piece::{PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::eval::evaluation::{score_pieces, PIECE_SCORES};
+use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::{move_generator, chess_util};
 use crate::chess_util::util;
@@ -28,7 +28,7 @@ pub fn quiescence_search(position: &Position, depth: isize, alpha: isize, beta: 
     }
 
     // Static evaluation when not in check
-    let mut stand_pat = score_pieces(position);
+    let mut stand_pat = score_position(position);
     if stand_pat >= beta {
         return stand_pat;
     }
