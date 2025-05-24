@@ -5,6 +5,7 @@ use std::fmt::Write;
 use std::iter::Iterator;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use crate::chessboard::board;
 use crate::chessboard::piece::{Piece, PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{Bishop, King, Pawn};
 
@@ -206,9 +207,11 @@ impl Board {
     
     pub fn get_piece_counts(&self) -> [[usize; 6]; 2] {
         let mut counts: [[usize; 6]; 2] = [[0; 6]; 2];
-        self.process_pieces(|piece_color, piece_type, _square_index| {
-            counts[piece_color as usize][piece_type as usize] += 1;
-        });
+        for piece_color in PieceColor::iter() {
+            for piece_type in PieceType::iter() {
+                counts[piece_color as usize][piece_type as usize] = self.bit_boards[piece_color as usize][piece_type as usize].count_ones() as usize;
+            }
+        }
         counts
     }
 
@@ -287,6 +290,7 @@ mod tests {
     use super::*;
     use crate::chessboard::board::PieceType::{Bishop, Knight, Queen, Rook};
     use crate::chess_util;
+    use crate::position::Position;
 
     #[test]
     fn test_get_from_empty_square() {
@@ -513,5 +517,25 @@ mod tests {
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
         board.put_piece(sq!("g8"), Piece { piece_color: PieceColor::Black, piece_type: Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), true);
+    }
+
+    #[test]
+    fn test_get_piece_counts() {
+        let position: Position = Position::new_game();
+        let piece_counts = position.board().get_piece_counts();
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Pawn as usize], 8);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Knight as usize], 2);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Bishop as usize], 2);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Rook as usize], 2);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Queen as usize], 1);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::King as usize], 1);
+
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Pawn as usize], 8);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Knight as usize], 2);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Bishop as usize], 2);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Rook as usize], 2);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Queen as usize], 1);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::King as usize], 1);
+
     }
 }
