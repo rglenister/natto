@@ -1,6 +1,6 @@
 [package]
 name = "chess_engine"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Richard Glenister <rglenister@yahoo.com>"]
 edition = "2021"
 
