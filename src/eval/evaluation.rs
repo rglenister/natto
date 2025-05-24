@@ -280,6 +280,16 @@ mod tests {
         
         board.put_piece(sq!("a2"), Piece { piece_color: White, piece_type: Pawn});
         assert_eq!(score_board_piece_square_values(&board, White), (-35, 13));
+
+        board.put_piece(sq!("b2"), Piece { piece_color: White, piece_type: Queen});
+        board.put_piece(sq!("b3"), Piece { piece_color: White, piece_type: Queen});
+        board.put_piece(sq!("b4"), Piece { piece_color: White, piece_type: Queen});
+        board.put_piece(sq!("b5"), Piece { piece_color: Black, piece_type: Queen});
+        board.put_piece(sq!("b6"), Piece { piece_color: Black, piece_type: Queen});
+        board.put_piece(sq!("b7"), Piece { piece_color: Black, piece_type: Queen});
+        assert_eq!(score_board_piece_square_values(&board, White), (-67, -9));
+        board.remove_piece(sq!("b2"));
+        assert_eq!(score_board_piece_square_values(&board, White), (-59, 14));
     }
     #[test]
     fn test_calculate_new_game_phase() {

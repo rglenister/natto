@@ -367,7 +367,6 @@ fn generate_move_bitboard(
 }
 
 fn generate_king_moves<T, U>(position: &Position, square_indexes: u64, occupied_squares: u64, friendly_squares: u64, move_processor: &mut (impl MoveProcessor<Output=U> + Sized)) {
-//    let position2 = move_processor.
     get_non_sliding_moves_by_piece_type::<T, U>(PieceType::King, 1 << square_indexes.trailing_zeros(), occupied_squares, friendly_squares, move_processor);
     BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
@@ -384,7 +383,7 @@ where
         if Board::rank(to, position.side_to_move()) != 7 {
             move_processor.process_move(Basic { base_move: BaseMove::new(from, to, capture) });
         } else {
-            for piece_type in [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
+            for piece_type in [PieceType::Queen, PieceType::Knight, PieceType::Rook, PieceType::Bishop] {
                 move_processor.process_move(Promotion { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type });
             }
         }
