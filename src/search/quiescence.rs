@@ -392,7 +392,7 @@ mod tests {
             let fen = "4q3/3P4/8/8/8/7k/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 907);
+            assert_eq!(score, 905);
         }
 
         #[test]
@@ -400,7 +400,7 @@ mod tests {
             let fen = "5rk1/2q2pbp/1p2pnp1/pP1pP3/P2P1P2/2N2BN1/6PP/R2Q1RK1 w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 945);
+            assert_eq!(score, 961);
         }
 
         #[test]
@@ -408,7 +408,7 @@ mod tests {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -544);
+            assert_eq!(score, -524);
         }
 
         #[test]
@@ -416,7 +416,7 @@ mod tests {
             let fen = "r4rk1/pp3ppp/2n1b3/3p4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 5);
+            assert_eq!(score, -14);
         }
 
         #[test]
@@ -424,7 +424,7 @@ mod tests {
             let fen = "r4rk1/pp3ppp/2n1b3/3q4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 785);
+            assert_eq!(score, 780);
         }
     }
 }

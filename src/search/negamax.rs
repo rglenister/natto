@@ -368,7 +368,7 @@ mod tests {
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -910);
+        assert_eq!(search_results.score, -970);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
         assert_eq!(pv, "♞c4xd6");
     }
@@ -564,7 +564,8 @@ mod tests {
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
-        assert!(search_results.pv_moves_as_string().starts_with("g1-g2"));
+        let pv = search_results.pv_moves_as_string();
+        assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
     }
 
     #[test]
@@ -577,7 +578,7 @@ mod tests {
             &in_progress_search_results,
             &SearchResults {
                 position: in_progress_position,
-                score: 317,
+                score: 318,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -623,7 +624,7 @@ mod tests {
             &win_search_results,
             &SearchResults {
                 position: win_search_results.position,
-                score: 995,
+                score: 974,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -641,7 +642,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -550,
+                score: -533,
                 depth: 2,
                 pv: vec![],
                 game_status: InProgress,

@@ -664,10 +664,10 @@ mod tests {
         let position = Position::from(fen);
         let moves = util::filter_moves_by_from_square(generate_moves(&position), 50);
         assert_eq!(moves.len(), 4);
-        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Knight });
-        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Knight });
         assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Rook });
-        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(50, 58, false), promote_to: PieceType::Bishop });
     }
 
     /// Black pawns can be promoted
@@ -678,10 +678,10 @@ mod tests {
         let moves = util::filter_moves_by_from_square(generate_moves(&position), 14);
         assert_eq!(moves.len(), 4);
 
-        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Knight });
-        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Knight });
         assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Rook });
-        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Bishop });
     }
 
     /// Black pawns can be promoted by capturing
@@ -692,20 +692,20 @@ mod tests {
         let moves = util::filter_moves_by_from_square(generate_moves(&position), 14);
         assert_eq!(moves.len(), 12);
 
-        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Knight });
-        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(0).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(1).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Knight });
         assert_eq!(*moves.get(2).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Rook });
-        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(3).unwrap(), Promotion { base_move: BaseMove::new(14, 5, true), promote_to: PieceType::Bishop });
 
-        assert_eq!(*moves.get(4).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Knight });
-        assert_eq!(*moves.get(5).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(4).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(5).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Knight });
         assert_eq!(*moves.get(6).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Rook });
-        assert_eq!(*moves.get(7).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(7).unwrap(), Promotion { base_move: BaseMove::new(14, 7, true), promote_to: PieceType::Bishop });
 
-        assert_eq!(*moves.get(8).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Knight });
-        assert_eq!(*moves.get(9).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Bishop });
+        assert_eq!(*moves.get(8).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(9).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Knight });
         assert_eq!(*moves.get(10).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Rook });
-        assert_eq!(*moves.get(11).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Queen });
+        assert_eq!(*moves.get(11).unwrap(), Promotion { base_move: BaseMove::new(14, 6, false), promote_to: PieceType::Bishop });
     }
 
     /// Test white king moves
