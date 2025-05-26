@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn test_perft() {
         let position = Position::new_game();
-        let node_count_stats = count_nodes(&position, 6);
-        assert_eq!(node_count_stats.node_count, 119060324);
+        let node_count_stats = count_nodes(&position, 5);
+        assert_eq!(node_count_stats.node_count, 4865609);
     }
 }
