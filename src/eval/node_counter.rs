@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
 use crate::move_generator::generate_moves;
+use rayon::prelude::*;
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
@@ -43,6 +44,10 @@ impl NodeCounter {
         self.node_counter.fetch_add(1, Ordering::Relaxed)
     }
 
+    pub(crate) fn add(&self, count: usize) {
+        self.node_counter.fetch_add(count, Ordering::Relaxed);
+    }
+
     pub fn node_count(&self) -> usize {
         self.node_counter.load(Ordering::SeqCst)
     }
@@ -74,23 +79,31 @@ pub fn perf_t() {
 }
 
 pub fn count_nodes(position: &Position, max_depth: usize) -> NodeCountStats {
-    NODE_COUNTER.write().unwrap().reset();
-    do_count_nodes(position, 0, max_depth);
-    NODE_COUNTER.read().unwrap().stats()
+    let mut node_counter = NodeCounter::new();
+    node_counter.reset();
+    let count = do_count_nodes::<true>(position, 0, max_depth);
+    node_counter.add(count);
+    node_counter.stats()
 }
 
-fn do_count_nodes(position: &Position, depth: usize, max_depth: usize) {
-    if depth != 0 {
-        //        increment_node_counter();
-    }
+fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &Position, depth: usize, max_depth: usize) -> usize {
     if depth < max_depth {
-        generate_moves(position)
-            .iter()
-            .filter_map(|cm| position.make_move(cm))
-            .map(|(pos, _)| do_count_nodes( &pos, depth + 1, max_depth))
-            .count();
+        let moves = generate_moves(position);
+        if USE_PARALLEL_ITERATOR {
+            moves
+                .par_iter()
+                .filter_map(|cm| position.make_move(cm))
+                .map(|(pos, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
+                .sum()
+        } else {
+            moves
+                .iter()
+                .filter_map(|cm| position.make_move(cm))
+                .map(|(pos, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
+                .sum()
+        }
     } else {
-        NODE_COUNTER.read().unwrap().increment();
+        1
     }
 }
 
@@ -102,7 +115,7 @@ mod tests {
     #[test]
     fn test_perft() {
         let position = Position::new_game();
-        let node_count_stats = count_nodes(&position, 4);
-        assert_eq!(node_count_stats.node_count, 197281);
+        let node_count_stats = count_nodes(&position, 5);
+        assert_eq!(node_count_stats.node_count, 4865609);
     }
 }
