@@ -7,7 +7,7 @@ use crate::{fen, move_generator, r#move, uci};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
@@ -119,7 +119,7 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, search_results);
             uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
-            let is_checkmate = search_results.game_status == Checkmate;
+            let is_checkmate = search_results.game_status == Checkmate || is_mating_score(search_results.score);
             search_results_stack.push(search_results);
             if is_checkmate {
                 info!("Found mate at depth {} - stopping search", iteration_max_depth);
@@ -216,8 +216,11 @@ fn negamax_search(
                 TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, best_move);
             }
         } else {
-            best_score = evaluation::evaluate(position, depth - 1, search_context.repeat_position_counts.as_ref());
-        }     
+            best_score = evaluation::evaluate(position, ply, search_context.repeat_position_counts.as_ref());
+            if !search_context.stop_flag.load(Ordering::Relaxed) {
+                TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, None);
+            }
+        }
         best_score
     } else {
         let mut score = evaluation::evaluate(position, ply, search_context.repeat_position_counts.as_ref());
@@ -243,27 +246,52 @@ fn create_search_results(position: &Position, score: isize, depth: usize, pv: Ve
     }
 }
 
+// refined by ChatGPT
 fn retrieve_principal_variation(position: Position, mov: Option<Move>) -> Vec<(Position, Move)> {
-    let mut pv = Vec::new();
+    let mut pv = Vec::with_capacity(MAXIMUM_SEARCH_DEPTH);
     let mut current_position = position;
-    
+    let mut visited_positions = HashSet::new();
+
     if let Some(mv) = mov {
         if let Some(next_position) = current_position.make_move(&mv) {
             current_position = next_position.0;
             pv.push(next_position);
+            visited_positions.insert(current_position.hash_code()); // Track the first position
         }
     }
 
     while let Some(entry) = TRANSPOSITION_TABLE.probe(current_position.hash_code()) {
-        if entry.depth == 0 || entry.best_move.is_none() || pv.len() >= MAXIMUM_SEARCH_DEPTH / 2 {
+        // Check for early exit conditions
+        if entry.depth == 0
+            || entry.best_move.is_none()
+            || pv.len() >= MAXIMUM_SEARCH_DEPTH {
             break;
         }
-        let next_pos = current_position.make_move(&entry.best_move.unwrap()).unwrap();
-        pv.push(next_pos);
-        current_position = next_pos.0;
+
+        // Detect repeated position
+        if visited_positions.contains(&current_position.hash_code()) {
+            // Repeated position detected, exit early
+            break;
+        }
+
+        // Process the best move
+        if let Some(best_mv) = entry.best_move {
+            if let Some(next_pos) = current_position.make_move(&best_mv) {
+                pv.push(next_pos);
+                current_position = next_pos.0;
+                visited_positions.insert(current_position.hash_code()); // Track the position
+            } else {
+                break; // Stop if a move cannot be made
+            }
+        } else {
+            break; // Stop if no best move is present
+        }
     }
+
     pv
 }
+
+
 
 fn get_game_status(position: &Position, repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> GameStatus {
     let game = Game::new(position, repeat_position_counts);
