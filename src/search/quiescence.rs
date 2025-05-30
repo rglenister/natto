@@ -11,13 +11,15 @@ use crate::r#move::{Move};
 
 include!("../chess_util/generated_macro.rs");
 
-pub fn quiescence_search(position: &Position, depth: isize, alpha: isize, beta: isize) -> isize {
+pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
+
+pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: isize) -> isize {
     if move_generator::is_check(position) {
         // If in check: must respond with evasions
-        let mut best_score = -MAXIMUM_SCORE + depth;
+        let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply;
         for mov in move_generator::generate_moves(position) {
             if let Some(new_position) = position.make_move(&mov) {
-                let score = -quiescence_search(&new_position.0, depth + 1, -beta, -alpha);
+                let score = -quiescence_search(&new_position.0, ply + 1, -beta, -alpha);
                 best_score = best_score.max(score);
                 if best_score >= beta {
                     break;
@@ -42,7 +44,7 @@ pub fn quiescence_search(position: &Position, depth: isize, alpha: isize, beta: 
             continue; // Skip bad captures by SEE
         }
         if let Some(next_position) = position.make_move(&mov) {
-            let score = -quiescence_search(&next_position.0, depth + 1, -beta, -alpha);
+            let score = -quiescence_search(&next_position.0, ply + 1, -beta, -alpha);
             if score >= beta {
                 return score;
             }
