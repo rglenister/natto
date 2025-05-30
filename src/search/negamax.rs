@@ -264,7 +264,7 @@ fn retrieve_principal_variation(position: Position, mov: Option<Move>) -> Vec<(P
         // Check for early exit conditions
         if entry.depth == 0
             || entry.best_move.is_none()
-            || pv.len() >= MAXIMUM_SEARCH_DEPTH / 2 {
+            || pv.len() >= MAXIMUM_SEARCH_DEPTH {
             break;
         }
 
