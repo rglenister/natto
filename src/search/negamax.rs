@@ -220,7 +220,7 @@ fn negamax_search(
             if !search_context.stop_flag.load(Ordering::Relaxed) {
                 TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, None);
             }
-        }     
+        }
         best_score
     } else {
         let mut score = evaluation::evaluate(position, ply, search_context.repeat_position_counts.as_ref());
@@ -248,7 +248,7 @@ fn create_search_results(position: &Position, score: isize, depth: usize, pv: Ve
 
 // refined by ChatGPT
 fn retrieve_principal_variation(position: Position, mov: Option<Move>) -> Vec<(Position, Move)> {
-    let mut pv = Vec::with_capacity(MAXIMUM_SEARCH_DEPTH / 2);
+    let mut pv = Vec::with_capacity(MAXIMUM_SEARCH_DEPTH);
     let mut current_position = position;
     let mut visited_positions = HashSet::new();
 
