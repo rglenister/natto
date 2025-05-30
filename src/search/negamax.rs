@@ -3,7 +3,7 @@ use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::position::Position;
 use crate::search::sorted_move_list::SortedMoveList;
-use crate::{fen, move_generator, r#move, uci};
+use crate::{fen, move_generator, r#move, tablebase, uci};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -13,8 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use crate::chess_util::util;
+use crate::chess_util::util::find_generated_move;
 use crate::eval::evaluation;
-use crate::r#move::Move;
+use crate::r#move::{Move, RawMove};
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::move_generator::generate_moves;
 use crate::search::quiescence;
@@ -131,6 +132,20 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
         }
     }
     search_results_stack.pop().unwrap()
+}
+
+fn get_best_move_from_tablebase(position: &Position) -> Option<RawMove> {
+    let number_of_pieces = position.board().get_total_number_of_pieces();
+    if number_of_pieces <= tablebase::syzygy::MAXIMUM_NUMBER_OF_PIECES {
+        let fen = fen::write(position);  // Convert position to FEN
+        let mov = tablebase::syzygy::retrieve_best_move(&fen);
+        if mov.is_ok() {
+            let result = mov.unwrap();
+            info!("The move is {:?}!!", result);
+            return result;
+        }
+    }
+    None
 }
 
 fn negamax(position: &Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
