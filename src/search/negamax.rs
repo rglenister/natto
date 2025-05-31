@@ -113,6 +113,22 @@ impl SearchResults {
 
 pub fn iterative_deepening(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
+    if let Ok(Some((mov, dtz, wdl))) = tablebase::syzygy::query_tablebase(position) {
+        info!("Best move found in tablebases: {}", mov);
+        let chess_move = util::find_generated_move(move_generator::generate_moves(position), &mov);
+        if let Some(chess_move) = chess_move {
+            return create_search_results(
+                position,
+                MAXIMUM_SCORE,
+                0,
+                vec![(position.clone(), chess_move)],
+                repeat_position_counts.clone(),
+            )
+        } else {
+            error!("Unable to convert the tablebase raw move {} to a native move for fen {}", mov, fen::write(position));
+        }
+    }
+    
     let mut search_results_stack = vec!();
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
@@ -134,24 +150,10 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
     search_results_stack.pop().unwrap()
 }
 
-fn get_best_move_from_tablebase(position: &Position) -> Option<RawMove> {
-    let number_of_pieces = position.board().get_total_number_of_pieces();
-    if number_of_pieces <= tablebase::syzygy::MAXIMUM_NUMBER_OF_PIECES {
-        let fen = fen::write(position);  // Convert position to FEN
-        let mov = tablebase::syzygy::retrieve_best_move(&fen);
-        if mov.is_ok() {
-            let result = mov.unwrap();
-            info!("The move is {:?}!!", result);
-            return result;
-        }
-    }
-    None
-}
-
 fn negamax(position: &Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
     let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
     let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-    create_search_results(position, score, max_depth, pv.to_vec(), search_context)
+    create_search_results(position, score, max_depth, pv.to_vec(), search_context.repeat_position_counts.clone())
 }
 
 fn negamax_search(
@@ -249,9 +251,9 @@ fn negamax_search(
     }
 }
 
-fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
+fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     let last_position = pv.last().map_or(position, |m| &m.0);
-    let game_status = get_game_status(last_position, search_context.repeat_position_counts.as_ref());
+    let game_status = get_game_status(last_position, repeat_position_counts.as_ref());
     SearchResults {
         position: *position,
         score,
