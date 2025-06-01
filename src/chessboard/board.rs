@@ -7,6 +7,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::chessboard::board;
 use crate::chessboard::piece::{Piece, PieceColor, PieceType};
+use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::{Bishop, King, Pawn};
 
 include!("../chess_util/generated_macro.rs");
@@ -213,6 +214,13 @@ impl Board {
             }
         }
         counts
+    }
+    
+    pub fn get_total_number_of_pieces(&self) -> usize {
+        fn sum_array(array: &[u64; 6]) -> usize {
+            array.iter().fold(0, |acc, x| acc + x.count_ones() as usize)
+        }
+        sum_array(&self.bitboards_for_color(White)) + sum_array(&self.bitboards_for_color(Black))
     }
 
     pub fn get_piece_count(&self, piece_color: PieceColor, piece_type: PieceType) -> usize {
@@ -537,5 +545,10 @@ mod tests {
         assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Queen as usize], 1);
         assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::King as usize], 1);
 
+    }
+
+    #[test]
+    fn test_get_total_number_of_pieces() {
+        assert_eq!(Position::new_game().board().get_total_number_of_pieces(), 32);
     }
 }
