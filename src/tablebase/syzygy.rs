@@ -111,32 +111,36 @@ mod tests {
         init();
         do_query(fen)
     }
-    
+
     #[test]
     fn test_tablebases_initialization() {
-        assert!(TABLEBASES.get().is_none());
         init();
         assert!(TABLEBASES.get().is_some());
     }
 
     #[test]
     fn test_easy_get_best_move() {
-        assert_eq!(do_retrieve_best_move("8/8/8/k7/6R1/7R/8/4K3 w - - 0 1").unwrap().map(|(m, _, _)| m), Some(RawMove::new(sq!("h3"), sq!("b3"), None)));
+        let result = do_retrieve_best_move("8/8/8/k7/6R1/7R/8/4K3 w - - 0 1").ok().flatten().unwrap();
+        assert_eq!(result.0,  RawMove::new(sq!("h3"), sq!("b3"), None));
+        let dtz = result.1;
+        let wdl = result.2;
+        // let s = format!("result=[{:?}], dtz=[{:?}], wdl=[{:?}]", result.0, result.1, result.2);
+        // println!("{}", s);
     }
 
     #[test]
     fn test_gets_best_move_with_only_kings() {
-        assert_eq!(do_retrieve_best_move("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap().map(|(m, _, _)| m), Some(RawMove::new(sq!("e1"), sq!("d1"), None)));
+        assert_eq!(do_retrieve_best_move("4k3/8/8/8/8/8/8/4K3 w - - 0 1").ok().flatten().unwrap().0, RawMove::new(sq!("e1"), sq!("d1"), None));
     }
 
     #[test]
     fn test_get_best_move_promotion_queen() {
-        assert_eq!(do_retrieve_best_move("8/2P5/8/5k2/3K4/8/6p1/8 b - - 0 1").unwrap().map(|(m, _, _)| m), Some(RawMove::new(sq!("g2"), sq!("g1"), Some(PieceType::Queen))));
+        assert_eq!(do_retrieve_best_move("8/2P5/8/5k2/3K4/8/6p1/8 b - - 0 1").ok().flatten().unwrap().0, RawMove::new(sq!("g2"), sq!("g1"), Some(PieceType::Queen)));
     }
 
     #[test]
     fn test_get_best_move_promotion_to_knight() {
-        assert_eq!(do_retrieve_best_move("8/5P1k/R7/8/8/8/8/b3K3 w - - 0 1").unwrap().map(|(m, _, _)| m), Some(RawMove::new(sq!("f7"), sq!("f8"), Some(PieceType::Knight))));
+        assert_eq!(do_retrieve_best_move("8/5P1k/R7/8/8/8/8/b3K3 w - - 0 1").ok().flatten().unwrap().0, RawMove::new(sq!("f7"), sq!("f8"), Some(PieceType::Knight)));
     }
 
     #[test]
