@@ -114,12 +114,13 @@ impl SearchResults {
 pub fn iterative_deepening(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
     if let Ok(Some((mov, dtz, wdl))) = tablebase::syzygy::query_tablebase(position) {
-        info!("Best move found in tablebases: {}", mov);
+        info!("Best move found in tablebases: move {} dtz {:?} wdl {:?}", mov, dtz, wdl);
         let chess_move = util::find_generated_move(move_generator::generate_moves(position), &mov);
         if let Some(chess_move) = chess_move {
+            let score = wdl.signum() as isize * MAXIMUM_SCORE;
             return create_search_results(
                 position,
-                MAXIMUM_SCORE,
+                wdl.signum() as isize * MAXIMUM_SCORE,
                 0,
                 vec![(position.clone(), chess_move)],
                 repeat_position_counts.clone(),
@@ -391,12 +392,15 @@ fn node_counter_stats() -> NodeCountStats {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use dotenv::dotenv;
     use super::*;
     use crate::r#move::RawMove;
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
     use crate::{move_formatter, uci, chess_util};
+    use crate::tablebase::syzygy::init_tablebases;
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
@@ -709,6 +713,28 @@ mod tests {
                 depth: 5,
                 pv: vec![],
                 // todo it'd be good to actually get the three fold repetition status
+                game_status: InProgress,
+            }
+        );
+    }
+
+    #[test]
+    fn test_endgame_tablebases() {
+        let position_str = "position fen 8/8/8/k7/6R1/7R/8/4K3 w - - 0 1";
+        
+        dotenv().ok();
+        let path = env::var("ENGINE_TABLEBASE_DIR").unwrap();
+        init_tablebases(path.as_str());
+        
+        let search_results = uci::run_uci_position(position_str, "depth 5");
+        assert_eq!(search_results.pv_moves_as_string(), "h3-b3".to_string());
+        test_eq(
+            &search_results,
+            &SearchResults {
+                position: search_results.position,
+                score: MAXIMUM_SCORE,
+                depth: 0,
+                pv: vec![],
                 game_status: InProgress,
             }
         );

@@ -120,12 +120,11 @@ mod tests {
 
     #[test]
     fn test_easy_get_best_move() {
-        let result = do_retrieve_best_move("8/8/8/k7/6R1/7R/8/4K3 w - - 0 1").ok().flatten().unwrap();
-        assert_eq!(result.0,  RawMove::new(sq!("h3"), sq!("b3"), None));
-        let dtz = result.1;
-        let wdl = result.2;
-        // let s = format!("result=[{:?}], dtz=[{:?}], wdl=[{:?}]", result.0, result.1, result.2);
-        // println!("{}", s);
+        let (raw_move, dtz, wdl) = do_retrieve_best_move("8/8/8/k7/6R1/7R/8/4K3 w - - 0 1").ok().flatten().unwrap();
+        assert_eq!(raw_move,  RawMove::new(sq!("h3"), sq!("b3"), None));
+        assert_eq!(dtz.ignore_rounding(), Dtz(-2));
+        assert_eq!(wdl, AmbiguousWdl::from(Wdl::Win));
+        println!("result=[{:?}], dtz=[{:?}], wdl=[{:?}]", raw_move, dtz, wdl);
     }
 
     #[test]
