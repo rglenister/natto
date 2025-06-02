@@ -3,7 +3,7 @@ use crate::game::{Game, GameStatus};
 use crate::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::position::Position;
 use crate::search::sorted_move_list::SortedMoveList;
-use crate::{fen, move_generator, r#move, tablebase, uci};
+use crate::{fen, move_generator, r#move, uci};
 use itertools::Itertools;
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -13,9 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use crate::chess_util::util;
-use crate::chess_util::util::find_generated_move;
 use crate::eval::evaluation;
-use crate::r#move::{Move, RawMove};
+use crate::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::move_generator::generate_moves;
 use crate::search::quiescence;
@@ -113,23 +112,6 @@ impl SearchResults {
 
 pub fn iterative_deepening(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
-    if let Ok(Some((mov, dtz, wdl))) = tablebase::syzygy::query_tablebase(position) {
-        info!("Best move found in tablebases: move {} dtz {:?} wdl {:?}", mov, dtz, wdl);
-        let chess_move = util::find_generated_move(move_generator::generate_moves(position), &mov);
-        if let Some(chess_move) = chess_move {
-            let score = wdl.signum() as isize * MAXIMUM_SCORE;
-            return create_search_results(
-                position,
-                wdl.signum() as isize * MAXIMUM_SCORE,
-                0,
-                vec![(position.clone(), chess_move)],
-                repeat_position_counts.clone(),
-            )
-        } else {
-            error!("Unable to convert the tablebase raw move {} to a native move for fen {}", mov, fen::write(position));
-        }
-    }
-    
     let mut search_results_stack = vec!();
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
@@ -154,7 +136,7 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
 fn negamax(position: &Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
     let mut pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
     let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-    create_search_results(position, score, max_depth, pv.to_vec(), search_context.repeat_position_counts.clone())
+    create_search_results(position, score, max_depth, pv.to_vec(), search_context)
 }
 
 fn negamax_search(
@@ -252,9 +234,9 @@ fn negamax_search(
     }
 }
 
-fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
+fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
     let last_position = pv.last().map_or(position, |m| &m.0);
-    let game_status = get_game_status(last_position, repeat_position_counts.as_ref());
+    let game_status = get_game_status(last_position, search_context.repeat_position_counts.as_ref());
     SearchResults {
         position: *position,
         score,
@@ -392,15 +374,12 @@ fn node_counter_stats() -> NodeCountStats {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use dotenv::dotenv;
     use super::*;
     use crate::r#move::RawMove;
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
     use crate::{move_formatter, uci, chess_util};
-    use crate::tablebase::syzygy::init_tablebases;
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
@@ -713,28 +692,6 @@ mod tests {
                 depth: 5,
                 pv: vec![],
                 // todo it'd be good to actually get the three fold repetition status
-                game_status: InProgress,
-            }
-        );
-    }
-
-    #[test]
-    fn test_endgame_tablebases() {
-        let position_str = "position fen 8/8/8/k7/6R1/7R/8/4K3 w - - 0 1";
-        
-        dotenv().ok();
-        let path = env::var("ENGINE_TABLEBASE_DIR").unwrap();
-        init_tablebases(path.as_str());
-        
-        let search_results = uci::run_uci_position(position_str, "depth 5");
-        assert_eq!(search_results.pv_moves_as_string(), "h3-b3".to_string());
-        test_eq(
-            &search_results,
-            &SearchResults {
-                position: search_results.position,
-                score: MAXIMUM_SCORE,
-                depth: 0,
-                pv: vec![],
                 game_status: InProgress,
             }
         );

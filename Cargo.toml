@@ -31,5 +31,3 @@ thiserror = "2.0.12"
 arrayvec = "0.7.6"
 clap = { version = "4.5.35", features = ["env", "derive"] }
 rayon = "1.10.0"
-shakmaty = "0.27.3"
-shakmaty-syzygy = "0.25.3"

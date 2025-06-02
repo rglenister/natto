@@ -7,11 +7,9 @@ use once_cell::sync::Lazy;
 pub struct Config {
     pub log_file: String,
     pub log_level: LevelFilter,
-    pub hash_size: usize,
     pub use_book: bool,
     pub max_book_depth: usize,
-    pub use_tablebase: bool,
-    pub tablebase_dir: String,
+    pub hash_size: usize,
     pub perft: bool,
     pub uci_commands: Option<Vec<String>>,
 }
@@ -41,13 +39,6 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .help("The log level")
             .env("ENGINE_LOG_LEVEL")
         )
-        .arg(Arg::new("hash-size").short('s').long("hash-size").action(ArgAction::Set)
-            .required(false)
-            .default_value("1048576")
-            .value_parser(is_power_of_two)
-            .help("the maximum number of items that the hash table can hold - must be a power of two")
-            .env("ENGINE_HASH_SIZE")
-        )
         .arg(Arg::new("use-book").short('b').long("use-book").action(ArgAction::Set)
             .required(false)
             .default_value("true")
@@ -63,18 +54,12 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .help("The maximum full move number of a position that will be considered for the opening book")
             .env("ENGINE_MAX_BOOK_DEPTH")
         )
-        .arg(Arg::new("use-tablebase").short('e').long("use-tablebase").action(ArgAction::Set)
+        .arg(Arg::new("hash-size").short('s').long("hash-size").action(ArgAction::Set)
             .required(false)
-            .default_value("true")
-            .value_parser(["true", "false"])
-            .action(ArgAction::Set)
-            .help("Set to true to use an endgame tablebase otherwise false")
-            .env("ENGINE_USE_TABLEBASE")
-        )
-        .arg(Arg::new("tablebases-dir").short('t').long("tablebases-dir").action(ArgAction::Set)
-            .required(false)
-            .help("The full path to the tablebases directory")
-            .env("ENGINE_TABLEBASE_DIR")
+            .default_value("1048576")
+            .value_parser(is_power_of_two)
+            .help("the maximum number of items that the hash table can hold - must be a power of two")
+            .env("ENGINE_HASH_SIZE")
         )
         .arg(Arg::new("perft").short('p').long("perft").action(ArgAction::SetTrue)
             .required(false)
@@ -104,11 +89,9 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             "error" => LevelFilter::Error,
             _ => LevelFilter::Error,
         },
-        hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
         use_book: matches.get_one::<String>("use-book").map_or(true, |v| v == "true"),
         max_book_depth: matches.get_one::<u16>("max-book-depth").copied().unwrap() as usize,
-        use_tablebase: matches.get_one::<String>("use-tablebase").map_or(true, |v| v == "true"),       
-        tablebase_dir: matches.get_one::<String>("tablebases-dir").unwrap().to_string(),
+        hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
         perft: *matches.get_one::<bool>("perft").unwrap_or(&false),
         uci_commands: matches.get_many::<String>("uci").map(|values| values.cloned().collect()),
     }
