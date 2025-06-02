@@ -17,4 +17,3 @@ mod chessboard;
 mod opening_book;
 mod search;
 mod chess_util;
-mod tablebase;
