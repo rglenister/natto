@@ -118,7 +118,7 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
         let search_results = negamax(position, iteration_max_depth, &mut search_context);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, search_results);
-            uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()));
+            uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()).as_str());
             let is_checkmate = search_results.game_status == Checkmate || is_mating_score(search_results.score);
             search_results_stack.push(search_results);
             if is_checkmate {

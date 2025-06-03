@@ -16,7 +16,6 @@ include!("chess_util/generated_macro.rs");
 
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
 
-//#[derive(Copy, Clone, Debug)]
 #[derive(Clone, Debug)]
 pub struct UciPosition {
     pub given_position: Position,
@@ -152,7 +151,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
     }
 }
 
-pub fn send_to_gui(data: String) {
+pub fn send_to_gui(data: &str) {
     println!("{}", data);
     info!("UCI Protocol: sending to GUI: {}", data);
 }
