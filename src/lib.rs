@@ -1,5 +1,4 @@
 
-pub mod fen;
 mod r#move;
 
 pub mod move_formatter;
@@ -14,4 +13,4 @@ pub mod config;
 pub mod chessboard;
 mod opening_book;
 mod search;
-mod chess_util;
+pub mod chess_util;

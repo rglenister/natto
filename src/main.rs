@@ -1,7 +1,6 @@
 extern crate core;
 
 use std::io::{self};
-pub mod fen;
 pub mod chessboard;
 pub mod r#move;
 pub mod uci;

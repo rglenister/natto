@@ -1,9 +1,10 @@
-use chess_engine::{fen, eval::node_counter};
+use chess_engine::{eval::node_counter};
 use serde_derive::Deserialize;
 use serial_test::serial;
 use std::error::Error;
 use std::fs;
-use chess_engine::chessboard::position::{Position, NEW_GAME_FEN};
+use chess_engine::chessboard::position::{Position};
+use chess_engine::chess_util::fen;
 
 #[derive(Deserialize, Debug)]
 
@@ -16,7 +17,7 @@ struct FenTestCase {
 #[test]
 #[serial]
 fn test_fen_new_game_position() {
-    let position = Position::from(NEW_GAME_FEN);
+    let position = Position::new_game();
     let node_count_stats = node_counter::count_nodes(&position, 6);
     println!("{:?}", node_count_stats);
     assert_eq!(node_count_stats.node_count, 119_060_324);

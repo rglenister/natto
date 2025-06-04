@@ -1,10 +1,9 @@
-use crate::chess_util::util;
+use crate::chess_util::{fen, util};
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::King;
 use crate::chessboard::piece::{Piece, PieceColor};
 use crate::opening_book::opening_book::{ErrorKind, OpeningBook};
 use crate::r#move::{Move, RawMove};
-use crate::fen;
 use rand::{rng, Rng};
 use reqwest;
 use serde::{Deserialize, Serialize};
