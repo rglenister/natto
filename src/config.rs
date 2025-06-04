@@ -55,8 +55,29 @@ pub fn set_hash_size(hash_size: usize) {
     *RUNTIME_CONFIG.hash_size.write().unwrap() = Some(hash_size);
 }
 
+pub fn get_config_as_string() -> String {
+    #[derive(Debug)]
+    struct Configuration {
+        log_file: String,
+        log_level: LevelFilter,
+        use_book: bool,
+        max_book_depth: usize,
+        hash_size: usize,
+        contempt: isize,
+    }
+    let configuration = Configuration {
+        log_file: get_log_file(),
+        log_level: get_log_level(),
+        use_book: get_use_book(),
+        max_book_depth: get_max_book_depth(),
+        hash_size: get_hash_size(),
+        contempt: get_contempt(),
+    };
+    format!("{:?}", configuration)
+}
+
 #[derive(Parser, Debug, Clone)]
-pub struct Config {
+struct Config {
     pub log_file: String,
     pub log_level: LevelFilter,
     pub use_book: bool,
@@ -67,7 +88,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Default)]
-pub struct RuntimeConfig {
+struct RuntimeConfig {
     pub use_book: RwLock<Option<bool>>,
     pub max_book_depth: RwLock<Option<usize>>,
     pub hash_size: RwLock<Option<usize>>,
@@ -83,8 +104,9 @@ impl RuntimeConfig {
     }
 }
 
-pub static CONFIG: Lazy<Config> = Lazy::new(|| load_config());
-pub static RUNTIME_CONFIG: Lazy<RuntimeConfig> = Lazy::new(|| RuntimeConfig::default());
+static CONFIG: Lazy<Config> = Lazy::new(|| load_config());
+static RUNTIME_CONFIG: Lazy<RuntimeConfig> = Lazy::new(|| RuntimeConfig::default());
+static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(None));
 
 
 fn load_config() -> Config {
@@ -181,8 +203,6 @@ pub fn reset_global_configs(config: Config) {
     CONFIG_OVERRIDE.lock().unwrap().replace(config);
     RUNTIME_CONFIG.reset();
 }
-
-static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(None));
 
 fn is_power_of_two(s: &str) -> Result<String, String> {
     let size: usize = s

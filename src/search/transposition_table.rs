@@ -4,7 +4,6 @@ use log::{error, info};
 use once_cell::sync::Lazy;
 use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
 use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
-use crate::config::CONFIG;
 use crate::r#move::{BaseMove, Move};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 pub use crate::search::negamax::MAXIMUM_SCORE;

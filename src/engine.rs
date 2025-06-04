@@ -8,10 +8,10 @@ use log::{debug, error, info};
 use regex::bytes::Regex;
 use crate::opening_book::lichess_book::LiChessOpeningBook;
 use crate::opening_book::opening_book::OpeningBook;
-use crate::{fen, uci, chess_util::util};
-use crate::config::{CONFIG, RUNTIME_CONFIG};
+use crate::{fen, uci, chess_util::util, config};
+use crate::config::{set_contempt, set_hash_size, set_max_book_depth, set_use_book};
 use crate::search::negamax::iterative_deepening;
-use crate::search::transposition_table::TRANSPOSITION_TABLE;
+use crate::search::transposition_table::{TranspositionTable, TRANSPOSITION_TABLE};
 use crate::game::GameStatus::{Checkmate, Stalemate};
 use crate::r#move::convert_chess_move_to_raw;
 use crate::uci::send_to_gui;
@@ -23,6 +23,7 @@ pub fn run(uci_commands: &Option<Vec<String>>) {
 enum UciCommand {
     Uci,
     SetOption(String),
+    LogConfig,
     IsReady,
     UciNewGame,
     Position(String),
@@ -30,6 +31,7 @@ enum UciCommand {
     Stop,
     Quit,
     None
+    
 }
 impl UciCommand {
     fn from_input(input: &str) -> Self {
@@ -37,6 +39,7 @@ impl UciCommand {
         match parts.next() {
             Some("uci") => UciCommand::Uci,
             Some("setoption") => UciCommand::SetOption(input.to_string()),
+            Some("logconfig") => UciCommand::LogConfig,
             Some("isready") => UciCommand::IsReady,
             Some("ucinewgame") => UciCommand::UciNewGame,
             Some("position") => UciCommand::Position(parts.next().unwrap().to_string()),
@@ -103,6 +106,7 @@ impl Engine {
         match command {
             UciCommand::Uci => Engine::uci_options(),
             UciCommand::SetOption(input) => self.uci_set_option(&input),
+            UciCommand::LogConfig => println!("{}", config::get_config_as_string()),
             UciCommand::IsReady => self.uci_is_ready(),
             UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
             UciCommand::Quit => self.uci_quit(&self.search_stop_flag, &self.main_loop_quit_flag),
@@ -180,9 +184,9 @@ impl Engine {
         uci::send_to_gui("id name natto");
         uci::send_to_gui("id author Richard Glenister");
         uci::send_to_gui("option name UseBook type check default true");
-        uci::send_to_gui("option name MaxBookDepth type spin default 10 min 1 max 10");
+        uci::send_to_gui("option name MaxBookDepth type spin default 10 min 1 max 50");
         uci::send_to_gui("option name Hash type spin default 128 min 1 max 2048");
-        uci::send_to_gui("option name Contempt type spin default 0 min -100 max 100");
+        uci::send_to_gui("option name Contempt type spin default 0 min -500 max 500");
         uci::send_to_gui("uciok");
     }
 
@@ -202,24 +206,26 @@ impl Engine {
             match name.to_lowercase().as_str() {
                 "hash" => {
                     if let Ok(v) = value.parse::<usize>() {
-                        *RUNTIME_CONFIG.hash_size.write().unwrap() = Some(v);
+                        set_hash_size(v);
                         send_to_gui(&format!("info string Hash set to {}", v));
                     }
                 }
                 "contempt" => {
                     if let Ok(v) = value.parse::<isize>() {
-                        *RUNTIME_CONFIG.contempt.write().unwrap() = Some(v);
+                        set_contempt(v);
                         send_to_gui(&format!("info string Contempt set to {}", v));
                     }
                 }
                 "usebook" => {
                     if let Ok(v) = value.parse::<bool>() {
-                        send_to_gui(&format!("info string Threads set to {}", v));
+                        set_use_book(v);
+                        send_to_gui(&format!("info string UseBook set to {}", v));
                     }
                 }
                 "maxbookdepth" => {
                     if let Ok(v) = value.parse::<usize>() {
-                        send_to_gui(&format!("info string Threads set to {}", v));
+                        set_max_book_depth(v);
+                        send_to_gui(&format!("info string MaxBookDepth set to {}", v));
                     }
                 }
                 _ => {
@@ -263,7 +269,7 @@ impl Engine {
 
     fn play_move_from_opening_book(&self, uci_pos: &uci::UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
-            if uci_pos.end_position.full_move_number() <= CONFIG.max_book_depth {
+            if uci_pos.end_position.full_move_number() <= config::get_max_book_depth() {
                 info!("getting opening book move for position: {}", fen::write(&uci_pos.end_position));
                 let opening_move = opening_book.get_opening_move(&uci_pos.end_position);
                 if let Ok(opening_move) = opening_move {
@@ -275,14 +281,14 @@ impl Engine {
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
-                    uci_pos.end_position.full_move_number(), CONFIG.max_book_depth);
+                    uci_pos.end_position.full_move_number(), config::get_max_book_depth());
             }
         }
         false
     }
 
     fn create_opening_book() -> Option<LiChessOpeningBook> {
-        if CONFIG.use_book {
+        if config::get_use_book() {
             info!("Using opening book");
             Some(LiChessOpeningBook::new())
         } else {
