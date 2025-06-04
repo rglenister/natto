@@ -17,7 +17,7 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use std::fmt;
 use crate::chess_util::util;
 
-include!("chess_util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 

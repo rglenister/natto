@@ -1,10 +1,10 @@
 use std::os::macos::raw::stat;
-use crate::position::Position;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
 use crate::move_generator::generate_moves;
 use rayon::prelude::*;
+use crate::chessboard::position::Position;
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
@@ -109,9 +109,8 @@ fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &Position, depth:
 
 #[cfg(test)]
 mod tests {
-    use crate::eval::node_counter::count_nodes;
-    use crate::position::Position;
-
+    use super::*;
+    
     #[test]
     fn test_perft() {
         let position = Position::new_game();

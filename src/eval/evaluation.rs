@@ -4,10 +4,10 @@ use strum::IntoEnumIterator;
 use crate::chess_util::bitboard_iterator::BitboardIterator;
 use crate::chessboard::piece::{Piece, PieceColor, PieceType};
 use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::position::Position;
 use crate::chess_util::util;
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::PieceColor::{Black, White};
+use crate::chessboard::position::Position;
 use crate::eval::kings::score_king_safety;
 use crate::eval::pawns::score_pawn_structure;
 use crate::game;
@@ -244,11 +244,10 @@ pub fn evaluate(position: &Position, depth: usize, historic_repeat_position_coun
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::position::{Position, NEW_GAME_FEN};
 
     #[test]
     fn test_score_pieces() {
-        let position: Position = Position::from(NEW_GAME_FEN);
+        let position: Position = Position::new_game();
         assert_eq!(score_position(&position), 0);
 
         let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
@@ -269,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_score_board_material_balance() {
-        let position = Position::from(NEW_GAME_FEN);
+        let position = Position::new_game();
         let board = position.board();
         assert_eq!(score_board_piece_square_values(&board, White), (-147, -193));
         assert_eq!(score_board_piece_square_values(&board, Black), (-147, -193));

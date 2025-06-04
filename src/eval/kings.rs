@@ -1,9 +1,8 @@
 use crate::chessboard::board::Board;
 use crate::chessboard::piece::PieceColor;
-use crate::chessboard::piece::PieceColor::White;
-use crate::position::Position;
 use crate::{move_generator, chess_util};
 use crate::chessboard::piece::PieceType::King;
+use crate::chessboard::position::Position;
 
 pub fn score_king_safety(position: &Position) -> isize {
     let mut score = 0;
@@ -66,7 +65,6 @@ fn evaluate_king_centralization(king_square: usize, color: PieceColor) -> isize 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::position::Position;
 
     #[test]
     fn test_king_safety_opening() {

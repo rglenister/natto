@@ -1,5 +1,5 @@
 use thiserror::Error;
-use crate::position::Position;
+use crate::chessboard::position::Position;
 use crate::r#move::RawMove;
 
 

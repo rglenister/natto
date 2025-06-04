@@ -1,6 +1,5 @@
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::r#move::{Move, RawMove};
-use crate::position::Position;
 use crate::search::negamax::{SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -10,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use crate::chess_util::util;
 use crate::chess_util::util::create_repeat_position_counts;
+use crate::chessboard::position::Position;
 use crate::search;
 
 include!("chess_util/generated_macro.rs");

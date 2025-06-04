@@ -4,7 +4,6 @@ use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::board::{Board, BoardSide};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::r#move::{BaseMove, Move};
-use crate::position::Position;
 
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
@@ -13,6 +12,7 @@ use strum::IntoEnumIterator;
 use crate::chess_util::bitboard_iterator::BitboardIterator;
 use crate::chess_util::util;
 use crate::chessboard::piece::{PieceColor, PieceType};
+use crate::chessboard::position::Position;
 
 include!("chess_util/generated_macro.rs");
 

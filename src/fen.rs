@@ -1,13 +1,13 @@
+use itertools::Itertools;
 use crate::chessboard::piece::PieceColor::White;
 use crate::chessboard::piece::Piece;
-use crate::position::Position;
 use crate::chessboard::board;
-use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use thiserror::Error;
 use crate::chessboard::board::Board;
 use crate::chess_util::util;
+use crate::chessboard::position::Position;
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
     r"^(?<board>((?<RankItem>[pnbrqkPNBRQK1-8]{1,8})/?){8})\s+(?<side_to_move>[bw])\s+(?<castling_rights>-|K?Q?k?q?)\s+(?<en_passant_target_square>-|[a-h][3-6])\s+(?<halfmove_clock>\d+)\s+(?<fullmove_number>\d+)\s*$"
@@ -155,7 +155,7 @@ fn reverse_rows(input: &str) -> String {
 mod tests {
     use super::*;
     use crate::chessboard::piece::PieceColor::White;
-    use crate::position::NEW_GAME_FEN;
+    use crate::chessboard::position::NEW_GAME_FEN;
 
     #[test]
     fn test_parse() {

@@ -4,10 +4,10 @@ use log::{error, info};
 use once_cell::sync::Lazy;
 use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
 use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
+use crate::chessboard::position::Position;
 use crate::r#move::{BaseMove, Move};
 use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 pub use crate::search::negamax::MAXIMUM_SCORE;
-use crate::position::Position;
 
 pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
     let hash_size = DEFAULT_HASH_SIZE;
@@ -212,7 +212,6 @@ pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
 mod tests {
     use super::*;
     use crate::search::transposition_table::BoundType::{LowerBound, UpperBound};
-    use crate::position::Position;
     
     #[test]
     fn test_small_table_creation() {

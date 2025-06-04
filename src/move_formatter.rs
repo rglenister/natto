@@ -6,10 +6,10 @@ use crate::r#move::Move::{Castling, EnPassant, Promotion};
 use crate::r#move::Move;
 use crate::game::{Game, GameStatus};
 use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
-use crate::position::Position;
 use crate::search::negamax::SearchResults;
 use phf::phf_map;
 use crate::chess_util::util;
+use crate::chessboard::position::Position;
 use crate::move_generator::generate_moves;
 
 include!("chess_util/generated_macro.rs");
@@ -201,11 +201,10 @@ impl MoveFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::position::NEW_GAME_FEN;
 
     #[test]
     fn test_opening_move() {
-        let position = Position::from(NEW_GAME_FEN);
+        let position = Position::new_game();
         let raw_moves_string = "e2e4 e7e5".to_string();
         let position_move_pairs: Vec<(Position, Move)> = util::replay_moves(&position, raw_moves_string).unwrap();
         assert_eq!(LONG_FORMATTER.format_move_list(&position, &position_move_pairs).unwrap().join(","), "e2-e4,e7-e5");

@@ -293,12 +293,9 @@ impl fmt::Display for Board {
 }
 #[cfg(test)]
 mod tests {
-    use clap::builder::styling::AnsiColor::White;
-    //    use crate::board::{PieceColor, PieceType};
     use super::*;
     use crate::chessboard::board::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::chess_util;
-    use crate::position::Position;
+    use crate::chessboard::position::Position;
 
     #[test]
     fn test_get_from_empty_square() {

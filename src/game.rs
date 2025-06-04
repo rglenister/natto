@@ -4,7 +4,7 @@ use crate::chessboard::piece::PieceColor;
 use crate::chessboard::piece::PieceColor::{Black, White};
 use crate::chessboard::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::{move_generator, search};
-use crate::position::Position;
+use crate::chessboard::position::Position;
 
 include!("chess_util/generated_macro.rs");
 
@@ -142,8 +142,7 @@ mod tests {
 
 
     mod insufficient_material {
-        use crate::game::Game;
-        use crate::position::Position;
+        use super::*;
 
         #[test]
         fn test_new_game() {

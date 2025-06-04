@@ -4,7 +4,6 @@ use std::io::{self};
 pub mod fen;
 pub mod chessboard;
 pub mod r#move;
-pub mod position;
 pub mod uci;
 pub mod chess_util;
 pub mod move_generator;
@@ -35,7 +34,7 @@ fn main() {
         Err(err)
     }).ok();
     info!("{}", config::get_config_as_string());
-    let _ = *TRANSPOSITION_TABLE;
+    //let _ = *TRANSPOSITION_TABLE;
     if config::get_perft() {
         println!("Running perft test");
         node_counter::perf_t();

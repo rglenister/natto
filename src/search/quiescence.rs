@@ -6,7 +6,7 @@ use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::{move_generator, chess_util};
 use crate::chess_util::util;
-use crate::position::Position;
+use crate::chessboard::position::Position;
 use crate::r#move::{Move};
 
 include!("../chess_util/generated_macro.rs");
@@ -220,9 +220,7 @@ fn find_square_increment(from_square: isize, to_square: isize) -> Option<isize> 
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
     use crate::chessboard::piece::PieceColor::{Black, White};
-    use crate::chessboard::piece::PieceType::{Bishop, King, Pawn, Rook};
     use crate::r#move::BaseMove;
     use super::*;
     #[test]
@@ -377,9 +375,7 @@ mod tests {
     }
     
     mod q_search {
-        use crate::position::Position;
-        use crate::search::negamax::MAXIMUM_SCORE;
-        use crate::search::quiescence::quiescence_search;
+        use super::*;
 
         #[test]
         fn test_only_kings() {
