@@ -8,8 +8,6 @@ pub mod eval;
 
 pub mod engine;
 
-pub mod config;
-
 mod book;
 mod search;
 use chrono::Local;
@@ -18,6 +16,8 @@ use fern::Dispatch;
 use log::info;
 use log::error;
 use crate::eval::node_counter;
+
+use crate::engine::config;
 
 fn main() {
     dotenv().ok();
@@ -34,7 +34,7 @@ fn main() {
         node_counter::perf_t();
     } else {
         info!("Starting engine");
-        engine::run(&config::get_uci_commands());
+        engine::engine::run(&config::get_uci_commands());
         info!("Engine exited cleanly");
     }
 }
