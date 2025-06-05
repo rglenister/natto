@@ -17,7 +17,6 @@ use dotenv::dotenv;
 use fern::Dispatch;
 use log::info;
 use log::error;
-use crate::search::transposition_table::TRANSPOSITION_TABLE;
 use crate::eval::node_counter;
 
 fn main() {
