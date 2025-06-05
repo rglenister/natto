@@ -1,10 +1,10 @@
-use chess_engine::{eval::node_counter};
+use natto_bot::{eval::node_counter};
 use serde_derive::Deserialize;
 use serial_test::serial;
 use std::error::Error;
 use std::fs;
-use chess_engine::core::position::{Position};
-use chess_engine::util::fen;
+use natto_bot::core::position::{Position};
+use natto_bot::util::fen;
 
 #[derive(Deserialize, Debug)]
 

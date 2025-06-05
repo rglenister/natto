@@ -1,5 +1,5 @@
 [package]
-name = "chess_engine"
+name = "natto-bot"
 version = "0.1.7"
 authors = ["Richard Glenister <rglenister@yahoo.com>"]
 edition = "2021"
