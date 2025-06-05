@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use strum::IntoEnumIterator;
-use crate::chess_util::bitboard_iterator::BitboardIterator;
+use crate::util::bitboard_iterator::BitboardIterator;
 use crate::core::piece::{Piece, PieceColor, PieceType};
 use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
-use crate::chess_util::util;
+use crate::util::util;
 use crate::core::board::Board;
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::position::Position;
@@ -14,7 +14,7 @@ use crate::game;
 use crate::game::Game;
 use crate::search::negamax::MAXIMUM_SCORE;
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 static COLUMN_SQUARE_INDEXES: Lazy<[u64; 8]> = Lazy::new(|| {
     let mut result = [0; 8];

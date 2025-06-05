@@ -179,7 +179,7 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
 
 #[cfg(test)]
 mod tests {
-    use crate::chess_util::fen;
+    use crate::util::fen;
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
     use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};

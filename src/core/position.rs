@@ -8,16 +8,16 @@ use crate::core::piece::{Piece, PieceColor};
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::core::r#move::{Move, RawMove};
 use crate::core::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
-use crate::chess_util::util::distance;
+use crate::util::util::distance;
 use crate::core::move_generator;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use std::fmt;
-use crate::chess_util::{fen, util};
+use crate::util::{fen, util};
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 

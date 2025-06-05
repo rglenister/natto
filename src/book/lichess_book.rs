@@ -1,8 +1,8 @@
-use crate::chess_util::{fen, util};
+use crate::util::{fen, util};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::King;
 use crate::core::piece::{Piece, PieceColor};
-use crate::opening_book::opening_book::{ErrorKind, OpeningBook};
+use crate::book::opening_book::{ErrorKind, OpeningBook};
 use crate::core::r#move::{Move, RawMove};
 use rand::{rng, Rng};
 use reqwest;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::position::Position;
 use crate::core::move_generator::generate_moves;
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 
 pub struct LiChessOpeningBook {

@@ -3,14 +3,14 @@ use crate::core::board::BoardSide::KingSide;
 use crate::core::piece::PieceType::Pawn;
 use crate::core::{piece::Piece, piece::PieceType, r#move::Move};
 use crate::game::{Game, GameStatus};
-use crate::chess_util::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
+use crate::util::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::search::negamax::SearchResults;
 use phf::phf_map;
-use crate::chess_util::util;
+use crate::util::util;
 use crate::core::position::Position;
 use crate::core::move_generator::generate_moves;
 
-include!("../chess_util/generated_macro.rs");
+include!("generated_macro.rs");
 
 pub const SHORT_FORMATTER: MoveFormatter = MoveFormatter::new(ShortAlgebraic);
 pub const LONG_FORMATTER: MoveFormatter = MoveFormatter::new(LongAlgebraic);

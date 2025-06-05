@@ -4,7 +4,7 @@ use serial_test::serial;
 use std::error::Error;
 use std::fs;
 use chess_engine::core::position::{Position};
-use chess_engine::chess_util::fen;
+use chess_engine::util::fen;
 
 #[derive(Deserialize, Debug)]
 

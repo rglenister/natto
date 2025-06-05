@@ -5,11 +5,11 @@ use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::core::move_generator;
-use crate::chess_util::util;
+use crate::util::util;
 use crate::core::position::Position;
 use crate::core::r#move::{Move};
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 

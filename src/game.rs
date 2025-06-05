@@ -7,7 +7,7 @@ use crate::core::move_generator;
 use crate::core::position::Position;
 use crate::search;
 
-include!("chess_util/generated_macro.rs");
+include!("util/generated_macro.rs");
 
 #[derive(Copy, Clone, Debug)]
 #[derive(Eq, Hash, PartialEq)]

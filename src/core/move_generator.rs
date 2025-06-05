@@ -9,12 +9,12 @@ use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
-use crate::chess_util::bitboard_iterator::BitboardIterator;
-use crate::chess_util::util;
+use crate::util::bitboard_iterator::BitboardIterator;
+use crate::util::util;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {

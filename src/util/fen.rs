@@ -6,7 +6,7 @@ use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use thiserror::Error;
 use crate::core::board::Board;
-use crate::chess_util::util;
+use crate::util::util;
 use crate::core::position::Position;
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(

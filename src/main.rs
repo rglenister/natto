@@ -2,7 +2,7 @@
 use std::io::{self};
 pub mod core;
 pub mod uci;
-pub mod chess_util;
+pub mod util;
 pub mod game;
 pub mod eval;
 
@@ -10,7 +10,7 @@ pub mod engine;
 
 pub mod config;
 
-mod opening_book;
+mod book;
 mod search;
 use chrono::Local;
 use dotenv::dotenv;

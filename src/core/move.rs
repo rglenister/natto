@@ -2,10 +2,10 @@ use crate::core::board::BoardSide::KingSide;
 use crate::core::board::BoardSide;
 use crate::core::piece::PieceType;
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-use crate::chess_util::util::format_square;
+use crate::util::util::format_square;
 use std::fmt;
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone, Copy, Ord, PartialOrd)]

@@ -1,5 +1,5 @@
 #[macro_use]
-use crate::chess_util::util::process_bits;
+use crate::util::util::process_bits;
 use std::fmt;
 use std::fmt::Write;
 use std::iter::Iterator;
@@ -10,7 +10,7 @@ use crate::core::piece::{Piece, PieceColor, PieceType};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::{Bishop, King, Pawn};
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;

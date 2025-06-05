@@ -7,12 +7,12 @@ use regex::{Captures, Regex};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use crate::chess_util::util;
-use crate::chess_util::util::create_repeat_position_counts;
+use crate::util::util;
+use crate::util::util::create_repeat_position_counts;
 use crate::core::position::Position;
 use crate::search;
 
-include!("chess_util/generated_macro.rs");
+include!("util/generated_macro.rs");
 
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
 

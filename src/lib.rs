@@ -7,6 +7,6 @@ mod engine;
 
 pub mod config;
 pub mod core;
-mod opening_book;
+mod book;
 mod search;
-pub mod chess_util;
+pub mod util;
