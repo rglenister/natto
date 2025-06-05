@@ -1,16 +1,16 @@
 #[macro_use]
-use crate::chess_util::util::process_bits;
+use crate::util::util::process_bits;
 use std::fmt;
 use std::fmt::Write;
 use std::iter::Iterator;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use crate::chessboard::board;
-use crate::chessboard::piece::{Piece, PieceColor, PieceType};
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::{Bishop, King, Pawn};
+use crate::core::board;
+use crate::core::piece::{Piece, PieceColor, PieceType};
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::{Bishop, King, Pawn};
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
@@ -293,12 +293,9 @@ impl fmt::Display for Board {
 }
 #[cfg(test)]
 mod tests {
-    use clap::builder::styling::AnsiColor::White;
-    //    use crate::board::{PieceColor, PieceType};
     use super::*;
-    use crate::chessboard::board::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::chess_util;
-    use crate::position::Position;
+    use crate::core::board::PieceType::{Bishop, Knight, Queen, Rook};
+    use crate::core::position::Position;
 
     #[test]
     fn test_get_from_empty_square() {

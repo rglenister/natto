@@ -1,49 +1,41 @@
-extern crate core;
 
 use std::io::{self};
-pub mod fen;
-pub mod chessboard;
-pub mod r#move;
-pub mod position;
+pub mod core;
 pub mod uci;
-pub mod chess_util;
-pub mod move_generator;
+pub mod util;
 pub mod game;
-pub mod move_formatter;
 pub mod eval;
 
 pub mod engine;
 
 pub mod config;
 
-mod opening_book;
+mod book;
 mod search;
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
 use log::info;
 use log::error;
-use chess_engine::eval::node_counter::count_nodes;
-use chess_engine::position::Position;
 use crate::search::transposition_table::TRANSPOSITION_TABLE;
-use crate::config::CONFIG;
 use crate::eval::node_counter;
 
 fn main() {
     dotenv().ok();
-    eprintln!("Configuration: {:?}", *CONFIG);
+    eprintln!("{}", config::get_config_as_string());
     setup_logging().or_else(|err| {
+        eprintln!("Failed to initialize logging: {:?}", err);
         error!("Failed to initialize logging: {:?}", err);
         Err(err)
     }).ok();
-    info!("Configuration: {:?}", *CONFIG);
-    let _ = *TRANSPOSITION_TABLE;
-    if CONFIG.perft {
+    info!("{}", config::get_config_as_string());
+    //let _ = *TRANSPOSITION_TABLE;
+    if config::get_perft() {
         println!("Running perft test");
         node_counter::perf_t();
     } else {
         info!("Starting engine");
-        engine::run(&CONFIG.uci_commands);
+        engine::run(&config::get_uci_commands());
         info!("Engine exited cleanly");
     }
 }
@@ -58,9 +50,9 @@ fn setup_logging() -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(CONFIG.log_level)
+        .level(config::get_log_level())
         .chain(io::stderr())        
-        .chain(fern::log_file(CONFIG.log_file.clone())?)
+        .chain(fern::log_file(config::get_log_file().clone())?)
         .apply()?;
     Ok(())
 }

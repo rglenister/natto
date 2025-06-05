@@ -1,5 +1,5 @@
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use std::ops::Not;
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 
@@ -96,8 +96,8 @@ impl PieceColor {
 
 #[cfg(test)]
 mod tests {
-    use crate::chessboard::piece::PieceColor::*;
-    use crate::chessboard::piece::{Piece, PieceType::*};
+    use crate::core::piece::PieceColor::*;
+    use crate::core::piece::{Piece, PieceType::*};
 
     #[test]
     fn test_piece_to_char() {

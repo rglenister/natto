@@ -1,6 +1,5 @@
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::r#move::{Move, RawMove};
-use crate::position::Position;
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::r#move::{Move, RawMove};
 use crate::search::negamax::{SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -8,15 +7,15 @@ use regex::{Captures, Regex};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use crate::chess_util::util;
-use crate::chess_util::util::create_repeat_position_counts;
+use crate::util::util;
+use crate::util::util::create_repeat_position_counts;
+use crate::core::position::Position;
 use crate::search;
 
-include!("chess_util/generated_macro.rs");
+include!("util/generated_macro.rs");
 
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
 
-//#[derive(Copy, Clone, Debug)]
 #[derive(Clone, Debug)]
 pub struct UciPosition {
     pub given_position: Position,
@@ -152,7 +151,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
     }
 }
 
-pub fn send_to_gui(data: String) {
+pub fn send_to_gui(data: &str) {
     println!("{}", data);
     info!("UCI Protocol: sending to GUI: {}", data);
 }
@@ -168,8 +167,8 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chessboard::piece::PieceColor;
-    use crate::chessboard::piece::PieceColor::{Black, White};
+    use crate::core::piece::PieceColor;
+    use crate::core::piece::PieceColor::{Black, White};
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {
         let white_to_move = Position::new_game();
         let black_to_move = white_to_move.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None));

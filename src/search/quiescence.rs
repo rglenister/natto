@@ -1,15 +1,15 @@
 use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
-use crate::chessboard::piece::{PieceColor, PieceType};
-use crate::chessboard::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
+use crate::core::piece::{PieceColor, PieceType};
+use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
-use crate::{move_generator, chess_util};
-use crate::chess_util::util;
-use crate::position::Position;
-use crate::r#move::{Move};
+use crate::core::move_generator;
+use crate::util::util;
+use crate::core::position::Position;
+use crate::core::r#move::{Move};
 
-include!("../chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
@@ -220,10 +220,8 @@ fn find_square_increment(from_square: isize, to_square: isize) -> Option<isize> 
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
-    use crate::chessboard::piece::PieceColor::{Black, White};
-    use crate::chessboard::piece::PieceType::{Bishop, King, Pawn, Rook};
-    use crate::r#move::BaseMove;
+    use crate::core::piece::PieceColor::{Black, White};
+    use crate::core::r#move::BaseMove;
     use super::*;
     #[test]
     fn test_rank_capture_move() {
@@ -377,9 +375,7 @@ mod tests {
     }
     
     mod q_search {
-        use crate::position::Position;
-        use crate::search::negamax::MAXIMUM_SCORE;
-        use crate::search::quiescence::quiescence_search;
+        use super::*;
 
         #[test]
         fn test_only_kings() {

@@ -1,13 +1,12 @@
-use crate::chessboard::{board, piece};
-use crate::chessboard::piece::PieceColor;
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::r#move::{Move, RawMove};
-use crate::position::Position;
+use crate::core::{board, piece};
+use crate::core::piece::PieceColor;
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::r#move::{Move, RawMove};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Add;
-
+use crate::core::position::Position;
 
 include!("generated_macro.rs");
 
@@ -180,14 +179,14 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
 
 #[cfg(test)]
 mod tests {
+    use crate::util::fen;
+    use crate::core::board::Board;
+    use crate::core::piece::{Piece, PieceType};
+    use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
+    use crate::core::position::NEW_GAME_FEN;
+    use crate::core::r#move::BaseMove;
+    use crate::core::r#move::Move::{Basic, Promotion};
     use super::*;
-    use crate::chessboard::board::Board;
-    use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::chessboard::piece::{Piece, PieceType};
-    use crate::fen;
-    use crate::r#move::BaseMove;
-    use crate::r#move::Move::{Basic, Promotion};
-    use crate::position::NEW_GAME_FEN;
 
     #[test]
     fn test_bit_indexes() {

@@ -1,11 +1,11 @@
-use crate::chessboard::board::BoardSide::KingSide;
-use crate::chessboard::board::BoardSide;
-use crate::chessboard::piece::PieceType;
-use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-use crate::chess_util::util::format_square;
+use crate::core::board::BoardSide::KingSide;
+use crate::core::board::BoardSide;
+use crate::core::piece::PieceType;
+use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+use crate::util::util::format_square;
 use std::fmt;
 
-include!("chess_util/generated_macro.rs");
+include!("../util/generated_macro.rs");
 
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone, Copy, Ord, PartialOrd)]
@@ -109,11 +109,11 @@ pub fn convert_chess_move_to_raw(chess_move: &Move) -> RawMove {
 
 #[cfg(test)]
 mod tests {
-    use crate::chessboard::piece::PieceType::Rook;
-    use crate::chessboard::board::BoardSide;
-    use crate::chessboard::piece::PieceType;
-    use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-    use crate::r#move::{convert_chess_moves_to_raw, BaseMove, Move, RawMove};
+    use crate::core::piece::PieceType::Rook;
+    use crate::core::board::BoardSide;
+    use crate::core::piece::PieceType;
+    use crate::core::r#move::{convert_chess_moves_to_raw, BaseMove, Move, RawMove};
+    use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 
     #[test]
     fn test_basic_move() {

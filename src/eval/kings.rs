@@ -1,9 +1,8 @@
-use crate::chessboard::board::Board;
-use crate::chessboard::piece::PieceColor;
-use crate::chessboard::piece::PieceColor::White;
-use crate::position::Position;
-use crate::{move_generator, chess_util};
-use crate::chessboard::piece::PieceType::King;
+use crate::core::board::Board;
+use crate::core::piece::PieceColor;
+use crate::core::move_generator;
+use crate::core::piece::PieceType::King;
+use crate::core::position::Position;
 
 pub fn score_king_safety(position: &Position) -> isize {
     let mut score = 0;
@@ -23,8 +22,8 @@ fn evaluate_king_safety(position: &Position, color: PieceColor) -> isize {
     }
 
     // Bonus for castling - safer positioning of the king
-    if !position.can_castle(color, &crate::chessboard::board::BoardSide::KingSide)
-        && !position.can_castle(color, &crate::chessboard::board::BoardSide::QueenSide)
+    if !position.can_castle(color, &crate::core::board::BoardSide::KingSide)
+        && !position.can_castle(color, &crate::core::board::BoardSide::QueenSide)
     {
         score -= 30; // Penalty for no castling rights left
     }
@@ -66,7 +65,6 @@ fn evaluate_king_centralization(king_square: usize, color: PieceColor) -> isize 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::position::Position;
 
     #[test]
     fn test_king_safety_opening() {
