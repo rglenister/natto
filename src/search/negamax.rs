@@ -1,7 +1,6 @@
 use crate::game::GameStatus::{Checkmate, InProgress};
 use crate::game::{Game, GameStatus};
 use crate::util::move_formatter::{FormatMove, LONG_FORMATTER};
-use crate::search::sorted_move_list::SortedMoveList;
 use crate::core::{move_generator, r#move};
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -82,7 +81,6 @@ impl SearchParams {
 pub struct SearchContext<'a> {
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
-    sorted_root_moves: RefCell<SortedMoveList>,
     pub repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
 }
 
@@ -96,7 +94,6 @@ impl SearchContext<'_> {
         SearchContext {
             search_params,
             stop_flag,
-            sorted_root_moves: RefCell::new(SortedMoveList::new(&moves)),
             repeat_position_counts,
         }
     }
@@ -184,7 +181,7 @@ fn negamax_search(
         }
     }
     if depth > 0 {
-        let moves = if depth == max_depth { search_context.sorted_root_moves.get_mut().get_all_moves() } else { generate_moves(position) };
+        let moves = generate_moves(position);
         let mut best_score = -MAXIMUM_SCORE;
         let mut best_move = None;
         for mv in moves {
@@ -198,7 +195,6 @@ fn negamax_search(
                     -negamax_search(&next_position.0, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
                 };
                 current_line.pop();
-                if depth == max_depth { search_context.sorted_root_moves.borrow_mut().update_score(&mv, next_score) };
                 if next_score > best_score || best_move.is_none() {
                     best_score = next_score;
                     best_move = Some(mv);
