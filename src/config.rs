@@ -217,10 +217,6 @@ fn is_power_of_two(s: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
-    use crate::chessboard::piece::PieceColor::{Black, White};
-    use crate::chessboard::piece::PieceType::{Bishop, King, Pawn, Rook};
-    use crate::r#move::BaseMove;
     use super::*;
     fn create_default_config() -> Config {
         Config {

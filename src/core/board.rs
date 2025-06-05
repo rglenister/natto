@@ -5,10 +5,10 @@ use std::fmt::Write;
 use std::iter::Iterator;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use crate::chessboard::board;
-use crate::chessboard::piece::{Piece, PieceColor, PieceType};
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::{Bishop, King, Pawn};
+use crate::core::board;
+use crate::core::piece::{Piece, PieceColor, PieceType};
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::{Bishop, King, Pawn};
 
 include!("../chess_util/generated_macro.rs");
 
@@ -294,8 +294,8 @@ impl fmt::Display for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chessboard::board::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::chessboard::position::Position;
+    use crate::core::board::PieceType::{Bishop, Knight, Queen, Rook};
+    use crate::core::position::Position;
 
     #[test]
     fn test_get_from_empty_square() {

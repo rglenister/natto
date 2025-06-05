@@ -14,7 +14,7 @@ use crate::config::{set_contempt, set_hash_size, set_max_book_depth, set_use_boo
 use crate::search::negamax::iterative_deepening;
 use crate::search::transposition_table::{TranspositionTable, TRANSPOSITION_TABLE};
 use crate::game::GameStatus::{Checkmate, Stalemate};
-use crate::r#move::convert_chess_move_to_raw;
+use crate::core::r#move::convert_chess_move_to_raw;
 use crate::uci::send_to_gui;
 
 pub fn run(uci_commands: &Option<Vec<String>>) {

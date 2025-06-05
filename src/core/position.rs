@@ -1,15 +1,15 @@
-use crate::chessboard::board::Board;
-use crate::chessboard::board::{CASTLING_METADATA, KING_HOME_SQUARE};
-use crate::chessboard::board::BoardSide;
-use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::{King, Pawn, Rook};
-use crate::chessboard::piece::{Piece, PieceColor};
-use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-use crate::r#move::{Move, RawMove};
-use crate::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
+use crate::core::board::Board;
+use crate::core::board::{CASTLING_METADATA, KING_HOME_SQUARE};
+use crate::core::board::BoardSide;
+use crate::core::board::BoardSide::{KingSide, QueenSide};
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::{King, Pawn, Rook};
+use crate::core::piece::{Piece, PieceColor};
+use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+use crate::core::r#move::{Move, RawMove};
+use crate::core::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::chess_util::util::distance;
-use crate::{move_generator};
+use crate::core::move_generator;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
@@ -322,13 +322,10 @@ impl Position {
 }
 #[cfg(test)]
 mod tests {
+    use crate::core::piece::PieceType::Queen;
+    use crate::core::move_generator::generate_moves;
     use super::*;
-    use crate::chessboard::board::Board;
-    use crate::chessboard::piece::PieceColor;
-    use crate::chessboard::piece::PieceType::Queen;
-    use crate::r#move::Move::Castling;
-    use crate::move_generator::generate_moves;
-
+    
     #[test]
     fn test_general_usability() {
         let position: Position =

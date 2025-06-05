@@ -1,18 +1,16 @@
-use crate::chessboard::board::Board;
-use crate::chessboard::board::BoardSide::KingSide;
-use crate::chessboard::piece::PieceType::Pawn;
-use crate::chessboard::{piece::Piece, piece::PieceType};
-use crate::r#move::Move::{Castling, EnPassant, Promotion};
-use crate::r#move::Move;
+use crate::core::board::Board;
+use crate::core::board::BoardSide::KingSide;
+use crate::core::piece::PieceType::Pawn;
+use crate::core::{piece::Piece, piece::PieceType, r#move::Move};
 use crate::game::{Game, GameStatus};
-use crate::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
+use crate::chess_util::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::search::negamax::SearchResults;
 use phf::phf_map;
 use crate::chess_util::util;
-use crate::chessboard::position::Position;
-use crate::move_generator::generate_moves;
+use crate::core::position::Position;
+use crate::core::move_generator::generate_moves;
 
-include!("chess_util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 pub const SHORT_FORMATTER: MoveFormatter = MoveFormatter::new(ShortAlgebraic);
 pub const LONG_FORMATTER: MoveFormatter = MoveFormatter::new(LongAlgebraic);
@@ -70,7 +68,7 @@ impl FormatMove for MoveFormatter {
 
 fn get_promote_to(chess_move: Move) -> Option<PieceType> {
     match chess_move {
-        Promotion { base_move: _ , promote_to} => Some(promote_to),
+        Move::Promotion { base_move: _, promote_to } => Some(promote_to),
         _ => None
     }
 }
@@ -88,7 +86,7 @@ impl MoveFormatter {
 
     fn format_move_internal(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
-            Castling { base_move: _, board_side } => {
+            Move::Castling { base_move: _, board_side } => {
                 if board_side == KingSide { "0-0".to_string() } else { "0-0-0".to_string() }
             }
             _ => self.basic_format(game_move)
@@ -145,7 +143,7 @@ impl MoveFormatter {
 
     fn get_promotion_piece(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
-            Promotion { base_move: _ , promote_to } => {
+            Move::Promotion { base_move: _, promote_to } => {
                 PIECE_CHAR_TO_UNICODE[&Piece { piece_color: game_move.position.side_to_move(), piece_type: promote_to }.to_char()].to_string()
             }
             _ => String::new()
@@ -154,7 +152,7 @@ impl MoveFormatter {
 
     fn get_en_passant_indicator(&self, game_move: &GameMove) -> String {
         match game_move.chess_move {
-            EnPassant {base_move: _ , capture_square: _} => {
+            Move::EnPassant { base_move: _, capture_square: _ } => {
                 "ep".to_string()
             }
             _ => String::new()

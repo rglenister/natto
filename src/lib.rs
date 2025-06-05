@@ -1,16 +1,12 @@
 
-mod r#move;
 
-pub mod move_formatter;
 pub mod game;
-pub mod move_generator;
-
 pub mod uci;
 pub mod eval;
 mod engine;
 
 pub mod config;
-pub mod chessboard;
+pub mod core;
 mod opening_book;
 mod search;
 pub mod chess_util;

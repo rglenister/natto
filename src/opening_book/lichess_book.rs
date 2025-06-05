@@ -1,14 +1,14 @@
 use crate::chess_util::{fen, util};
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::King;
-use crate::chessboard::piece::{Piece, PieceColor};
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::King;
+use crate::core::piece::{Piece, PieceColor};
 use crate::opening_book::opening_book::{ErrorKind, OpeningBook};
-use crate::r#move::{Move, RawMove};
+use crate::core::r#move::{Move, RawMove};
 use rand::{rng, Rng};
 use reqwest;
 use serde::{Deserialize, Serialize};
-use crate::chessboard::position::Position;
-use crate::move_generator::generate_moves;
+use crate::core::position::Position;
+use crate::core::move_generator::generate_moves;
 
 include!("../chess_util/generated_macro.rs");
 

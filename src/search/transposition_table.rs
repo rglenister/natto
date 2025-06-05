@@ -2,11 +2,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use dotenv::var;
 use log::{error, info};
 use once_cell::sync::Lazy;
-use crate::chessboard::board::BoardSide::{KingSide, QueenSide};
-use crate::chessboard::piece::PieceType::{Bishop, Knight, Queen, Rook};
-use crate::chessboard::position::Position;
-use crate::r#move::{BaseMove, Move};
-use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+use crate::core::board::BoardSide::{KingSide, QueenSide};
+use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
+use crate::core::position::Position;
+use crate::core::r#move::{BaseMove, Move};
+use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 pub use crate::search::negamax::MAXIMUM_SCORE;
 
 pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
@@ -291,9 +291,9 @@ mod tests {
 
         mod move_packing {
             use super::*;
-            use crate::chessboard::board::BoardSide::KingSide;
-            use crate::chessboard::piece::PieceType::Rook;
-            use crate::r#move::Move::{Castling, EnPassant, Promotion};
+            use crate::core::board::BoardSide::KingSide;
+            use crate::core::piece::PieceType::Rook;
+            use crate::core::r#move::Move::{Castling, EnPassant, Promotion};
             #[test]
             fn test_basic_move() {
                 let basic_move = Basic { base_move: BaseMove{from: 63, to: 0, capture: false }};

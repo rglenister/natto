@@ -1,6 +1,6 @@
 use thiserror::Error;
-use crate::chessboard::position::Position;
-use crate::r#move::RawMove;
+use crate::core::position::Position;
+use crate::core::r#move::RawMove;
 
 
 #[derive(Debug, Error)]

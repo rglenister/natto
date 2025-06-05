@@ -1,9 +1,9 @@
 
-use crate::chessboard::board;
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::board::{Board, BoardSide};
-use crate::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-use crate::r#move::{BaseMove, Move};
+use crate::core::board;
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::board::{Board, BoardSide};
+use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+use crate::core::r#move::{BaseMove, Move};
 
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
@@ -11,10 +11,10 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use crate::chess_util::bitboard_iterator::BitboardIterator;
 use crate::chess_util::util;
-use crate::chessboard::piece::{PieceColor, PieceType};
-use crate::chessboard::position::Position;
+use crate::core::piece::{PieceColor, PieceType};
+use crate::core::position::Position;
 
-include!("chess_util/generated_macro.rs");
+include!("../chess_util/generated_macro.rs");
 
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
@@ -486,8 +486,8 @@ pub fn is_check(position: &Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::move_generator::generate_moves;
-    use crate::r#move::BaseMove;
+    use crate::core::move_generator::generate_moves;
+    use crate::core::r#move::BaseMove;
 
     /// 20 moves are generated from the initial position
     #[test]

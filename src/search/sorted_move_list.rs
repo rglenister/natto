@@ -1,4 +1,4 @@
-use crate::r#move::Move;
+use crate::core::r#move::Move;
 
 use std::collections::BTreeMap;
 
@@ -42,7 +42,7 @@ impl SortedMoveList {
 
 #[cfg(test)]
 mod tests {
-    use crate::r#move::{BaseMove, Move};
+    use crate::core::r#move::{BaseMove, Move};
     use crate::search::sorted_move_list::SortedMoveList;
 
     #[test]

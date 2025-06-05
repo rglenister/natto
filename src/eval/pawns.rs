@@ -1,6 +1,6 @@
-use crate::chessboard::piece::{PieceColor, PieceType};
-use crate::chessboard::piece::PieceColor::White;
-use crate::chessboard::position::Position;
+use crate::core::piece::{PieceColor, PieceType};
+use crate::core::piece::PieceColor::White;
+use crate::core::position::Position;
 
 pub fn score_pawn_structure(position: &Position) -> isize {
     let board = position.board();
@@ -81,9 +81,9 @@ fn is_passed_pawn(square: usize, pawns: u64, color: PieceColor) -> bool {
 }
 
 mod tests {
-    use crate::chessboard::piece::{PieceColor, PieceType};
-    use crate::chessboard::piece::PieceColor::{White, Black};
-    use crate::chessboard::position::Position;
+    use crate::core::piece::{PieceColor, PieceType};
+    use crate::core::piece::PieceColor::{White, Black};
+    use crate::core::position::Position;
     use crate::eval::pawns::{is_doubled_pawn, is_isolated_pawn, is_passed_pawn};
 
     include!("../chess_util/generated_macro.rs");

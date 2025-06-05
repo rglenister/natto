@@ -1,13 +1,9 @@
-extern crate core;
 
 use std::io::{self};
-pub mod chessboard;
-pub mod r#move;
+pub mod core;
 pub mod uci;
 pub mod chess_util;
-pub mod move_generator;
 pub mod game;
-pub mod move_formatter;
 pub mod eval;
 
 pub mod engine;

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
-use crate::chessboard::piece::PieceColor;
-use crate::chessboard::piece::PieceColor::{Black, White};
-use crate::chessboard::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
-use crate::{move_generator, search};
-use crate::chessboard::position::Position;
+use crate::core::piece::PieceColor;
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
+use crate::core::move_generator;
+use crate::core::position::Position;
+use crate::search;
 
 include!("chess_util/generated_macro.rs");
 

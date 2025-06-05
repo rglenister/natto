@@ -1,8 +1,8 @@
 use crate::game::GameStatus::{Checkmate, InProgress};
 use crate::game::{Game, GameStatus};
-use crate::move_formatter::{FormatMove, LONG_FORMATTER};
+use crate::chess_util::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::search::sorted_move_list::SortedMoveList;
-use crate::{move_generator, r#move, uci};
+use crate::core::{move_generator, r#move};
 use log::{debug, info, error};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -12,13 +12,14 @@ use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use crate::chess_util::{fen, util};
-use crate::chessboard::position::Position;
+use crate::core::position::Position;
 use crate::eval::evaluation;
-use crate::r#move::Move;
+use crate::core::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::move_generator::generate_moves;
+use crate::core::move_generator::generate_moves;
 use crate::search::quiescence;
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
+use crate::uci;
 
 include!("../chess_util/generated_macro.rs");
 
@@ -375,11 +376,11 @@ fn node_counter_stats() -> NodeCountStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::r#move::RawMove;
+    use crate::core::r#move::RawMove;
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
-    use crate::move_formatter::{format_move_list, FormatMove};
+    use crate::chess_util::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
-    use crate::{move_formatter, uci, chess_util};
+    use crate::{chess_util::move_formatter, uci, chess_util};
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);

@@ -2,9 +2,9 @@ use std::os::macos::raw::stat;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
-use crate::move_generator::generate_moves;
+use crate::core::move_generator::generate_moves;
 use rayon::prelude::*;
-use crate::chessboard::position::Position;
+use crate::core::position::Position;
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
