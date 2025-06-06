@@ -16,7 +16,8 @@ use crate::eval::evaluation;
 use crate::core::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::core::move_generator::generate_moves;
-use crate::search::quiescence;
+use crate::search::move_ordering::MoveOrderer;
+use crate::search::{move_ordering, quiescence};
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
 use crate::uci;
 
@@ -82,6 +83,7 @@ pub struct SearchContext<'a> {
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
     pub repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
+    pub move_orderer: MoveOrderer,
 }
 
 impl SearchContext<'_> {
@@ -89,12 +91,13 @@ impl SearchContext<'_> {
         search_params: &SearchParams,
         stop_flag: Arc<AtomicBool>,
         repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
-        moves: Vec<Move>,
+        move_orderer: MoveOrderer,
     ) -> SearchContext {
         SearchContext {
             search_params,
             stop_flag,
             repeat_position_counts,
+            move_orderer,
         }
     }
 }
@@ -112,7 +115,7 @@ pub fn iterative_deepening(position: &Position, search_params: &SearchParams, st
     reset_node_counter();
     let mut search_results_stack = vec!();
     for iteration_max_depth in 1..=search_params.max_depth {
-        let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), generate_moves(position));
+        let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repeat_position_counts.clone(), MoveOrderer::new());
         let search_results = negamax(position, iteration_max_depth, &mut search_context);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, search_results);
@@ -155,7 +158,8 @@ fn negamax_search(
         search_context.stop_flag.store(true, Ordering::Relaxed);
         return 0;
     }
-    if let Some(entry) = TRANSPOSITION_TABLE.probe(position.hash_code()) {
+    let ttable_entry = TRANSPOSITION_TABLE.probe(position.hash_code());
+    if let Some(entry) = ttable_entry {
         if entry.depth >= depth {
             match entry.bound_type {
                 BoundType::Exact => {
@@ -181,7 +185,10 @@ fn negamax_search(
         }
     }
     if depth > 0 {
-        let moves = generate_moves(position);
+        let mut moves = generate_moves(position);
+        let hash_move = ttable_entry.and_then(|entry| entry.best_move.clone());
+        let last_move = current_line.last().map(|(_, mv)| *mv);
+        move_ordering::order_moves(position, &mut moves, &search_context.move_orderer, ply, hash_move, &last_move);
         let mut best_score = -MAXIMUM_SCORE;
         let mut best_move = None;
         for mv in moves {
@@ -545,7 +552,7 @@ mod tests {
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(long_format_moves(&position, &search_results), "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,♗f7xg6#");
+        assert_eq!(long_format_moves(&position, &search_results), "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,f5xg6#");
         test_eq(
             &search_results,
             &SearchResults {

@@ -8,6 +8,7 @@ use crate::core::move_generator;
 use crate::util::util;
 use crate::core::position::Position;
 use crate::core::r#move::{Move};
+use crate::search::move_ordering::order_captures;
 
 include!("../util/generated_macro.rs");
 
@@ -169,24 +170,8 @@ fn select_least_valuable_attacker(position: &Position, attacking_color: PieceCol
 
 fn generate_sorted_captures(position: &Position) -> Vec<Move> {
     let mut capture_moves = move_generator::generate_basic_capture_moves(position);
-    // Sort captures using MVV-LVA most valuable - victim least valuable attacker
-    capture_moves.sort_by(|a, b| rank_capture_move(position, b).cmp(&rank_capture_move(position, a)));
+    order_captures(position, &mut capture_moves);
     capture_moves
-}
-
-// Heuristic for capture moves ordering: Most Valuable Victim, Least Valuable Attacker
-fn rank_capture_move(position: &Position, mov: &Move) -> isize {
-    let base_move = mov.get_base_move();
-    let attacker_value = piece_value(position, base_move.from);
-    let victim_value = piece_value(position, base_move.to);
-    victim_value - attacker_value // Prefer capturing higher value pieces with lower-value ones
-}
-
-fn piece_value(position: &Position, square_index: usize) -> isize {
-    if position.board().get_piece(square_index).is_none() {
-        return 100;
-    }
-    PIECE_SCORES[position.board().get_piece(square_index).unwrap().piece_type as usize]
 }
 
 fn find_discovered_attacker(position: &Position, target_square: isize, previous_attacker_square: isize, side_to_move: PieceColor, occupied: u64) -> Option<isize> {
@@ -223,17 +208,6 @@ mod tests {
     use crate::core::piece::PieceColor::{Black, White};
     use crate::core::r#move::BaseMove;
     use super::*;
-    #[test]
-    fn test_rank_capture_move() {
-        let fen = "4k3/8/2n2Q2/1P6/8/8/8/2R1K2B w - - 0 1";
-        let position: Position = Position::from(fen);
-        let moves = generate_sorted_captures(&position);
-        assert_eq!(moves.len(), 4);
-        assert_eq!(rank_capture_move(&position, &moves[0]), 200);
-        assert_eq!(rank_capture_move(&position, &moves[1]), 0);
-        assert_eq!(rank_capture_move(&position, &moves[2]), -200);
-        assert_eq!(rank_capture_move(&position, &moves[3]), -600);
-    }
 
     #[test]
     fn test_generate_sorted_captures() {
@@ -245,15 +219,6 @@ mod tests {
         assert_eq!(moves[1].get_base_move().from, sq!("h1"));
         assert_eq!(moves[2].get_base_move().from, sq!("c1"));
         assert_eq!(moves[3].get_base_move().from, sq!("f6"));
-    }
-
-    #[test]
-    fn test_piece_value() {
-        let position: Position = Position::new_game();
-        assert_eq!(piece_value(&position, sq!("e1")), 10000);
-        assert_eq!(piece_value(&position, sq!("d1")), 900);
-        assert_eq!(piece_value(&position, sq!("h2")), 100);
-        assert_eq!(piece_value(&position, sq!("h8")), 500);
     }
 
     #[test]
