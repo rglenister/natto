@@ -25,10 +25,9 @@ pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
     }
 
     fn bytes_to_gib(bytes: usize) -> f64 {
-        bytes as f64 / 1_073_741_824.0
+        bytes as f64 / (1024_f64 * 1024_f64 * 1024_f64)
     }
-
-
+    
     let hash_size = round_up_to_nearest_power_of_two(config::get_hash_size());
     info!("Creating transposition table with size {} ({:#X})", hash_size, hash_size);
     let transposition_table = TranspositionTable::new(hash_size);
