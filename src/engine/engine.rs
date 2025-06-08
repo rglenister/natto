@@ -235,6 +235,7 @@ impl Engine {
             }
             
         }
+        info!("{}", config::get_config_as_string());
     }
 
     fn uci_quit(&self, search_stop_flag: &Arc<AtomicBool>, main_loop_quit_flag: &Arc<AtomicBool>) {
@@ -260,8 +261,9 @@ impl Engine {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
                 let line = line.unwrap();
+                let line = line.trim();
                 info!("Received from stdin: {}", line);
-                if tx.send(line).is_err() {
+                if tx.send(line.to_string()).is_err() {
                     break; // Stop if main thread is gone
                 }
             }

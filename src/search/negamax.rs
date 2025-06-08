@@ -212,6 +212,7 @@ fn negamax_search(
                 alpha = alpha.max(next_score);
                 if alpha >= beta  {
                     search_context.move_orderer.add_killer_move(mv, ply);
+                    break;
                 }
                 if depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed) {
                     break;

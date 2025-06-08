@@ -7,13 +7,33 @@ use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
 use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
+use crate::engine::config;
 pub use crate::search::negamax::MAXIMUM_SCORE;
 
 pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
-    let hash_size = DEFAULT_HASH_SIZE;
+    fn round_up_to_nearest_power_of_two(configured_hash_size: usize) -> usize {
+        let rounded_up_hash_size = configured_hash_size.next_power_of_two();
+        if rounded_up_hash_size != configured_hash_size {
+            info!(
+                "Hash size rounded up from {} ({:#X}) to {} ({:#X})",
+                configured_hash_size,
+                configured_hash_size,
+                rounded_up_hash_size,
+                rounded_up_hash_size)
+        }
+        rounded_up_hash_size
+    }
+
+    fn bytes_to_gib(bytes: usize) -> f64 {
+        bytes as f64 / 1_073_741_824.0
+    }
+
+
+    let hash_size = round_up_to_nearest_power_of_two(config::get_hash_size());
     info!("Creating transposition table with size {} ({:#X})", hash_size, hash_size);
     let transposition_table = TranspositionTable::new(hash_size);
-    info!("Transposition table created");
+    let memory_footprint = hash_size * 2 * size_of::<AtomicU64>();
+    info!("Transposition table created. Total memory used is {} MiB ({:.2} GiB)", memory_footprint, bytes_to_gib(memory_footprint));
     transposition_table
 });
 
