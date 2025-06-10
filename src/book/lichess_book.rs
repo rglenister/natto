@@ -25,11 +25,7 @@ impl LiChessOpeningBook {
 
 impl OpeningBook for LiChessOpeningBook {
     fn get_opening_move(&self, position: &Position) -> Result<RawMove, ErrorKind> {
-        let result = get_opening_move(position);
-        match result {
-            Ok(book_move) => Ok(book_move),
-            Err(e) => Err(e),
-        }
+        get_opening_move(position)
     }
 }
 fn get_opening_move(position: &Position) -> Result<RawMove, ErrorKind> {

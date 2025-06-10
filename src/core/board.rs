@@ -23,12 +23,12 @@ pub struct Board {
 }
 
 pub struct CastlingMetadata {
-    pub(crate) board_side: BoardSide,
-    pub(crate) king_from_square: usize,
-    pub(crate) king_through_square: usize,
-    pub(crate) king_to_square: usize,
-    pub(crate) rook_from_square: usize,
-    pub(crate) rook_to_square: usize,
+    pub board_side: BoardSide,
+    pub king_from_square: usize,
+    pub king_through_square: usize,
+    pub king_to_square: usize,
+    pub rook_from_square: usize,
+    pub rook_to_square: usize,
 }
 
 const BLACK_SQUARES_MASK: u64 = {
