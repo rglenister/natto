@@ -197,6 +197,7 @@ fn negamax_search(
                 let mut child_pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                 current_line.push(next_position);
                 let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
+                    // Apply contempt to repetition-based draws
                     evaluation::apply_contempt(0, next_position.0.side_to_move())
                 } else {
                     -negamax_search(&next_position.0, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
@@ -210,11 +211,7 @@ fn negamax_search(
                     pv.extend(child_pv);
                 }
                 alpha = alpha.max(next_score);
-                if alpha >= beta  {
-                    search_context.move_orderer.add_killer_move(mv, ply);
-                    break;
-                }
-                if depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed) {
+                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
                     break;
                 }
             }
