@@ -7,3 +7,5 @@ pub mod core;
 mod book;
 mod search;
 pub mod util;
+
+pub mod engine;

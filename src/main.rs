@@ -20,6 +20,7 @@ use crate::eval::node_counter;
 use crate::engine::config;
 
 fn main() {
+//    println!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
     dotenv().ok();
     eprintln!("{}", config::get_config_as_string());
     setup_logging().or_else(|err| {
