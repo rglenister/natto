@@ -216,8 +216,16 @@ fn is_power_of_two(s: &str) -> Result<String, String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
+    use ctor::ctor;
+
+    #[cfg(test)]
+    #[ctor]
+    fn initialize_test_config() {
+        reset_global_configs(create_default_config());
+    }
+    
     fn create_default_config() -> Config {
         Config {
             log_file: "./test.log".to_string(),
@@ -232,32 +240,27 @@ mod tests {
 
     #[test]
     fn test_get_log_file() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_log_file(), "./test.log");
     }
 
     #[test]
-    fn test_get_log_Level() {
-        reset_global_configs(create_default_config());
+    fn test_get_log_level() {
         assert_eq!(get_log_level(), LevelFilter::Info);
     }
 
     #[test]
     fn test_get_perft() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_perft(), false);
     }
 
     #[test]
     fn test_get_ucor_commands() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_uci_commands(), None);
     }
 
 
     #[test]
     fn test_read_write_use_book() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_use_book(), true);
         set_use_book(false);
         assert_eq!(get_use_book(), false);
@@ -267,7 +270,6 @@ mod tests {
     
     #[test]
     fn test_read_write_max_book_depth() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_max_book_depth(), 10);
         set_max_book_depth(20);
         assert_eq!(get_max_book_depth(), 20);
@@ -275,7 +277,6 @@ mod tests {
     
     #[test]
     fn test_read_write_hash_size() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_hash_size(), 1048576);
         set_hash_size(1048577);
         assert_eq!(get_hash_size(), 1048577);
@@ -284,7 +285,6 @@ mod tests {
     
     #[test]
     fn test_read_write_contempt() {
-        reset_global_configs(create_default_config());
         assert_eq!(get_contempt(), 0);
         set_contempt(-50);
         assert_eq!(get_contempt(), -50);

@@ -31,3 +31,4 @@ thiserror = "2.0.12"
 arrayvec = "0.7.6"
 clap = { version = "4.5.35", features = ["env", "derive"] }
 rayon = "1.10.0"
+ctor = "0.4.2"
