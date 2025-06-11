@@ -1,10 +1,10 @@
-use natto_bot::{eval::node_counter};
+use natto::{eval::node_counter};
 use serde_derive::Deserialize;
 use serial_test::serial;
 use std::error::Error;
 use std::fs;
-use natto_bot::core::position::{Position};
-use natto_bot::util::fen;
+use natto::core::position::{Position};
+use natto::util::fen;
 
 #[derive(Deserialize, Debug)]
 
