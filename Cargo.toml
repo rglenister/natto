@@ -1,5 +1,5 @@
 [package]
-name = "natto-bot"
+name = "natto"
 version = "0.1.7"
 authors = ["Richard Glenister <rglenister@yahoo.com>"]
 edition = "2021"
