@@ -8,6 +8,7 @@ use crate::core::r#move::{BaseMove, Move};
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 use crate::util::bitboard_iterator::BitboardIterator;
 use crate::util::util;
@@ -123,9 +124,11 @@ trait MoveProcessor {
     fn get_result(&self) -> Self::Output;
 }
 
+const MOVE_LIST_LENGTH: usize = 250;
+
 struct MoveListMoveProcessor {
-    capture_moves: Vec<Move>,
-    non_capture_moves: Vec<Move>,
+    capture_moves: ArrayVec<Move, MOVE_LIST_LENGTH>,
+    non_capture_moves: ArrayVec<Move, MOVE_LIST_LENGTH>,
     move_filter: Box<dyn Fn(&Move) -> bool>,
 }
 
@@ -153,8 +156,8 @@ impl MoveProcessor for MoveListMoveProcessor {
 
     fn get_result(&self) -> Self::Output {
         let mut moves = self.capture_moves.clone();
-        moves.extend(&self.non_capture_moves);
-        moves
+        moves.extend(self.non_capture_moves.iter().cloned());
+        moves.into_iter().collect()
     }
 }
 impl MoveProcessor for HasLegalMoveProcessor {
@@ -177,8 +180,8 @@ impl MoveProcessor for HasLegalMoveProcessor {
 impl MoveListMoveProcessor {
     fn new() -> Self {
         MoveListMoveProcessor {
-            capture_moves: vec!(),
-            non_capture_moves: vec!(),
+            capture_moves: ArrayVec::new(),
+            non_capture_moves: ArrayVec::new(),
             move_filter: Box::new(|_| true),
         }
     }
