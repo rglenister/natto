@@ -222,10 +222,10 @@ pub mod tests {
 
     #[cfg(test)]
     #[ctor]
-    fn initialize_test_config() {
+    pub fn initialize_test_config() {
         reset_global_configs(create_default_config());
     }
-    
+
     fn create_default_config() -> Config {
         Config {
             log_file: "./test.log".to_string(),

@@ -379,6 +379,7 @@ fn node_counter_stats() -> NodeCountStats {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::config::{reset_global_configs, set_contempt};
     use super::*;
     use crate::core::r#move::RawMove;
     use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
@@ -387,6 +388,10 @@ mod tests {
     use crate::{util::move_formatter, uci, util};
     use crate::engine::config;
 
+    fn setup() {
+        config::tests::initialize_test_config();
+    }
+    
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
         assert_eq!(search_results.depth, expected.depth);
@@ -399,6 +404,7 @@ mod tests {
     
     #[test]
     fn test_piece_captured() {
+        setup();
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
@@ -409,6 +415,7 @@ mod tests {
 
     #[test]
     fn test_already_checkmated() {
+        setup();
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
@@ -426,6 +433,7 @@ mod tests {
 
     #[test]
     fn test_already_stalemated() {
+        setup();
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
@@ -443,6 +451,7 @@ mod tests {
 
     #[test]
     fn test_mate_in_one() {
+        setup();
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
@@ -461,6 +470,7 @@ mod tests {
 
     #[test]
     fn test_mate_in_one_using_high_depth() {
+        setup();
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
@@ -479,6 +489,7 @@ mod tests {
 
     #[test]
     fn test_mate_in_two() {
+        setup();
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
@@ -497,6 +508,7 @@ mod tests {
 
     #[test]
     fn test_mate_in_three() {
+        setup();
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
@@ -551,6 +563,7 @@ mod tests {
     /// a critical functionality for any chess evaluation engine. It also confirms robustness across deeper search depths and complex scenarios.
     #[test]
     fn test_mate_in_four() {
+        setup();
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None);
@@ -569,6 +582,7 @@ mod tests {
 
     #[test]
     fn test_mate_in_three_fischer() {
+        setup();
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
@@ -587,6 +601,7 @@ mod tests {
 
     #[test]
     fn test_hiarcs_game_engine_would_not_get_out_of_check() {
+        setup();
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), None);
@@ -595,6 +610,7 @@ mod tests {
     
     #[test]
     fn test_hiarcs_blunder() {
+        setup();
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
@@ -604,6 +620,7 @@ mod tests {
 
     #[test]
     fn test_50_move_rule_is_recognised() {
+        setup();
         let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 98 76";
         let in_progress_position: Position = Position::from(fen);
         let in_progress_search_results = iterative_deepening(&in_progress_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
@@ -636,6 +653,7 @@ mod tests {
 
     #[test]
     fn test_losing_side_plays_for_draw() {
+        setup();
         let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_for_win_uci_position_str = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_options_str = "depth 1";
@@ -668,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_black_avoids_draw_using_contempt() {
-        config::set_contempt(0);
+        setup();
         let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_options_str = "depth 1";
         let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
@@ -685,7 +703,7 @@ mod tests {
         );
 
         TRANSPOSITION_TABLE.clear();
-        
+
         config::set_contempt(1000);
         let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
         assert_eq!(drawn_search_results.pv_moves_as_string(), "b8-c6");
@@ -699,9 +717,11 @@ mod tests {
                 game_status: InProgress,
             }
         );
+        config::set_contempt(0);
     }
         #[test]
     fn test_li_chess_game() {
+            setup();
         // https://lichess.org/RZTYaEbP#87
         let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
         let drawn_search_results = uci::run_uci_position(uci_position_str, "depth 2");
@@ -720,6 +740,7 @@ mod tests {
 
     #[test]
     fn test_perpetual_check() {
+        setup();
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
         let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 5");
         assert_eq!(search_results.pv_moves_as_string(), "g6-f8".to_string());
@@ -739,6 +760,7 @@ mod tests {
 
     #[test]
     fn test_is_mating_score() {
+        setup();
         let score = MAXIMUM_SCORE;
         assert!(is_mating_score(score));
         
@@ -761,6 +783,7 @@ mod tests {
 
     #[test]
     fn test_is_drawing_score() {
+        setup();
         let score = -1;
         assert!(!is_drawing_score(score));
 
@@ -773,6 +796,7 @@ mod tests {
 
     #[test]
     fn test_quiescence_search() {
+        setup();
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
