@@ -41,8 +41,10 @@ pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: is
     let captures = generate_sorted_quiescence_moves(position);
 
     for mov in captures {
-        if !good_capture(position, &mov) {
-            continue; // Skip bad captures by SEE
+        if matches!(mov, Move::Basic {..}) {
+            if !good_capture(position, &mov) {
+                continue; // Skip bad captures by SEE
+            }
         }
         if let Some(next_position) = position.make_move(&mov) {
             let score = -quiescence_search(&next_position.0, ply + 1, -beta, -alpha);
