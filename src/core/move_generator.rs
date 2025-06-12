@@ -259,9 +259,9 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
     move_generator.move_processor.get_result().clone()
 }
 
-pub(crate) fn generate_basic_capture_moves(position: &Position) -> Vec<Move> {
+pub fn generate_moves_for_quiescence(position: &Position) -> Vec<Move> {
     let mut move_processor = MoveListMoveProcessor::new();
-    move_processor.set_filter(|mov| mov.get_base_move().capture && matches!(mov, Move::Basic { .. }));
+    move_processor.set_filter(|mov| mov.get_base_move().capture || matches!(mov, Move::Promotion { .. }));
     let mut move_generator = MoveGeneratorImpl::new(position.clone(), move_processor);
     move_generator.generate();
     move_generator.move_processor.get_result()
@@ -817,14 +817,33 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_capture_moves() {
-        let fen = "8/4k3/Q7/8/8/8/3K4/r7 b - - 0 1";
+    fn test_generate_moves_for_quiescence() {
+        let fen = "8/4k3/Q7/8/4Pp2/8/3K2p1/r6R b - e3 0 1";
         let position = Position::from(fen);
         let all_moves = generate_moves(&position);
-        assert_eq!(all_moves.len(), 20);
+        assert_eq!(all_moves.len(), 30);
 
-        let capturing_moves = generate_basic_capture_moves(&position);
-        assert_eq!(capturing_moves.len(), 1);
+        let quiescence_moves = generate_moves_for_quiescence(&position);
+        assert_eq!(quiescence_moves.len(), 11);
+        
+        // basic captures
+        assert!(quiescence_moves.contains(&Basic { base_move: BaseMove::new(sq!("a1"), sq!("a6"), true)}));
+        assert!(quiescence_moves.contains(&Basic { base_move: BaseMove::new(sq!("a1"), sq!("h1"), true)}));
+        
+        // en-passant
+        assert!(quiescence_moves.contains(&EnPassant { base_move: BaseMove::new(sq!("f4"), sq!("e3"), true), capture_square: sq!("e4") }));
+        
+        // promotions without capture
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("g1"), false), promote_to: PieceType::Knight }));
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("g1"), false), promote_to: PieceType::Bishop }));
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("g1"), false), promote_to: PieceType::Rook }));
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("g1"), false), promote_to: PieceType::Queen }));
+
+        // promotions with capture
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("h1"), true), promote_to: PieceType::Knight }));
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("h1"), true), promote_to: PieceType::Bishop }));
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("h1"), true), promote_to: PieceType::Rook }));
+        assert!(quiescence_moves.contains(&Promotion { base_move: BaseMove::new(sq!("g2"), sq!("h1"), true), promote_to: PieceType::Queen }));
     }
 
 }

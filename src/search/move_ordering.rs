@@ -212,6 +212,9 @@ impl MoveOrderer {
     pub fn mvv_lva_score(position: &Position, mov: &Move) -> i32 {
         let base_move = mov.get_base_move();
         if !base_move.capture {
+            if let Move::Promotion { promote_to, .. } = mov {
+                return (PIECE_SCORES[*promote_to as usize] as i32 - PIECE_SCORES[PieceType::Pawn as usize] as i32) / 100;           
+            }
             return 0;
         }
 
@@ -220,7 +223,12 @@ impl MoveOrderer {
 
             if let Some(aggressor) = position.board().get_piece(base_move.from) {
                 let aggressor_value = PIECE_SCORES[aggressor.piece_type as usize];
-                return victim_value as i32 - (aggressor_value as i32) / 100;
+                let difference_value = victim_value as i32 - (aggressor_value as i32);
+                if let Move::Promotion { promote_to, .. } = mov {
+                    return (PIECE_SCORES[*promote_to as usize] as i32 + difference_value) / 100;
+                } else {
+                    return difference_value / 100;
+                }
             }
         }
 
@@ -249,9 +257,9 @@ pub fn order_moves(position: &Position, moves: &mut Vec<Move>, move_orderer: &Mo
 }
 
 // Specialized capture ordering for quiescence search
-pub fn order_captures(position: &Position, moves: &mut Vec<Move>) {
+pub fn order_quiescence_moves(position: &Position, moves: &mut Vec<Move>) {
     // Maximum possible captures is much less than legal moves, 64 is very safe
-    const MAX_CAPTURES: usize = 64;
+    const MAX_CAPTURES: usize = 250;
 
     // Create a scored move list on the stack with MVV-LVA scores
     let mut scored_moves: ArrayVec<(Move, i32), MAX_CAPTURES> = ArrayVec::new();

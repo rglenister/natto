@@ -8,7 +8,7 @@ use crate::core::move_generator;
 use crate::util::util;
 use crate::core::position::Position;
 use crate::core::r#move::{Move};
-use crate::search::move_ordering::order_captures;
+use crate::search::move_ordering::order_quiescence_moves;
 
 include!("../util/generated_macro.rs");
 
@@ -38,11 +38,13 @@ pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: is
     let mut alpha = alpha.max(stand_pat);
 
     // 1. Captures
-    let captures = generate_sorted_captures(position);
+    let captures = generate_sorted_quiescence_moves(position);
 
     for mov in captures {
-        if !good_capture(position, &mov) {
-            continue; // Skip bad captures by SEE
+        if matches!(mov, Move::Basic {..}) {
+            if !good_capture(position, &mov) {
+                continue; // Skip bad captures by SEE
+            }
         }
         if let Some(next_position) = position.make_move(&mov) {
             let score = -quiescence_search(&next_position.0, ply + 1, -beta, -alpha);
@@ -168,10 +170,10 @@ fn select_least_valuable_attacker(position: &Position, attacking_color: PieceCol
     None
 }
 
-fn generate_sorted_captures(position: &Position) -> Vec<Move> {
-    let mut capture_moves = move_generator::generate_basic_capture_moves(position);
-    order_captures(position, &mut capture_moves);
-    capture_moves
+fn generate_sorted_quiescence_moves(position: &Position) -> Vec<Move> {
+    let mut quiescence_moves = move_generator::generate_moves_for_quiescence(position);
+    order_quiescence_moves(position, &mut quiescence_moves);
+    quiescence_moves
 }
 
 fn find_discovered_attacker(position: &Position, target_square: isize, previous_attacker_square: isize, side_to_move: PieceColor, occupied: u64) -> Option<isize> {
@@ -213,7 +215,7 @@ mod tests {
     fn test_generate_sorted_captures() {
         let fen = "4k3/8/2n2Q2/1P6/8/8/8/2R1K2B w - - 0 1";
         let position: Position = Position::from(fen);
-        let moves = generate_sorted_captures(&position);
+        let moves = generate_sorted_quiescence_moves(&position);
         assert_eq!(moves.len(), 4);
         assert_eq!(moves[0].get_base_move().from, sq!("b5"));
         assert_eq!(moves[1].get_base_move().from, sq!("h1"));
@@ -261,22 +263,22 @@ mod tests {
     fn test_static_exchange_evaluation() {
         let fen = "4k3/8/2n5/1P6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 300);
 
         let fen = "4k3/1p6/2p5/1B6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), -200);
 
         let fen = "4k3/1p6/2b5/1B6/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("b5"), to: sq!("c6"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 0);
 
         let fen = "4k3/1p6/2b5/1B1P4/8/8/8/4K3 w - - 1 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("d5"), to: sq!("c6"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d5"), to: sq!("c6"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 300);
     }
 
@@ -285,30 +287,30 @@ mod tests {
         // a winning capture that static SEE misses because the doubled rook isn't directly attacking the enemy rook
         let fen = "3r4/4bk2/8/8/8/8/3R4/3RK3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 300);
-        
+
         // undoubling the rooks produces the correct result
         let fen = "R2r4/4bk2/8/8/8/8/3R4/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d2"), to: sq!("d8"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 300);
-        
+
         // a losing capture because SEE misses the doubled rooks
         let fen = "3r4/4bk2/3P4/8/8/8/3R4/3RK3 b - - 0 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), -200);
-        
+
         // a winning capture because SE
         let fen = "3r4/4bk2/3P4/8/8/8/8/3RK3 b - - 0 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("e7"), to: sq!("d6"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 100);
 
         let fen = "3r4/3br3/7k/8/3R4/3R4/8/3QK3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let mov = Move::Basic { base_move: BaseMove { from: sq!("d4"), to: sq!("d7"), capture: true }};
+        let mov = Move::Basic { base_move: BaseMove { from: sq!("d4"), to: sq!("d7"), capture: true } };
         assert_eq!(static_exchange_evaluation(&position, &mov), 300);
     }
 
@@ -338,8 +340,10 @@ mod tests {
         assert_eq!(find_square_increment(sq!("a6"), sq!("c4")), Some(-7));
         assert_eq!(find_square_increment(sq!("c4"), sq!("a6")), Some(7));
     }
-    
+
     mod q_search {
+        use crate::core::r#move::Move::{Basic, EnPassant, Promotion};
+        use crate::search::move_ordering::MoveOrderer;
         use super::*;
 
         #[test]
@@ -388,6 +392,76 @@ mod tests {
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 780);
+        }
+
+        #[test]
+        fn test_generated_sorted_quiescence_moves() {
+            let fen = "8/4k3/Q7/8/4Pp2/8/3K2p1/r1N2Q1R b - e3 0 1";
+            let position: Position = Position::from(fen);
+            let quiescence_moves = generate_sorted_quiescence_moves(&position);
+            assert_eq!(quiescence_moves.len(), 15);
+
+            println!("{:?}", quiescence_moves);
+
+            let move_0 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Queen };
+            assert_eq!(quiescence_moves[0], move_0);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_0), 17);
+
+            let move_1 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Rook };
+            assert_eq!(quiescence_moves[1], move_1);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_1), 13);
+
+            let move_2 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Queen };
+            assert_eq!(quiescence_moves[2], move_2);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_2), 13);
+
+            let move_3 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Knight };
+            assert_eq!(quiescence_moves[3], move_3);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_3), 11);
+
+            let move_4 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Bishop };
+            assert_eq!(quiescence_moves[4], move_4);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_4), 11);
+
+            let move_5 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Rook };
+            assert_eq!(quiescence_moves[5], move_5);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_5), 9);
+
+            let move_6 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Queen };
+            assert_eq!(quiescence_moves[6], move_6);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_6), 8);
+
+            let move_7 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Knight };
+            assert_eq!(quiescence_moves[7], move_7);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_7), 7);
+
+            let move_8 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Bishop };
+            assert_eq!(quiescence_moves[8], move_8);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_8), 7);
+
+            let move_9 =Basic { base_move: BaseMove { from: sq!("a1"), to: sq!("a6"), capture: true } };
+            assert_eq!(quiescence_moves[9], move_9);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_9), 4);
+
+            let move_10 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Rook };
+            assert_eq!(quiescence_moves[10], move_10);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_10), 4);
+
+            let move_11 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Knight };
+            assert_eq!(quiescence_moves[11], move_11);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_11), 2);
+
+            let move_12 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Bishop };
+            assert_eq!(quiescence_moves[12], move_12);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_12), 2);
+
+            let move_13 = EnPassant { base_move: BaseMove { from: sq!("f4"), to: sq!("e3"), capture: true }, capture_square: sq!("e4") };
+            assert_eq!(quiescence_moves[13], move_13);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_13), 0);
+
+            let move_14 = Basic { base_move: BaseMove { from: sq!("a1"), to: sq!("c1"), capture: true } };
+            assert_eq!(quiescence_moves[14], move_14);
+            assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_14), -2);
         }
     }
 }
