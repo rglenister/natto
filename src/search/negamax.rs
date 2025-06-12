@@ -198,7 +198,7 @@ fn negamax_search(
                 current_line.push(next_position);
                 let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
                     // Apply contempt to repetition-based draws
-                    evaluation::apply_contempt(0, next_position.0.side_to_move())
+                    evaluation::apply_contempt(0)
                 } else {
                     -negamax_search(&next_position.0, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
                 };
@@ -385,6 +385,7 @@ mod tests {
     use crate::util::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
     use crate::{util::move_formatter, uci, util};
+    use crate::engine::config;
 
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
@@ -664,8 +665,42 @@ mod tests {
             }
         );
     }
-    
+
     #[test]
+    fn test_black_avoids_draw_using_contempt() {
+        config::set_contempt(0);
+        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+        let go_options_str = "depth 1";
+        let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+        assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
+        test_eq(
+            &drawn_search_results,
+            &SearchResults {
+                position: drawn_search_results.position,
+                score: 0,
+                depth: 1,
+                pv: vec![],
+                game_status: InProgress,
+            }
+        );
+
+        TRANSPOSITION_TABLE.clear();
+        
+        config::set_contempt(1000);
+        let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+        assert_eq!(drawn_search_results.pv_moves_as_string(), "b8-c6");
+        test_eq(
+            &drawn_search_results,
+            &SearchResults {
+                position: drawn_search_results.position,
+                score: -828,
+                depth: 1,
+                pv: vec![],
+                game_status: InProgress,
+            }
+        );
+    }
+        #[test]
     fn test_li_chess_game() {
         // https://lichess.org/RZTYaEbP#87
         let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";

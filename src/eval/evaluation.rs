@@ -8,6 +8,7 @@ use crate::util::util;
 use crate::core::board::Board;
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::position::Position;
+use crate::engine::config::get_contempt;
 use crate::eval::kings::score_king_safety;
 use crate::eval::pawns::score_pawn_structure;
 use crate::game;
@@ -176,23 +177,11 @@ pub fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
     phase.clamp(0, PHASE_TOTAL)
 }
 
-// Apply contempt factor to evaluation based on side to move
-pub fn apply_contempt(score: isize, side_to_move: PieceColor) -> isize {
-    use crate::engine::config::get_contempt;
+pub fn apply_contempt(score: isize) -> isize {
     let contempt = get_contempt();
-
-    // No contempt adjustment needed
-    if contempt == 0 {
-        return score;
-    }
-
-    // Only apply contempt to exactly zero scores (draws)
-    // This preserves the special meaning of zero in your search algorithm
+    
     if score == 0 {
-        match side_to_move {
-            PieceColor::White => -contempt,
-            PieceColor::Black => contempt
-        }
+        -contempt
     } else {
         score
     }
@@ -258,7 +247,7 @@ pub fn evaluate(position: &Position, depth: usize, historic_repeat_position_coun
             if score != 0 { score } else { -1 }
         },
         game::GameStatus::Checkmate => depth as isize - MAXIMUM_SCORE,
-        _ => apply_contempt(0, position.side_to_move()), // Apply contempt to drawn positions
+        _ => apply_contempt(0), // Apply contempt to drawn positions
     }
 }
 
