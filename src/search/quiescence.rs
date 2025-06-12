@@ -169,7 +169,7 @@ fn select_least_valuable_attacker(position: &Position, attacking_color: PieceCol
 }
 
 fn generate_sorted_captures(position: &Position) -> Vec<Move> {
-    let mut capture_moves = move_generator::generate_basic_capture_moves(position);
+    let mut capture_moves = move_generator::generate_moves_for_quiescence(position);
     order_captures(position, &mut capture_moves);
     capture_moves
 }
