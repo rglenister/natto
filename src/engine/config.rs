@@ -254,7 +254,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_get_ucor_commands() {
+    fn test_get_uci_commands() {
         assert_eq!(get_uci_commands(), None);
     }
 
@@ -289,11 +289,5 @@ pub mod tests {
         set_contempt(-50);
         assert_eq!(get_contempt(), -50);
         set_contempt(10);
-    }
-
-    #[test]
-    fn test_next_power_of_two() {
-        assert_eq!(19u32.next_power_of_two(), 32);
-//        assert_eq!(nearest_power_of_two(19), 16);
     }
 }
