@@ -3,7 +3,6 @@ use std::io::{self};
 pub mod core;
 pub mod uci;
 pub mod util;
-pub mod game;
 pub mod eval;
 
 pub mod engine;

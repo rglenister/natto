@@ -2,13 +2,14 @@ use crate::core::board::Board;
 use crate::core::board::BoardSide::KingSide;
 use crate::core::piece::PieceType::Pawn;
 use crate::core::{piece::Piece, piece::PieceType, r#move::Move};
-use crate::game::{Game, GameStatus};
 use crate::util::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::search::negamax::SearchResults;
 use phf::phf_map;
 use crate::util::util;
 use crate::core::position::Position;
 use crate::core::move_generator::generate_moves;
+use crate::eval::evaluation;
+use crate::eval::evaluation::GameStatus;
 
 include!("generated_macro.rs");
 
@@ -44,12 +45,6 @@ pub struct MoveFormatter {
     move_format: MoveFormat,
 }
 
-struct GameMove {
-    game: Game,
-    position: Position,
-    chess_move: Move,
-}
-
 pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
     LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
 }
@@ -59,7 +54,7 @@ impl FormatMove for MoveFormatter {
         let mut result = Vec::new();
         let mut current_position = position;
         for (next_position, mv) in chess_moves.iter() {
-            result.push(self.format_move_internal(&GameMove::new(Game::new(next_position, None), current_position, &mv)));
+            result.push(self.format_move_internal(&current_position, &mv));
             current_position = next_position;
         }
         Some(result)
@@ -73,62 +68,57 @@ fn get_promote_to(chess_move: Move) -> Option<PieceType> {
     }
 }
 
-impl GameMove {
-    fn new(game: Game, position: &Position, chess_move: &Move) -> Self {
-        GameMove { game, position: *position, chess_move: *chess_move }
-    }
-}
-
 impl MoveFormatter {
     pub const fn new(move_format: MoveFormat) -> MoveFormatter {
         MoveFormatter { move_format }
     }
 
-    fn format_move_internal(&self, game_move: &GameMove) -> String {
-        match game_move.chess_move {
+    fn format_move_internal(&self, position: &Position, mov: &Move) -> String {
+        match mov {
             Move::Castling { base_move: _, board_side } => {
-                if board_side == KingSide { "0-0".to_string() } else { "0-0-0".to_string() }
+                if *board_side == KingSide { "0-0".to_string() } else { "0-0-0".to_string() }
             }
-            _ => self.basic_format(game_move)
+            _ => self.basic_format(position, &mov)
         }
     }
-    fn basic_format(&self, game_move: &GameMove) -> String {
+    
+    fn basic_format(&self, position: &Position, mov: &Move) -> String {
         format!("{}{}{}{}{}{}{}",
-                self.get_piece(game_move),
-                self.get_from_square(game_move),
-                self.get_from_to_separator(game_move),
-                self.get_to_square(game_move),
-                self.get_promotion_piece(game_move),
-                self.get_en_passant_indicator(game_move),
-                self.get_result(game_move)
+                self.get_piece(position, mov),
+                self.get_from_square(position, mov),
+                self.get_from_to_separator(position, mov),
+                self.get_to_square(position, mov),
+                self.get_promotion_piece(position, mov),
+                self.get_en_passant_indicator(position, mov),
+                self.get_result(position, mov)
         )
     }
-    fn get_piece(&self, game_move: &GameMove) -> String {
-        let piece = self.get_moved_piece(&game_move.position, &game_move.chess_move);
+    fn get_piece(&self, position: &Position, mov: &Move) -> String {
+        let piece = self.get_moved_piece(position, &mov);
         if piece.piece_type != PieceType::Pawn {
             PIECE_CHAR_TO_UNICODE[&piece.to_char()].to_string()
         } else {
             "".to_string()
         }
     }
-    fn get_from_square(&self, game_move: &GameMove) -> String {
+    fn get_from_square(&self, position: &Position, mov: &Move) -> String {
         if self.move_format ==  ShortAlgebraic {
-            let piece = self.get_moved_piece(&game_move.position, &game_move.chess_move);
+            let piece = self.get_moved_piece(position, mov);
             if piece.piece_type == Pawn {
-                if game_move.chess_move.get_base_move().capture {
-                    util::format_square(game_move.chess_move.get_base_move().from).chars().nth(0).unwrap().to_string()
+                if mov.get_base_move().capture {
+                    util::format_square(mov.get_base_move().from).chars().nth(0).unwrap().to_string()
                 } else {
                     "".to_string()
                 }
             } else {
-                self.get_short_algebraic_from_square_for_piece(game_move)
+                self.get_short_algebraic_from_square_for_piece(position, mov)
             }
         } else {
-            util::format_square(game_move.chess_move.get_base_move().from)
+            util::format_square(mov.get_base_move().from)
         }
     }
-    fn get_from_to_separator(&self, game_move: &GameMove) -> String {
-        if game_move.chess_move.get_base_move().capture {
+    fn get_from_to_separator(&self, position: &Position, mov: &Move) -> String {
+        if mov.get_base_move().capture {
             'x'.to_string()
         } else if self.move_format == ShortAlgebraic {
             "".to_string()
@@ -137,21 +127,21 @@ impl MoveFormatter {
         }
     }
 
-    fn get_to_square(&self, game_move: &GameMove) -> String {
-        util::format_square(game_move.chess_move.get_base_move().to)
+    fn get_to_square(&self, position: &Position, mov: &Move) -> String {
+        util::format_square(mov.get_base_move().to)
     }
 
-    fn get_promotion_piece(&self, game_move: &GameMove) -> String {
-        match game_move.chess_move {
+    fn get_promotion_piece(&self, position: &Position, mov: &Move) -> String {
+        match mov {
             Move::Promotion { base_move: _, promote_to } => {
-                PIECE_CHAR_TO_UNICODE[&Piece { piece_color: game_move.position.side_to_move(), piece_type: promote_to }.to_char()].to_string()
+                PIECE_CHAR_TO_UNICODE[&Piece { piece_color: position.side_to_move(), piece_type: *promote_to }.to_char()].to_string()
             }
             _ => String::new()
         }
     }
 
-    fn get_en_passant_indicator(&self, game_move: &GameMove) -> String {
-        match game_move.chess_move {
+    fn get_en_passant_indicator(&self, position: &Position, mov: &Move) -> String {
+        match mov {
             Move::EnPassant { base_move: _, capture_square: _ } => {
                 "ep".to_string()
             }
@@ -159,30 +149,30 @@ impl MoveFormatter {
         }
     }
 
-    fn get_result(&self, game_move: &GameMove) -> String {
-        match game_move.game.get_game_status() {
+    fn get_result(&self, position: &Position, mov: &Move) -> String {
+        let next_position = &position.make_move(mov).unwrap().0;
+        match evaluation::get_game_status(next_position, None) {
             GameStatus::Checkmate => { "#".to_string() }
-            _ => "+".repeat(game_move.game.check_count()).to_string()
+            _ => "+".repeat(evaluation::check_count(next_position)).to_string()
         }
     }
 
-    fn get_short_algebraic_from_square_for_piece(&self, game_move: &GameMove) -> String {
-        let cm = game_move.chess_move;
-        let moves: Vec<Move> = generate_moves(&game_move.position);
+    fn get_short_algebraic_from_square_for_piece(&self, position: &Position, mov: &Move) -> String {
+        let moves: Vec<Move> = generate_moves(position);
         let other_moves_to_the_same_square: Vec<_> = moves
             .iter().filter(|m|
-                    m.get_base_move().to == cm.get_base_move().to
-                    && **m != cm
-                    && self.get_moved_piece(&game_move.position, &game_move.chess_move) == self.get_moved_piece(&game_move.position, m))
+                    m.get_base_move().to == mov.get_base_move().to
+                    && *m != mov
+                    && self.get_moved_piece(position, mov) == self.get_moved_piece(position, m))
             .collect();
 
         if other_moves_to_the_same_square.is_empty() {
             String::new()
         } else {
-            let algebraic = util::format_square(cm.get_base_move().from);
-            if other_moves_to_the_same_square.iter().filter(|m| Board::column(m.get_base_move().from) == Board::column(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+            let algebraic = util::format_square(mov.get_base_move().from);
+            if other_moves_to_the_same_square.iter().filter(|m| Board::column(m.get_base_move().from) == Board::column(mov.get_base_move().from)).collect::<Vec<_>>().is_empty() {
                 algebraic.chars().nth(0).unwrap().to_string()
-            } else if other_moves_to_the_same_square.iter().filter(|m| Board::row(m.get_base_move().from) == Board::row(cm.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+            } else if other_moves_to_the_same_square.iter().filter(|m| Board::row(m.get_base_move().from) == Board::row(mov.get_base_move().from)).collect::<Vec<_>>().is_empty() {
                 algebraic.chars().nth(1).unwrap().to_string()
             } else {
                 algebraic
