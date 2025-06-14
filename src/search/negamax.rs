@@ -163,9 +163,11 @@ fn negamax_search(
         if entry.depth >= depth {
             match entry.bound_type {
                 BoundType::Exact => {
-                    pv.clear();
-                    pv.extend(retrieve_principal_variation(*position, entry.best_move.clone()));
-                    return entry.score
+                    if entry.best_move.is_some() || ply == 0 {
+                        pv.clear();
+                        pv.push((*position, entry.best_move.unwrap()));
+                        return entry.score
+                    }
                 },
                 BoundType::LowerBound => if entry.score > alpha {
                     alpha = entry.score
@@ -178,8 +180,6 @@ fn negamax_search(
                 }
             }
             if alpha >= beta {
-                pv.clear();
-                pv.extend(retrieve_principal_variation(*position, entry.best_move.clone()));
                 return entry.score;
             }
         }
