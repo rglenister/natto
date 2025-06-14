@@ -278,7 +278,6 @@ mod tests {
 
     mod entry_packing {
         use crate::search::transposition_table::BoundType::Exact;
-        use crate::game::GameStatus::DrawnByInsufficientMaterial;
         use super::*;
 
         #[test]

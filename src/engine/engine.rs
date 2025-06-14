@@ -13,7 +13,7 @@ use crate::util::fen;
 use crate::engine::config::{set_contempt, set_hash_size, set_max_book_depth, set_use_book};
 use crate::search::negamax::iterative_deepening;
 use crate::search::transposition_table::{TranspositionTable, TRANSPOSITION_TABLE};
-use crate::game::GameStatus::{Checkmate, Stalemate};
+use crate::eval::evaluation::GameStatus::{Checkmate, Stalemate};
 use crate::core::r#move::convert_chess_move_to_raw;
 use crate::uci::send_to_gui;
 

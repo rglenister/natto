@@ -1,6 +1,5 @@
 
 
-pub mod game;
 pub mod uci;
 pub mod eval;
 pub mod core;

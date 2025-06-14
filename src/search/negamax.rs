@@ -1,5 +1,4 @@
-use crate::game::GameStatus::{Checkmate, InProgress};
-use crate::game::{Game, GameStatus};
+use crate::eval::evaluation::GameStatus::{Checkmate, InProgress};
 use crate::util::move_formatter::{FormatMove, LONG_FORMATTER};
 use crate::core::{move_generator, r#move};
 use log::{debug, info, error};
@@ -16,10 +15,11 @@ use crate::eval::evaluation;
 use crate::core::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
 use crate::core::move_generator::generate_moves;
+use crate::eval::evaluation::GameStatus;
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
-use crate::uci;
+use crate::{eval, uci};
 
 include!("../util/generated_macro.rs");
 
@@ -299,8 +299,7 @@ fn retrieve_principal_variation(position: Position, mov: Option<Move>) -> Vec<(P
 
 
 fn get_game_status(position: &Position, repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> GameStatus {
-    let game = Game::new(position, repeat_position_counts);
-    game.get_game_status()
+    eval::evaluation::get_game_status(position, repeat_position_counts.cloned())
 }
 
 pub fn get_repeat_position_count(current_position: &Position, current_line: &[(Position, Move)], historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> usize {
@@ -382,7 +381,7 @@ mod tests {
     use crate::engine::config::{reset_global_configs, set_contempt};
     use super::*;
     use crate::core::r#move::RawMove;
-    use crate::game::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
+    use crate::search::negamax::evaluation::GameStatus::{DrawnByFiftyMoveRule, DrawnByThreefoldRepetition, Stalemate};
     use crate::util::move_formatter::{format_move_list, FormatMove};
     use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
     use crate::{util::move_formatter, uci, util};
