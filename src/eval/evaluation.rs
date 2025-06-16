@@ -10,8 +10,8 @@ use crate::core::move_generator;
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::position::Position;
 use crate::engine::config::get_contempt;
-use crate::eval::kings::score_king_safety;
-use crate::eval::pawns::score_pawn_structure;
+use crate::eval::kings::score_kings;
+use crate::eval::pawns::score_pawns;
 use crate::search;
 use crate::search::negamax::MAXIMUM_SCORE;
 
@@ -213,7 +213,12 @@ fn calculate_material_balance(piece_counts: [[usize; 6]; 2]) -> [isize; 6] {
     result
 }
 
-fn score_board_piece_square_values(board: &Board, color: PieceColor) -> (isize, isize) {
+fn score_board_psq_values(board: &Board) -> (isize, isize) {
+    let (white_mg, white_eg) = score_board_psq_values_for_color(board, White);
+    let (black_mg, black_eg) = score_board_psq_values_for_color(board, Black);
+    (white_mg - black_mg, white_eg - black_eg)
+}
+fn score_board_psq_values_for_color(board: &Board, color: PieceColor) -> (isize, isize) {
     let mut mg_score = 0;
     let mut eg_score = 0;
     let bitboards = board.bitboards_for_color(color);
@@ -230,21 +235,22 @@ fn score_board_piece_square_values(board: &Board, color: PieceColor) -> (isize, 
 pub fn score_position(position: &Position) -> isize {
     let board = position.board();
     let piece_counts = board.get_piece_counts();
+    let phase = calculate_game_phase(piece_counts);
     let piece_material_balance = calculate_material_balance(piece_counts);
     let material_score = piece_material_balance.iter().enumerate().map(|(idx, &balance)| {
         balance * PIECE_SCORES[idx]
     })   
         .sum::<isize>();
 
-    let (white_mg, white_eg) = score_board_piece_square_values(board, White);
-    let (black_mg, black_eg) = score_board_piece_square_values(board, Black);
-    let (mg, eg) = (white_mg - black_mg, white_eg - black_eg);
-    let phase = calculate_game_phase(piece_counts);
-    let blended_score = (mg * (PHASE_TOTAL - phase) + eg * phase) / PHASE_TOTAL;
+    let (psq_mg, psq_eg) = score_board_psq_values(board);
+    let (king_mg, king_eg) = score_kings(position);
+    let (pawn_mg, pawn_eg) = score_pawns(position);
+    
+    let (score_mg, score_eg) = (psq_mg + king_mg + pawn_mg, psq_eg + king_eg + pawn_eg);
+    let blended_score = (score_mg * (PHASE_TOTAL - phase) + score_eg * phase) / PHASE_TOTAL;
 
-    let score = material_score + blended_score
-        + score_pawn_structure(position)
-        + score_king_safety(position)
+    let score =  blended_score
+        + material_score
         + score_bishops(position);
 
     if position.side_to_move() == White { score } else { -score }
@@ -358,15 +364,15 @@ mod tests {
     fn test_score_board_material_balance() {
         let position = Position::new_game();
         let board = position.board();
-        assert_eq!(score_board_piece_square_values(&board, White), (-147, -193));
-        assert_eq!(score_board_piece_square_values(&board, Black), (-147, -193));
+        assert_eq!(score_board_psq_values_for_color(&board, White), (-147, -193));
+        assert_eq!(score_board_psq_values_for_color(&board, Black), (-147, -193));
         
         let mut board = Board::new();
-        assert_eq!(score_board_piece_square_values(&board, White), (0, 0));
-        assert_eq!(score_board_piece_square_values(&board, Black), (0, 0));
+        assert_eq!(score_board_psq_values_for_color(&board, White), (0, 0));
+        assert_eq!(score_board_psq_values_for_color(&board, Black), (0, 0));
         
         board.put_piece(sq!("a2"), Piece { piece_color: White, piece_type: Pawn});
-        assert_eq!(score_board_piece_square_values(&board, White), (-35, 13));
+        assert_eq!(score_board_psq_values_for_color(&board, White), (-35, 13));
 
         board.put_piece(sq!("b2"), Piece { piece_color: White, piece_type: Queen});
         board.put_piece(sq!("b3"), Piece { piece_color: White, piece_type: Queen});
@@ -374,9 +380,9 @@ mod tests {
         board.put_piece(sq!("b5"), Piece { piece_color: Black, piece_type: Queen});
         board.put_piece(sq!("b6"), Piece { piece_color: Black, piece_type: Queen});
         board.put_piece(sq!("b7"), Piece { piece_color: Black, piece_type: Queen});
-        assert_eq!(score_board_piece_square_values(&board, White), (-67, -9));
+        assert_eq!(score_board_psq_values_for_color(&board, White), (-67, -9));
         board.remove_piece(sq!("b2"));
-        assert_eq!(score_board_piece_square_values(&board, White), (-59, 14));
+        assert_eq!(score_board_psq_values_for_color(&board, White), (-59, 14));
     }
     #[test]
     fn test_calculate_new_game_phase() {

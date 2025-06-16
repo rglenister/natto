@@ -101,6 +101,19 @@ where
     result
 }
 
+pub const fn set_bitboard_column(file: u8) -> u64 {
+    const fn recursive_mask(file: u8, rank: u8, mask: u64) -> u64 {
+        if rank == 8 {
+            mask
+        } else {
+            recursive_mask(file, rank + 1, mask | (1 << (file + rank * 8)))
+        }
+    }
+
+    assert!(file < 8, "File must be between 0 and 7");
+    recursive_mask(file, 0, 0)
+}
+
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
     moves.into_iter().filter(|mov| {
         match mov {
@@ -347,6 +360,19 @@ mod tests {
         let moves = "e2e4 e6e5".to_string();
         let result = replay_moves(&position, moves);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_set_bitboard_column() {
+        let column_0 = set_bitboard_column(0); 
+        assert_eq!(column_0, 0x101010101010101);
+        print_bitboard(column_0);
+
+        let column_7 = set_bitboard_column(7);
+        assert_eq!(column_7, 0x8080808080808080);
+        print_bitboard(column_7);
+        
+        print_bitboard(set_bitboard_column(5) | set_bitboard_column(6) | set_bitboard_column(7));
     }
 }
 

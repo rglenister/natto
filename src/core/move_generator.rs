@@ -428,9 +428,16 @@ where
         }
     }
 }
+pub fn square_attacks_finder_empty_board(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
+    square_attacks_finder_internal(position, attacking_color, square_index, 0)
+}
 
 pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
-    let occupied_squares = position.board().bitboard_all_pieces();
+    square_attacks_finder_internal(position, attacking_color, square_index, position.board().bitboard_all_pieces())
+}
+
+
+fn square_attacks_finder_internal(position: &Position, attacking_color: PieceColor, square_index: usize, occupied_squares: u64) -> u64 {
     let enemy_squares = position.board().bitboard_by_color(attacking_color);
     let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, PieceType::Queen);
     let mut attacking_squares = 0;
@@ -475,6 +482,11 @@ pub fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: Piec
 
 pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
     square_attacks_finder(
+        position, king_color.opposite(), position.board().king_square(king_color))
+}
+
+pub fn king_attacks_finder_empty_board(position: &Position, king_color: PieceColor) -> u64 {
+    square_attacks_finder_empty_board(
         position, king_color.opposite(), position.board().king_square(king_color))
 }
 
@@ -802,6 +814,16 @@ mod tests {
         let attacking_squares = util::bit_indexes(attacking_square_indexes);
         assert_eq!(attacking_squares.len(), 1);
         assert_eq!(attacking_squares[0], 28);
+    }
+
+    #[test]
+    fn test_king_attacks_finder_empty_board() {
+        let fen = "5rk1/5p1p/8/8/2B5/8/8/4K1R1 b - - 0 1";
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder_empty_board(&mut position, Black);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 2);
+        assert!(attacking_squares.contains(&6) && attacking_squares.contains(&26));
     }
 
     #[test]

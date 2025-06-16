@@ -1,57 +1,69 @@
+use crate::core::board::{Board, BoardSide};
+use crate::core::board::BoardSide::{KingSide, QueenSide};
 use crate::core::piece::{PieceColor, PieceType};
-use crate::core::piece::PieceColor::White;
+use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::Pawn;
 use crate::core::position::Position;
+use crate::util::bitboard_iterator::BitboardIterator;
+use crate::util::util::set_bitboard_column;
 
-pub fn score_pawn_structure(position: &Position) -> isize {
-    let board = position.board();
-    let white_pawns = board.bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
-    let black_pawns = board.bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
-    let mut score = 0;
+const BITBOARD_REGIONS: [u64; 2] = [
+    set_bitboard_column(5) | set_bitboard_column(6) | set_bitboard_column(7), // kingside
+    set_bitboard_column(0) | set_bitboard_column(1) | set_bitboard_column(2), // queenside
+];
 
-    score += evaluate_pawns(white_pawns, PieceColor::White);
-    score -= evaluate_pawns(black_pawns, PieceColor::Black);
-    score
+pub fn score_pawns(position: &Position) -> (isize, isize) {
+    let middle_game_score = evaluate_pawn_structure_mg(position, White) - evaluate_pawn_structure_mg(position, Black);
+    let end_game_score = evaluate_pawn_structure_eg(position, White) - evaluate_pawn_structure_eg(position, Black);
+    (middle_game_score, end_game_score)
 }
 
-fn evaluate_pawns(pawns: u64, color: PieceColor) -> isize {
+pub fn evaluate_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> isize {
+    let board: &Board = position.board();
+    let pawns = board.bitboard_by_color_and_piece_type(piece_color, PieceType::Pawn);
+    
     let mut score = 0;
-    let mut pawn_positions = pawns;
-    while pawn_positions != 0 {
-        let pawn_square = pawn_positions.trailing_zeros() as usize;
-        pawn_positions &= pawn_positions - 1; // Remove the pawn from the pawn bitboard
+
+    BitboardIterator::new(pawns).for_each(|pawn_square| {
+        // Assess pawn chains
+        if is_part_of_chain(position.board(), ((pawn_square / 8) as i8, (pawn_square % 8) as i8), piece_color) {
+            score += 50; // Bonus for pawn chain
+        }
 
         if is_doubled_pawn(pawn_square, pawns) {
-            score -= 10;
+            score -= 30;
         }
 
         if is_isolated_pawn(pawn_square, pawns) {
-            score -= 15;
+            score -= 50;
         }
-
-        if is_passed_pawn(pawn_square, pawns, color) {
-            score += 20;
-        }
-    }
-
+    });
     score
 }
 
-fn is_doubled_pawn(square: usize, pawns: u64) -> bool {
-    let file_mask = 0x0101010101010101 << (square % 8);
-    let pawns_on_file = pawns & file_mask;
-    pawns_on_file.count_ones() > 1
+fn evaluate_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> isize {
+    let board: &Board = position.board();
+    let pawns = board.bitboard_by_color_and_piece_type(piece_color, PieceType::Pawn);
+
+    let mut score = 0isize;
+
+    BitboardIterator::new(pawns).for_each(|pawn_square| {
+        if is_passed_pawn(pawn_square, pawns, piece_color) {
+            score += 100 + 10 * Board::rank(pawn_square, piece_color) as isize;
+        }
+
+        if has_pawn_majority(board, piece_color, KingSide) {
+            score += 50;
+        }
+
+        if has_pawn_majority(board, piece_color, QueenSide) {
+            score += 50;
+        }
+    });
+    score
 }
 
-fn is_isolated_pawn(square: usize, pawns: u64) -> bool {
-    let file = square % 8;
-    let left_file_mask = if file > 0 { 0x0101010101010101 << (file - 1) } else { 0 };
-    let right_file_mask = if file < 7 { 0x0101010101010101 << (file + 1) } else { 0 };
-
-    let neighbors = pawns & (left_file_mask | right_file_mask);
-    neighbors == 0
-}
-
-fn is_passed_pawn(square: usize, pawns: u64, color: PieceColor) -> bool {
+pub fn is_passed_pawn(square: usize, pawns: u64, color: PieceColor) -> bool {
     let file = square % 8;
     let rank = square / 8;
 
@@ -80,12 +92,73 @@ fn is_passed_pawn(square: usize, pawns: u64, color: PieceColor) -> bool {
     true
 }
 
-mod tests {
-    use crate::core::piece::{PieceColor, PieceType};
-    use crate::core::piece::PieceColor::{White, Black};
-    use crate::core::position::Position;
-    use crate::eval::pawns::{is_doubled_pawn, is_isolated_pawn, is_passed_pawn};
+fn has_pawn_majority(board: &Board, piece_color: PieceColor, board_side: BoardSide) -> bool {
+    let pawns = [board.bitboard_by_color_and_piece_type(White, Pawn), board.bitboard_by_color_and_piece_type(Black, Pawn)];
+    let (our_pawns, their_pawns) = (
+        (pawns[piece_color as usize] & BITBOARD_REGIONS[board_side as usize]).count_ones(),
+        (pawns[!piece_color as usize] & BITBOARD_REGIONS[board_side as usize]).count_ones()
+    );
+    our_pawns > their_pawns
+}
 
+
+/// Checks if a given pawn is part of a pawn chain.
+fn is_part_of_chain(board: &Board, position: (i8, i8), color: PieceColor) -> bool {
+    // Direction offsets for backward diagonals (depends on pawn color)
+    let (backward_rank_offset, backward_left_file_offset, backward_right_file_offset) = match color {
+        PieceColor::White => (-1, -1, 1), // White pawns look backward towards lower ranks
+        PieceColor::Black => (1, -1, 1),  // Black pawns look backward towards higher ranks
+    };
+
+    // Check if either of the backward diagonal squares contains a friendly pawn
+    check_diagonal_for_chain(
+        board,
+        position,
+        backward_rank_offset,
+        backward_left_file_offset,
+    ) || check_diagonal_for_chain(
+        board,
+        position,
+        backward_rank_offset,
+        backward_right_file_offset,
+    )
+}
+
+/// Helper function to check one diagonal for a pawn chain
+fn check_diagonal_for_chain(
+    board: &Board,
+    position: (i8, i8),
+    rank_offset: i8,
+    file_offset: i8,
+) -> bool {
+    let (file, rank) = position;
+    let new_position = (file + file_offset, rank + rank_offset);
+
+    // Ensure the square is valid and contains a friendly pawn
+    // board.is_square_occupied_by(new_position, PieceColor::White, PieceType::Pawn)
+    //     || board.is_square_occupied_by(new_position, PieceColor::Black, PieceType::Pawn)
+    false
+}
+
+fn is_isolated_pawn(square: usize, pawns: u64) -> bool {
+    let file = square % 8;
+    let left_file_mask = if file > 0 { 0x0101010101010101 << (file - 1) } else { 0 };
+    let right_file_mask = if file < 7 { 0x0101010101010101 << (file + 1) } else { 0 };
+
+    let neighbors = pawns & (left_file_mask | right_file_mask);
+    neighbors == 0
+}
+
+
+fn is_doubled_pawn(square: usize, pawns: u64) -> bool {
+    let file_mask = 0x0101010101010101 << (square % 8);
+    let pawns_on_file = pawns & file_mask;
+    pawns_on_file.count_ones() > 1
+}
+mod tests {
+    use crate::core::piece::PieceColor::Black;
+    use crate::core::position::Position;
+    use super::*;
     include!("../util/generated_macro.rs");
 
     #[test]
