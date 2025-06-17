@@ -197,30 +197,68 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
 pub fn is_piece_pinned(position: &Position, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
     is_blocking_attack_to_square(position, position.board().king_square(!attacking_color) as isize, blocking_piece_square, attacking_color)
 }
+// pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: isize, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
+//     let board = position.board();
+//     let occupied_squares = board.bitboard_all_pieces();
+//     if let Some(piece_type) =
+//         if blocking_piece_square / 8 == target_piece_square / 8 || blocking_piece_square % 8 == target_piece_square % 8 {
+//             Some(Rook)
+//         } else if (blocking_piece_square / 8 - target_piece_square / 8).abs() == (blocking_piece_square % 8 - target_piece_square % 8).abs() {
+//             Some(Bishop)
+//         } else {
+//             None
+//         } {
+//         let attacked_squares = get_sliding_moves_by_piece_type_and_square_index(&piece_type, blocking_piece_square as usize, occupied_squares);
+//         if attacked_squares & (1 << target_piece_square) != 0 {
+//             let square_increment = (blocking_piece_square - target_piece_square) / distance(target_piece_square, blocking_piece_square) as isize;
+//             let mut square_from = blocking_piece_square;
+//             let mut square_to = blocking_piece_square + square_increment;
+//             while on_board(square_from, square_to) {
+//                 if (1 << square_to) & occupied_squares != 0 {
+//                     let piece = board.get_piece(square_to as usize).unwrap();
+//                     return piece.piece_color == attacking_color && [piece_type, Queen].contains(&piece.piece_type)
+//                 }
+//                 square_from = square_to;
+//                 square_to += square_increment;
+//             }
+//         }
+//     };
+//     false
+// }
+
 pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: isize, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
     let board = position.board();
     let occupied_squares = board.bitboard_all_pieces();
+    let dx = target_piece_square % 8 - blocking_piece_square % 8;
+    let dy = target_piece_square / 8 - blocking_piece_square / 8;
     if let Some(piece_type) =
-        if blocking_piece_square / 8 == target_piece_square / 8 || blocking_piece_square % 8 == target_piece_square % 8 {
+        if dx == 0 || dy == 0 {
             Some(Rook)
-        } else if (blocking_piece_square / 8 - target_piece_square / 8).abs() == (blocking_piece_square % 8 - target_piece_square % 8).abs() {
+        } else if dx.abs() == dy.abs()  {
             Some(Bishop)
         } else {
             None
         } {
-        let attacked_squares = get_sliding_moves_by_piece_type_and_square_index(&piece_type, blocking_piece_square as usize, occupied_squares);
-        if attacked_squares & (1 << target_piece_square) != 0 {
-            let square_increment = (blocking_piece_square - target_piece_square) / distance(target_piece_square, blocking_piece_square) as isize;
-            let mut square_from = blocking_piece_square;
-            let mut square_to = blocking_piece_square + square_increment;
-            while on_board(square_from, square_to) {
+        let square_increment = (blocking_piece_square - target_piece_square) / distance(target_piece_square, blocking_piece_square) as isize;
+        let mut square_from = target_piece_square;
+        let mut square_to = target_piece_square + square_increment;
+        let mut reached_blocking_square = false;
+        while on_board(square_from, square_to) {
+            if !reached_blocking_square {
+                if square_to == blocking_piece_square {
+                    // should check that blocking square is actually occupied?
+                    reached_blocking_square = true;
+                } else if (1 << square_to) & occupied_squares != 0 {
+                    return false;
+                }
+            } else {
                 if (1 << square_to) & occupied_squares != 0 {
                     let piece = board.get_piece(square_to as usize).unwrap();
                     return piece.piece_color == attacking_color && [piece_type, Queen].contains(&piece.piece_type)
                 }
-                square_from = square_to;
-                square_to += square_increment;
             }
+            square_from = square_to;
+            square_to += square_increment;
         }
     };
     false
@@ -423,7 +461,7 @@ mod tests {
 
         #[test]
         fn test_is_piece_pinned2() {
-            let fen: &str = "R1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let fen: &str = "Q1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
             assert_eq!(is_piece_pinned(&position, sq!("c8"), Black), false);
         }
@@ -454,6 +492,15 @@ mod tests {
             let fen: &str = "3nk3/8/8/1q6/8/3N4/8/5K2 w - - 0 1";
             let position: Position = Position::from(fen);
             assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned7() {
+            let fen: &str = "3nk3/8/5r2/1b6/8/3N1R2/8/5K2 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
+            assert_eq!(is_piece_pinned(&position, sq!("e3"), PieceColor::Black), false);
+            assert_eq!(is_piece_pinned(&position, sq!("f3"), PieceColor::Black), true);
         }
 
     }
