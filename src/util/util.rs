@@ -1,12 +1,16 @@
 use crate::core::{board, piece};
-use crate::core::piece::PieceColor;
+use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::r#move::{Move, RawMove};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Add;
+use crate::core::board::Board;
+use crate::core::move_generator::get_sliding_moves_by_piece_type_and_square_index;
+use crate::core::piece::PieceType::{Bishop, Queen, Rook};
 use crate::core::position::Position;
+use crate::util::util;
 
 include!("generated_macro.rs");
 
@@ -35,15 +39,15 @@ pub fn format_square(square_index: usize) -> String {
     }
 }
 
-pub(crate) fn distance(square_index_1: isize, square_index_2: isize) -> isize {
+pub(crate) fn distance(square_index_1: isize, square_index_2: isize) -> usize {
     let square_1_row = square_index_1 / 8;
     let square_1_col = square_index_1 % 8;
 
     let square_2_row = square_index_2 / 8;
     let square_2_col = square_index_2 % 8;
 
-    let row_difference = (square_2_row - square_1_row).abs();
-    let col_difference = (square_2_col - square_1_col).abs();
+    let row_difference = (square_2_row - square_1_row).abs() as usize;
+    let col_difference = (square_2_col - square_1_col).abs() as usize;
 
     row_difference.max(col_difference)
 }
@@ -190,8 +194,41 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
     repeat_position_counts
 }
 
+pub fn is_piece_pinned(position: &Position, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
+    is_blocking_attack_to_square(position, position.board().king_square(!attacking_color) as isize, blocking_piece_square, attacking_color)
+}
+pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: isize, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
+    let board = position.board();
+    let occupied_squares = board.bitboard_all_pieces();
+    if let Some(piece_type) =
+        if blocking_piece_square / 8 == target_piece_square / 8 || blocking_piece_square % 8 == target_piece_square % 8 {
+            Some(Rook)
+        } else if (blocking_piece_square / 8 - target_piece_square / 8).abs() == (blocking_piece_square % 8 - target_piece_square % 8).abs() {
+            Some(Bishop)
+        } else {
+            None
+        } {
+        let attacked_squares = get_sliding_moves_by_piece_type_and_square_index(&piece_type, blocking_piece_square as usize, occupied_squares);
+        if attacked_squares & (1 << target_piece_square) != 0 {
+            let square_increment = (blocking_piece_square - target_piece_square) / distance(target_piece_square, blocking_piece_square) as isize;
+            let mut square_from = blocking_piece_square;
+            let mut square_to = blocking_piece_square + square_increment;
+            while on_board(square_from, square_to) {
+                if (1 << square_to) & occupied_squares != 0 {
+                    let piece = board.get_piece(square_to as usize).unwrap();
+                    return piece.piece_color == attacking_color && [piece_type, Queen].contains(&piece.piece_type)
+                }
+                square_from = square_to;
+                square_to += square_increment;
+            }
+        }
+    };
+    false
+}
+
 #[cfg(test)]
 mod tests {
+    use itertools::assert_equal;
     use crate::util::fen;
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
@@ -364,15 +401,61 @@ mod tests {
 
     #[test]
     fn test_set_bitboard_column() {
-        let column_0 = set_bitboard_column(0); 
+        let column_0 = set_bitboard_column(0);
         assert_eq!(column_0, 0x101010101010101);
         print_bitboard(column_0);
 
         let column_7 = set_bitboard_column(7);
         assert_eq!(column_7, 0x8080808080808080);
         print_bitboard(column_7);
-        
+
         print_bitboard(set_bitboard_column(5) | set_bitboard_column(6) | set_bitboard_column(7));
+    }
+
+    mod pinning {
+        use super::*;
+        #[test]
+        fn test_is_piece_pinned() {
+            let fen: &str = "R1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned2() {
+            let fen: &str = "R1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), Black), false);
+        }
+
+        #[test]
+        fn test_is_piece_pinned3() {
+            let fen: &str = "B1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), false);
+        }
+
+        #[test]
+        fn test_is_piece_pinned4() {
+            let fen: &str = "RBn1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), false);
+        }
+
+        #[test]
+        fn test_is_piece_pinned5() {
+            let fen: &str = "Q2nk3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("d8"), PieceColor::White), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned6() {
+            let fen: &str = "3nk3/8/8/1q6/8/3N4/8/5K2 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
+        }
+
     }
 }
 

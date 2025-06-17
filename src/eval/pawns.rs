@@ -157,6 +157,7 @@ fn is_doubled_pawn(square: usize, pawns: u64) -> bool {
 }
 mod tests {
     use crate::core::piece::PieceColor::Black;
+    use crate::core::piece::PieceType::Queen;
     use crate::core::position::Position;
     use super::*;
     include!("../util/generated_macro.rs");
@@ -237,11 +238,34 @@ mod tests {
     }
 
     #[test]
-    fn test_connected_passed_pawns() { // ok
+    fn test_connected_passed_pawns() {
         let fen = "8/8/8/3PP3/8/8/8/k6K w - - 0 1";
         let position: Position = Position::from(fen);
         let pawns = position.board().bitboard_by_color_and_piece_type(White, PieceType::Pawn);
         assert!(is_passed_pawn(sq!("d5"), pawns, White));
         assert!(is_passed_pawn(sq!("e5"), pawns, White));
+    }
+
+    #[test]
+    fn test_has_pawn_majority() {
+        let position: Position = Position::new_game();
+        assert_eq!(has_pawn_majority(position.board(), White, KingSide), false);
+        assert_eq!(has_pawn_majority(position.board(), White, QueenSide), false);
+        assert_eq!(has_pawn_majority(position.board(), Black, KingSide), false);
+        assert_eq!(has_pawn_majority(position.board(), Black, QueenSide), false);
+
+        let fen = "5rk1/5p1p/2P5/8/2b5/8/8/4K1R1 b - - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(has_pawn_majority(position.board(), White, KingSide), false);
+        assert_eq!(has_pawn_majority(position.board(), White, QueenSide), true);
+        assert_eq!(has_pawn_majority(position.board(), Black, KingSide), true);
+        assert_eq!(has_pawn_majority(position.board(), Black, QueenSide), false);
+        
+        let fen = "4k3/8/3p4/8/8/4P3/8/4K3 b - - 0 1";
+        let position: Position = Position::from(fen);
+        assert_eq!(has_pawn_majority(position.board(), White, KingSide), false);
+        assert_eq!(has_pawn_majority(position.board(), White, QueenSide), false);
+        assert_eq!(has_pawn_majority(position.board(), Black, KingSide), false);
+        assert_eq!(has_pawn_majority(position.board(), Black, QueenSide), false);
     }
 }

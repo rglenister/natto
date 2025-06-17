@@ -197,8 +197,8 @@ fn find_discovered_attacker(position: &Position, target_square: isize, previous_
 fn find_square_increment(from_square: isize, to_square: isize) -> Option<isize> {
     let square_delta = to_square - from_square;
     let distance = util::distance(from_square, to_square);
-    let square_increment = square_delta / distance;
-    if from_square + square_increment * distance == to_square {
+    let square_increment = square_delta / distance as isize;
+    if from_square + square_increment * distance as isize == to_square {
         Some(square_increment)
     } else {
         None

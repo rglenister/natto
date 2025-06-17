@@ -305,7 +305,7 @@ fn get_sliding_moves_by_piece_type<T>(
     }
 }
 
-fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
+pub fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
     let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
