@@ -503,6 +503,20 @@ mod tests {
             assert_eq!(is_piece_pinned(&position, sq!("f3"), PieceColor::Black), true);
         }
 
+        #[test]
+        fn test_is_piece_pinned8() {
+            let fen: &str = "4k2K/8/8/8/8/8/1R6/b7 b - - 1 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("b2"), PieceColor::Black), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned9() {
+            let fen: &str = "4k2K/8/8/8/8/8/1R6/r7 b - - 1 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("b2"), PieceColor::Black), false);
+        }
+
     }
 }
 
