@@ -1,6 +1,6 @@
 use crate::core::board::{Board, BoardSide};
 use crate::core::board::BoardSide::{KingSide, QueenSide};
-use crate::core::piece::{PieceColor, PieceType};
+use crate::core::piece::{Piece, PieceColor, PieceType};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::Pawn;
 use crate::core::position::Position;
@@ -102,12 +102,11 @@ fn has_pawn_majority(board: &Board, piece_color: PieceColor, board_side: BoardSi
 }
 
 
-/// Checks if a given pawn is part of a pawn chain.
 fn is_part_of_chain(board: &Board, position: (i8, i8), color: PieceColor) -> bool {
     // Direction offsets for backward diagonals (depends on pawn color)
     let (backward_rank_offset, backward_left_file_offset, backward_right_file_offset) = match color {
-        PieceColor::White => (-1, -1, 1), // White pawns look backward towards lower ranks
-        PieceColor::Black => (1, -1, 1),  // Black pawns look backward towards higher ranks
+        White => (-1, -1, 1),
+        Black => (1, -1, 1),
     };
 
     // Check if either of the backward diagonal squares contains a friendly pawn
@@ -134,9 +133,13 @@ fn check_diagonal_for_chain(
     let (file, rank) = position;
     let new_position = (file + file_offset, rank + rank_offset);
 
-    // Ensure the square is valid and contains a friendly pawn
-    // board.is_square_occupied_by(new_position, PieceColor::White, PieceType::Pawn)
-    //     || board.is_square_occupied_by(new_position, PieceColor::Black, PieceType::Pawn)
+    // let square_index = new_position.0 as usize + new_position.1 as usize * 8;
+    // if square_index >= 0 && square_index < 64 {
+    //     match board.get_piece(square_index) {
+    //         Some(Piece { piece_type, ..}) => piece_type == Pawn,
+    //         _ => false,
+    //     };
+    // }
     false
 }
 
@@ -156,10 +159,8 @@ fn is_doubled_pawn(square: usize, pawns: u64) -> bool {
     pawns_on_file.count_ones() > 1
 }
 mod tests {
-    use crate::core::piece::PieceColor::Black;
-    use crate::core::piece::PieceType::Queen;
-    use crate::core::position::Position;
     use super::*;
+
     include!("../util/generated_macro.rs");
 
     #[test]

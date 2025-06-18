@@ -22,6 +22,7 @@ pub struct Board {
     bit_boards: [[u64; 6]; 2],
 }
 
+
 pub struct CastlingMetadata {
     pub board_side: BoardSide,
     pub king_from_square: usize,
@@ -136,6 +137,10 @@ impl Board {
             }
         }
         None
+    }
+
+    pub(crate) fn is_square_occupied_by(&self, p0: (i8, i8), p1: PieceColor, p2: PieceType) -> bool {
+        todo!()
     }
 
     pub fn clear(&mut self) {
