@@ -1,6 +1,6 @@
 use crate::eval::evaluation::GameStatus::{Checkmate, InProgress};
 use crate::util::move_formatter::{FormatMove, LONG_FORMATTER};
-use crate::core::{move_generator, r#move};
+use crate::core::{move_gen, r#move};
 use log::{debug, info, error};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -14,7 +14,7 @@ use crate::core::position::Position;
 use crate::eval::evaluation;
 use crate::core::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::core::move_generator::generate_moves;
+use crate::core::move_gen::generate_moves;
 use crate::eval::evaluation::GameStatus;
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};

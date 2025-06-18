@@ -7,7 +7,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Add;
 use crate::core::board::Board;
-use crate::core::move_generator::get_sliding_moves_by_piece_type_and_square_index;
+use crate::core::move_gen::get_sliding_moves_by_piece_type_and_square_index;
 use crate::core::piece::PieceType::{Bishop, Queen, Rook};
 use crate::core::position::Position;
 use crate::util::util;

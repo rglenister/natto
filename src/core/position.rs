@@ -7,9 +7,9 @@ use crate::core::piece::PieceType::{King, Pawn, Rook};
 use crate::core::piece::{Piece, PieceColor};
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::core::r#move::{Move, RawMove};
-use crate::core::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
+use crate::core::move_gen::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::util::distance;
-use crate::core::move_generator;
+use crate::core::move_gen;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
@@ -215,7 +215,7 @@ impl Position {
     }
 
     pub fn make_raw_move(&self, raw_move: &RawMove) -> Option<(Self, Move)> {
-        let chess_move = util::find_generated_move(move_generator::generate_moves(self), raw_move);
+        let chess_move = util::find_generated_move(move_gen::generate_moves(self), raw_move);
         self.make_move(&chess_move?)
     }
 
@@ -330,7 +330,7 @@ impl Position {
 #[cfg(test)]
 mod tests {
     use crate::core::piece::PieceType::Queen;
-    use crate::core::move_generator::generate_moves;
+    use crate::core::move_gen::generate_moves;
     use super::*;
     
     #[test]

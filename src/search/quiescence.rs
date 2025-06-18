@@ -4,7 +4,7 @@ use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
-use crate::core::move_generator;
+use crate::core::move_gen;
 use crate::util::util;
 use crate::core::position::Position;
 use crate::core::r#move::{Move};
@@ -15,10 +15,10 @@ include!("../util/generated_macro.rs");
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
 pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: isize) -> isize {
-    if move_generator::is_check(position) {
+    if move_gen::is_check(position) {
         // If in check: must respond with evasions
         let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply;
-        for mov in move_generator::generate_moves(position) {
+        for mov in move_gen::generate_moves(position) {
             if let Some(new_position) = position.make_move(&mov) {
                 let score = -quiescence_search(&new_position.0, ply + 1, -beta, -alpha);
                 best_score = best_score.max(score);
@@ -154,8 +154,8 @@ fn piece_on(position: &Position, source_square: usize) -> PieceType {
 }
 
 fn attackers_to(position: &Position, target_index: usize, occupied: u64) -> [u64; 2] {
-    let white_attackers = move_generator::square_attacks_finder(position, PieceColor::White, target_index) & occupied;
-    let black_attackers = move_generator::square_attacks_finder(position, PieceColor::Black, target_index) & occupied;
+    let white_attackers = move_gen::square_attacks_finder(position, PieceColor::White, target_index) & occupied;
+    let black_attackers = move_gen::square_attacks_finder(position, PieceColor::Black, target_index) & occupied;
     [white_attackers, black_attackers]
 }
 
@@ -171,7 +171,7 @@ fn select_least_valuable_attacker(position: &Position, attacking_color: PieceCol
 }
 
 fn generate_sorted_quiescence_moves(position: &Position) -> Vec<Move> {
-    let mut quiescence_moves = move_generator::generate_moves_for_quiescence(position);
+    let mut quiescence_moves = move_gen::generate_moves_for_quiescence(position);
     order_quiescence_moves(position, &mut quiescence_moves);
     quiescence_moves
 }

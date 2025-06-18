@@ -501,7 +501,7 @@ pub fn is_check(position: &Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::move_generator::generate_moves;
+    use crate::core::move_gen::generate_moves;
     use crate::core::r#move::BaseMove;
 
     /// 20 moves are generated from the initial position

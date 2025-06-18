@@ -8,7 +8,7 @@ use rand::{rng, Rng};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use crate::core::position::Position;
-use crate::core::move_generator::generate_moves;
+use crate::core::move_gen::generate_moves;
 
 include!("../util/generated_macro.rs");
 

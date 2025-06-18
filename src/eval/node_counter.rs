@@ -2,7 +2,7 @@ use std::os::macos::raw::stat;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
-use crate::core::move_generator::generate_moves;
+use crate::core::move_gen::generate_moves;
 use rayon::prelude::*;
 use crate::core::position::Position;
 

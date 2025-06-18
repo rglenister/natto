@@ -7,7 +7,7 @@ use crate::search::negamax::SearchResults;
 use phf::phf_map;
 use crate::util::util;
 use crate::core::position::Position;
-use crate::core::move_generator::generate_moves;
+use crate::core::move_gen::generate_moves;
 use crate::eval::evaluation;
 use crate::eval::evaluation::GameStatus;
 
