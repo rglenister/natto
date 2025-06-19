@@ -7,10 +7,8 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Add;
 use crate::core::board::Board;
-use crate::core::move_gen::get_sliding_moves_by_piece_type_and_square_index;
 use crate::core::piece::PieceType::{Bishop, Queen, Rook};
 use crate::core::position::Position;
-use crate::util::util;
 
 include!("generated_macro.rs");
 
@@ -106,40 +104,24 @@ where
 }
 
 pub const fn set_bitboard_column(file: u8) -> u64 {
-    const fn recursive_mask(file: u8, rank: u8, mask: u64) -> u64 {
-        if rank == 8 {
-            mask
-        } else {
-            recursive_mask(file, rank + 1, mask | (1 << (file + rank * 8)))
-        }
-    }
-
-    assert!(file < 8, "File must be between 0 and 7");
-    recursive_mask(file, 0, 0)
+    0x0101010101010101u64 << file
 }
 
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
-    moves.into_iter().filter(|mov| {
-        match mov {
-            Move::Basic { base_move, .. } => base_move.from == from_square,
-            Move::EnPassant { base_move, .. } => base_move.from == from_square,
-            Move::Promotion { base_move, .. } => base_move.from == from_square,
-            Move::Castling { base_move, .. } => base_move.from == from_square,
-        }
-    }).collect::<Vec<Move>>()
+    moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square }).collect::<Vec<Move>>()
 }
 
-pub fn find_generated_move(moves: Vec<Move>, raw_chess_move: &RawMove) -> Option<Move> {
-    let results = moves.into_iter().filter(|chess_move | {
-        match chess_move {
-            Move::Basic { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
-            Move::EnPassant { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
-            Move::Promotion { base_move, promote_to, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to && Some(promote_to) == raw_chess_move.promote_to.as_ref() }
-            Move::Castling { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
+pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move> {
+    moves.into_iter().find(|mov| {
+        match mov {
+            Move::Basic { base_move }
+            | Move::EnPassant { base_move, .. }
+            | Move::Castling { base_move, .. } => {
+                base_move.from == raw_move.from && base_move.to == raw_move.to
+            }
+            Move::Promotion { base_move, promote_to, .. } => { base_move.from == raw_move.from && base_move.to == raw_move.to && Some(promote_to) == raw_move.promote_to.as_ref() }
         }
-    }).collect::<Vec<Move>>();
-    if results.len() > 1 { panic!("Duplicate moves found") }
-    results.into_iter().next()
+    })
 }
 
 pub fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, Move)>> {
@@ -439,15 +421,12 @@ mod tests {
 
     #[test]
     fn test_set_bitboard_column() {
-        let column_0 = set_bitboard_column(0);
-        assert_eq!(column_0, 0x101010101010101);
-        print_bitboard(column_0);
-
-        let column_7 = set_bitboard_column(7);
-        assert_eq!(column_7, 0x8080808080808080);
-        print_bitboard(column_7);
-
-        print_bitboard(set_bitboard_column(5) | set_bitboard_column(6) | set_bitboard_column(7));
+        for column_index in 0..8 {
+            let bitboard = set_bitboard_column(column_index);
+            for i in 0..64 {
+                assert_eq!(1 << i & bitboard != 0, column_index == i % 8);
+            }
+        }
     }
 
     mod pinning {
