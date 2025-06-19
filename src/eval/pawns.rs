@@ -19,8 +19,8 @@ pub fn score_pawns(position: &Position) -> (isize, isize) {
 }
 
 pub fn evaluate_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> isize {
-    let board: &Board = position.board();
-    let pawns = board.bitboard_by_color_and_piece_type(piece_color, PieceType::Pawn);
+    let board = position.board();
+    let pawns = board.bitboard_by_color_and_piece_type(piece_color, Pawn);
     
     let mut score = 0;
 
@@ -165,9 +165,9 @@ mod tests {
 
     #[test]
     fn test_is_doubled_pawn() {
-        let fen = "4k3/8/6P1/P2P4/8/2P3P1/8/4K3 w - - 0 1";
+        let fen = "4k3/8/6p1/p2p4/8/2p3p1/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let pawn_bitboard = position.board().bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
+        let pawn_bitboard = position.board().bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
         assert_eq!(is_doubled_pawn(sq!("a5"), pawn_bitboard), false);
         assert_eq!(is_doubled_pawn(sq!("c3"), pawn_bitboard), false);
         assert_eq!(is_doubled_pawn(sq!("d5"), pawn_bitboard), false);
@@ -176,9 +176,9 @@ mod tests {
     }
     #[test]
     fn test_is_isolated_pawn() {
-        let fen = "4k3/8/6P1/P2P4/8/2P3P1/8/4K3 w - - 0 1";
+        let fen = "4k3/8/6p1/p2p4/8/2p3p1/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let pawn_bitboard = position.board().bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
+        let pawn_bitboard = position.board().bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
         assert_eq!(is_isolated_pawn(sq!("a5"), pawn_bitboard), true);
         assert_eq!(is_isolated_pawn(sq!("c3"), pawn_bitboard), false);
         assert_eq!(is_isolated_pawn(sq!("d5"), pawn_bitboard), false);
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_is_passed_pawn() {
-        let fen = "4k3/8/6P1/P2P4/8/2P3P1/8/4K3 w - - 0 1";
+        let fen = "4k3/p6p/6P1/P2P4/8/2P3P1/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
         let pawn_bitboard = position.board().bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
         assert_eq!(is_passed_pawn(sq!("a5"), pawn_bitboard, White), true);

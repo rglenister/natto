@@ -11,7 +11,7 @@ include!("../util/generated_macro.rs");
 
 
 pub fn score_kings(position: &Position) -> (isize, isize) {
-    let middle_game_score = evaluate_middle_game_king_safety(position, White) - evaluate_middle_game_king_safety(position, White);
+    let middle_game_score = evaluate_middle_game_king_safety(position, White) - evaluate_middle_game_king_safety(position, Black);
     let end_game_score = evaluate_end_game_king_safety(position, White) - evaluate_end_game_king_safety(position, Black);
     (middle_game_score, end_game_score)
 }
@@ -22,7 +22,6 @@ fn evaluate_middle_game_king_safety(position: &Position, piece_color: PieceColor
     let king_square = position.board().king_square(piece_color);
     let king_file = king_square % 8;
 
-    // 1. Penalize exposed king (lack of pawn shield)
     let pawns_near_king = count_pawns_near_king(position, piece_color, king_square);
     if pawns_near_king == 0 {
         score -= 200; // No pawn shield: major penalty
@@ -30,19 +29,16 @@ fn evaluate_middle_game_king_safety(position: &Position, piece_color: PieceColor
         score -= 100; // Weak pawn shield
     }
 
-    // 2. Penalize being on open files
     if is_open_file(position, king_file) {
-        score -= 50; // Position is on open file
+        score -= 50;
     }
 
-    // 3. Reward castling
     if position.has_castled(piece_color) {
         score += 150;
     }
 
-    // 4. Penalize attacking pieces near king
     let attackers_near_king = count_attackers(position, piece_color);
-    score -= 20 * attackers_near_king as isize; // Each attacking piece near the king = penalty
+    score -= 20 * attackers_near_king as isize;
 
     score
 }

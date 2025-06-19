@@ -187,8 +187,8 @@ mod tests {
         let position: Position = Position::new_game();
         assert_eq!(score_position(&position), 0);
 
-        let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_position(&missing_white_pawn), -77);
+        let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1");
+        assert_eq!(score_position(&missing_white_pawn), -65);
 
         let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         assert_eq!(score_position(&missing_black_pawn), 65);
@@ -196,7 +196,7 @@ mod tests {
 
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
         let all_black_no_white: Position = Position::from(fen);
-        assert_eq!(score_position(&all_black_no_white), 4630);
+        assert_eq!(score_position(&all_black_no_white), 4730);
 
         let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
         let black_pawn_on_seventh_rank: Position = Position::from(fen);
