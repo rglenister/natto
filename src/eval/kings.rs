@@ -11,12 +11,12 @@ include!("../util/generated_macro.rs");
 
 
 pub fn score_kings(position: &Position) -> (isize, isize) {
-    let middle_game_score = evaluate_middle_game_king_safety(position, White) - evaluate_middle_game_king_safety(position, Black);
-    let end_game_score = evaluate_end_game_king_safety(position, White) - evaluate_end_game_king_safety(position, Black);
-    (middle_game_score, end_game_score)
+    let score_mg = score_king_mg(position, White) - score_king_mg(position, Black);
+    let score_eg = score_king_eg(position, White) - score_king_eg(position, Black);
+    (score_mg, score_eg)
 }
 
-fn evaluate_middle_game_king_safety(position: &Position, piece_color: PieceColor) -> isize {
+fn score_king_mg(position: &Position, piece_color: PieceColor) -> isize {
     let mut score = 0isize;
 
     let king_square = position.board().king_square(piece_color);
@@ -44,7 +44,7 @@ fn evaluate_middle_game_king_safety(position: &Position, piece_color: PieceColor
 }
 
 // End game king safety evaluation
-fn evaluate_end_game_king_safety(position: &Position, piece_color: PieceColor) -> isize {
+fn score_king_eg(position: &Position, piece_color: PieceColor) -> isize {
     let mut score = 0;
     let king_square = position.board().king_square(piece_color);
     score += king_near_passed_pawns(position, piece_color, king_square) * 50;

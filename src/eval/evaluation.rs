@@ -75,7 +75,7 @@ pub fn score_position(position: &Position) -> isize {
     let (psq_mg, psq_eg) = score_board_psq_values(board);
     let (king_mg, king_eg) = score_kings(position);
     let (pawn_mg, pawn_eg) = score_pawns(position);
-    
+
     let (score_mg, score_eg) = (psq_mg + king_mg + pawn_mg, psq_eg + king_eg + pawn_eg);
     let blended_score = (score_mg * (PHASE_TOTAL - phase) + score_eg * phase) / PHASE_TOTAL;
 
@@ -202,7 +202,7 @@ mod tests {
         let black_pawn_on_seventh_rank: Position = Position::from(fen);
         assert_eq!(score_position(&black_pawn_on_seventh_rank), -485);
     }
-    
+
     #[test]
     fn test_calculate_new_game_phase() {
         let position: Position = Position::new_game();
