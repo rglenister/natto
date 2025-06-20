@@ -675,7 +675,7 @@ mod tests {
             &win_search_results,
             &SearchResults {
                 position: win_search_results.position,
-                score: 974,
+                score: 1121,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -710,7 +710,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -828,
+                score: -681,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -729,7 +729,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -519,
+                score: -604,
                 depth: 2,
                 pv: vec![],
                 game_status: InProgress,

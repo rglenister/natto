@@ -63,7 +63,7 @@ pub fn score_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> 
         if is_part_of_chain(position.board(), ((pawn_square / 8) as i8, (pawn_square % 8) as i8), piece_color) {
             score += 50; // Bonus for pawn chain
         }
-        // THIS ONE LOOKS SUSPICIOUS!!! 
+
         if is_doubled_pawn(pawn_square, pawns) {
             score -= 30;
         }

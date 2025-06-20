@@ -139,10 +139,6 @@ impl Board {
         None
     }
 
-    pub(crate) fn is_square_occupied_by(&self, p0: (i8, i8), p1: PieceColor, p2: PieceType) -> bool {
-        todo!()
-    }
-
     pub fn clear(&mut self) {
         self.bit_boards = [[0; 6]; 2]
     }
