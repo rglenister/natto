@@ -103,7 +103,7 @@ where
     result
 }
 
-pub const fn set_bitboard_column(file: u8) -> u64 {
+pub const fn column_bitboard(file: usize) -> u64 {
     0x0101010101010101u64 << file
 }
 
@@ -420,9 +420,9 @@ mod tests {
     }
 
     #[test]
-    fn test_set_bitboard_column() {
+    fn test_column_bitboard() {
         for column_index in 0..8 {
-            let bitboard = set_bitboard_column(column_index);
+            let bitboard = column_bitboard(column_index);
             for i in 0..64 {
                 assert_eq!(1 << i & bitboard != 0, column_index == i % 8);
             }

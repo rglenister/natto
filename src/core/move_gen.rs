@@ -17,6 +17,9 @@ use crate::core::position::Position;
 
 include!("../util/generated_macro.rs");
 
+pub fn squares_attacked_by_pawn(piece_color: PieceColor, pawn_square_index: usize) -> u64 {
+    PAWN_ATTACKS_TABLE[&piece_color][pawn_square_index]
+}
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
     let mut table = HashMap::new();
@@ -836,6 +839,12 @@ mod tests {
 
         assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 22);
         assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 38);
+    }
+
+    #[test]
+    fn test_squares_attacked_by_pawn() {
+        assert_eq!(squares_attacked_by_pawn(Black, 63), 1 << 54);
+        assert_eq!(squares_attacked_by_pawn(White, 31), 1 << 38);
     }
 
     #[test]
