@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn test_king_safety_opening() {
         let position = Position::new_game();
-        assert_eq!(score_kings(&position), (0, -150)); // Initial position should be balanced
+        assert_eq!(score_kings(&position), (0, 0)); // Initial position should be balanced
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
         let position = Position::from("4k3/8/4K3/4pPp1/4P3/8/8/8 w - - 0 1");
         let nearby_passed_pawn_count = king_near_passed_pawns(&position, White, position.board().king_square(White));
         assert_eq!(nearby_passed_pawn_count, 1);
-        
+
         let position = Position::from("4k3/8/4K3/3PpPp1/4P3/8/8/8 w - - 0 1");
         let nearby_passed_pawn_count = king_near_passed_pawns(&position, White, position.board().king_square(White));
         assert_eq!(nearby_passed_pawn_count, 2);

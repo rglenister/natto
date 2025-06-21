@@ -6,7 +6,7 @@ use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::Pawn;
 use crate::core::position::Position;
 use crate::util::bitboard_iterator::BitboardIterator;
-use crate::util::util::column_bitboard;
+use crate::util::util::{column_bitboard, print_bitboard};
 
 const BITBOARD_REGIONS: [u64; 2] = [
     column_bitboard(5) | column_bitboard(6) | column_bitboard(7), // kingside
@@ -36,13 +36,13 @@ const PASSED_PAWNS_RANKS: [[u64; 8]; 2] = [
         0xff00000000000000,
     ],
     [
-        0xff00000000000000,
-        0xffff000000000000,
-        0xffffff0000000000,
-        0xffffffff00000000,
-        0xffffffffff000000,
-        0xffffffffffff0000,
-        0xffffffffffffff00,
+        0x00000000000000ff,
+        0x000000000000ffff,
+        0x0000000000ffffff,
+        0x00000000ffffffff,
+        0x000000ffffffffff,
+        0x0000ffffffffffff,
+        0x00ffffffffffffff,
         0xffffffffffffffff
     ]
 ];
@@ -76,6 +76,7 @@ pub fn score_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> 
 }
 
 pub fn is_passed_pawn(square: usize, piece_color: PieceColor, their_pawns: u64) -> bool {
+    println!("These are the white pawns");
     let file = square % 8;
     let rank = square as isize / 8 + if piece_color == White { 1 } else { -1 };
     (PASSED_PAWN_COLUMNS[file] & PASSED_PAWNS_RANKS[piece_color as usize][rank as usize] & their_pawns) == 0
@@ -217,6 +218,20 @@ mod tests {
 
     mod passed_pawns {
         use super::*;
+
+        #[test]
+        fn test_is_passed_pawn_e7() {
+            let position: Position = Position::new_game();
+            let pawns = position.board().bitboard_by_color_and_piece_type(White, Pawn);
+            assert_eq!(is_passed_pawn(sq!("e7"), Black, pawns), false);
+        }
+        #[test]
+        fn test_is_passed_pawn_e2() {
+            let position: Position = Position::new_game();
+            let pawns = position.board().bitboard_by_color_and_piece_type(Black, Pawn);
+            assert_eq!(is_passed_pawn(sq!("e2"), White, pawns), false);
+        }
+
 
         #[test]
         fn test_is_passed_pawn() {

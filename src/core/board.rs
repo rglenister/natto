@@ -456,10 +456,6 @@ mod tests {
 
     #[test]
     fn test_white_square_mask() {
-        // util::print_bitboard(WHITE_SQUARES_MASK);
-        // println!();
-        // util::print_bitboard(BLACK_SQUARES_MASK);
-        // println!();
         assert_eq!(WHITE_SQUARES_MASK, 0x55aa55aa55aa55aa);
         assert_eq!(BLACK_SQUARES_MASK, 0xaa55aa55aa55aa55);
         assert_eq!(1 << sq!("c1") & WHITE_SQUARES_MASK, 0);
