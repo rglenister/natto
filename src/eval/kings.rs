@@ -4,6 +4,7 @@ use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::Pawn;
 use crate::core::position::Position;
+use crate::eval::pawns::is_passed_pawn;
 use crate::util::bitboard_iterator::BitboardIterator;
 use crate::util::util;
 
@@ -34,7 +35,7 @@ fn score_king_mg(position: &Position, piece_color: PieceColor) -> isize {
     }
 
     if position.has_castled(piece_color) {
-        score += 150;
+        score += 50;
     }
 
     let attackers_near_king = count_attackers(position, piece_color);
@@ -69,36 +70,21 @@ fn count_attackers(position: &Position, king_color: PieceColor) -> usize {
         .count()
 }
 
-// Helper function: Count proximity to passed pawns
 fn king_near_passed_pawns(position: &Position, piece_color: PieceColor, king_square: usize) -> usize {
-    let passed_pawns = passed_pawn_bitboard(position, piece_color);
-    (passed_pawns & square_proximity_mask(king_square)).count_ones() as usize
+    let square_proximity_mask = square_proximity_mask(king_square);
+    let our_nearby_pawns = square_proximity_mask & position.board().bitboard_by_color_and_piece_type(piece_color, Pawn);
+    if our_nearby_pawns != 0 {
+        let their_pawns = position.board().bitboard_by_color_and_piece_type(!piece_color, Pawn);
+        return BitboardIterator::new(our_nearby_pawns)
+            .into_iter()
+            .filter(|square| is_passed_pawn(*square, piece_color, their_pawns))
+            .count();
+    }
+    0
 }
 
 fn square_proximity_mask(square: usize) -> u64 {
     move_gen::non_sliding_piece_attacks_empty_board(PieceType::King, square) | 1 << square
-}
-
-pub fn passed_pawn_bitboard(position: &Position, color: PieceColor) -> u64 {
-    let pawns = position.board().bitboard_by_color_and_piece_type(color, PieceType::Pawn);
-    let opponent_pawns = position.board().bitboard_by_color_and_piece_type(!color, PieceType::Pawn);
-
-    let (forward, left, right) = match color {
-        White => (
-            pawns << 8,                  // One rank up for White
-            (pawns & 0x7F7F7F7F7F7F7F7F) << 7, // Diagonal left
-            (pawns & 0xFEFEFEFEFEFEFEFE) << 9, // Diagonal right
-        ),
-        Black => (
-            pawns >> 8,                  // One rank down for Black
-            (pawns & 0xFEFEFEFEFEFEFEFE) >> 9, // Diagonal left
-            (pawns & 0x7F7F7F7F7F7F7F7F) >> 7, // Diagonal right
-        ),
-    };
-
-    let opponent_blockers = forward | left | right;
-    let passed_pawns = !opponent_pawns & opponent_blockers;
-    passed_pawns & pawns // Return passed pawns that correspond to the current player's pawns
 }
 
 #[cfg(test)]
@@ -158,28 +144,17 @@ mod tests {
     #[test]
     fn test_king_safety_opening() {
         let position = Position::new_game();
-//        assert_eq!(score_kings(&position), 0); // Initial position should be balanced
-    }
-
-    #[test]
-    fn test_passed_pawns() {
-        let position = Position::from("4k3/8/8/4pPp1/4P3/8/8/4K3 w - - 0 1");
-        let passed_pawns = passed_pawn_bitboard(&position, PieceColor::White);
-        assert_eq!(passed_pawns.count_ones(), 1);
-        assert_eq!(passed_pawns.trailing_zeros(), sq!("f5")); // Should detect passed pawn
+        assert_eq!(score_kings(&position), (0, -150)); // Initial position should be balanced
     }
 
     #[test]
     fn test_king_near_passed_pawn() {
         let position = Position::from("4k3/8/4K3/4pPp1/4P3/8/8/8 w - - 0 1");
-        let passed_pawns = passed_pawn_bitboard(&position, White);
-        assert_eq!(passed_pawns.count_ones(), 1);
-        assert_eq!(passed_pawns.trailing_zeros(), sq!("f5"));
-        assert_eq!(king_near_passed_pawns(&position, White, sq!("e6")), 1);
+        let nearby_passed_pawn_count = king_near_passed_pawns(&position, White, position.board().king_square(White));
+        assert_eq!(nearby_passed_pawn_count, 1);
         
         let position = Position::from("4k3/8/4K3/3PpPp1/4P3/8/8/8 w - - 0 1");
-        let passed_pawns = passed_pawn_bitboard(&position, White);
-        assert_eq!(passed_pawns.count_ones(), 2);
-        assert_eq!(king_near_passed_pawns(&position, White, sq!("e6")), 2);
+        let nearby_passed_pawn_count = king_near_passed_pawns(&position, White, position.board().king_square(White));
+        assert_eq!(nearby_passed_pawn_count, 2);
     }
 }

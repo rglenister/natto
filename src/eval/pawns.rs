@@ -75,6 +75,12 @@ pub fn score_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> 
     score
 }
 
+pub fn is_passed_pawn(square: usize, piece_color: PieceColor, their_pawns: u64) -> bool {
+    let file = square % 8;
+    let rank = square as isize / 8 + if piece_color == White { 1 } else { -1 };
+    (PASSED_PAWN_COLUMNS[file] & PASSED_PAWNS_RANKS[piece_color as usize][rank as usize] & their_pawns) == 0
+}
+
 fn score_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> isize {
     let board: &Board = position.board();
     let our_pawns = board.bitboard_by_color_and_piece_type(piece_color, Pawn);
@@ -101,12 +107,6 @@ fn score_passed_pawns(position: &Position, piece_color: PieceColor, our_pawns: u
         }
     }
     score
-}
-
-fn is_passed_pawn(square: usize, color: PieceColor, their_pawns: u64) -> bool {
-    let file = square % 8;
-    let rank = square as isize / 8 + if color == White { 1 } else { -1 };
-    (PASSED_PAWN_COLUMNS[file] & PASSED_PAWNS_RANKS[color as usize][rank as usize] & their_pawns) == 0
 }
 
 fn has_pawn_majority(board: &Board, piece_color: PieceColor, board_side: BoardSide) -> bool {
