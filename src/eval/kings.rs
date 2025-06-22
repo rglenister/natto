@@ -35,7 +35,7 @@ fn score_king_mg(position: &Position, piece_color: PieceColor) -> isize {
     }
 
     if position.has_castled(piece_color) {
-        score += 50;
+        score += 30;
     }
 
     let attackers_near_king = count_attackers(position, piece_color);
