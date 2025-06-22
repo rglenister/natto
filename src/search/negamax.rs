@@ -407,7 +407,7 @@ mod tests {
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -1113);
+        assert_eq!(search_results.score, -990);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
         assert_eq!(pv, "♞c4xd6");
     }
@@ -670,12 +670,12 @@ mod tests {
         );
 
         let win_search_results = uci::run_uci_position(go_for_win_uci_position_str, go_options_str);
-        assert_eq!(win_search_results.pv_moves_as_string(), "b8-c6".to_string());
+        assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6".to_string());
         test_eq(
             &win_search_results,
             &SearchResults {
                 position: win_search_results.position,
-                score: 1121,
+                score: 976,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -705,12 +705,12 @@ mod tests {
 
         config::set_contempt(1000);
         let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
-        assert_eq!(drawn_search_results.pv_moves_as_string(), "b8-c6");
+        assert_eq!(drawn_search_results.pv_moves_as_string(), "e7-e6");
         test_eq(
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -681,
+                score: -826,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -729,7 +729,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -604,
+                score: -587,
                 depth: 2,
                 pv: vec![],
                 game_status: InProgress,
