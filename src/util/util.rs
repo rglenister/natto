@@ -1,11 +1,13 @@
 use crate::core::{board, piece};
-use crate::core::piece::PieceColor;
+use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::r#move::{Move, RawMove};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Add;
+use crate::core::board::Board;
+use crate::core::piece::PieceType::{Bishop, Queen, Rook};
 use crate::core::position::Position;
 
 include!("generated_macro.rs");
@@ -35,15 +37,15 @@ pub fn format_square(square_index: usize) -> String {
     }
 }
 
-pub(crate) fn distance(square_index_1: isize, square_index_2: isize) -> isize {
+pub(crate) fn distance(square_index_1: isize, square_index_2: isize) -> usize {
     let square_1_row = square_index_1 / 8;
     let square_1_col = square_index_1 % 8;
 
     let square_2_row = square_index_2 / 8;
     let square_2_col = square_index_2 % 8;
 
-    let row_difference = (square_2_row - square_1_row).abs();
-    let col_difference = (square_2_col - square_1_col).abs();
+    let row_difference = (square_2_row - square_1_row).abs() as usize;
+    let col_difference = (square_2_col - square_1_col).abs() as usize;
 
     row_difference.max(col_difference)
 }
@@ -101,28 +103,25 @@ where
     result
 }
 
-pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
-    moves.into_iter().filter(|mov| {
-        match mov {
-            Move::Basic { base_move, .. } => base_move.from == from_square,
-            Move::EnPassant { base_move, .. } => base_move.from == from_square,
-            Move::Promotion { base_move, .. } => base_move.from == from_square,
-            Move::Castling { base_move, .. } => base_move.from == from_square,
-        }
-    }).collect::<Vec<Move>>()
+pub const fn column_bitboard(file: usize) -> u64 {
+    0x0101010101010101u64 << file
 }
 
-pub fn find_generated_move(moves: Vec<Move>, raw_chess_move: &RawMove) -> Option<Move> {
-    let results = moves.into_iter().filter(|chess_move | {
-        match chess_move {
-            Move::Basic { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
-            Move::EnPassant { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
-            Move::Promotion { base_move, promote_to, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to && Some(promote_to) == raw_chess_move.promote_to.as_ref() }
-            Move::Castling { base_move, .. } => { base_move.from == raw_chess_move.from && base_move.to == raw_chess_move.to }
+pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
+    moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square }).collect::<Vec<Move>>()
+}
+
+pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move> {
+    moves.into_iter().find(|mov| {
+        match mov {
+            Move::Basic { base_move }
+            | Move::EnPassant { base_move, .. }
+            | Move::Castling { base_move, .. } => {
+                base_move.from == raw_move.from && base_move.to == raw_move.to
+            }
+            Move::Promotion { base_move, promote_to, .. } => { base_move.from == raw_move.from && base_move.to == raw_move.to && Some(promote_to) == raw_move.promote_to.as_ref() }
         }
-    }).collect::<Vec<Move>>();
-    if results.len() > 1 { panic!("Duplicate moves found") }
-    results.into_iter().next()
+    })
 }
 
 pub fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, Move)>> {
@@ -177,8 +176,79 @@ pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (
     repeat_position_counts
 }
 
+pub fn is_piece_pinned(position: &Position, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
+    is_blocking_attack_to_square(position, position.board().king_square(!attacking_color) as isize, blocking_piece_square, attacking_color)
+}
+// pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: isize, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
+//     let board = position.board();
+//     let occupied_squares = board.bitboard_all_pieces();
+//     if let Some(piece_type) =
+//         if blocking_piece_square / 8 == target_piece_square / 8 || blocking_piece_square % 8 == target_piece_square % 8 {
+//             Some(Rook)
+//         } else if (blocking_piece_square / 8 - target_piece_square / 8).abs() == (blocking_piece_square % 8 - target_piece_square % 8).abs() {
+//             Some(Bishop)
+//         } else {
+//             None
+//         } {
+//         let attacked_squares = get_sliding_moves_by_piece_type_and_square_index(&piece_type, blocking_piece_square as usize, occupied_squares);
+//         if attacked_squares & (1 << target_piece_square) != 0 {
+//             let square_increment = (blocking_piece_square - target_piece_square) / distance(target_piece_square, blocking_piece_square) as isize;
+//             let mut square_from = blocking_piece_square;
+//             let mut square_to = blocking_piece_square + square_increment;
+//             while on_board(square_from, square_to) {
+//                 if (1 << square_to) & occupied_squares != 0 {
+//                     let piece = board.get_piece(square_to as usize).unwrap();
+//                     return piece.piece_color == attacking_color && [piece_type, Queen].contains(&piece.piece_type)
+//                 }
+//                 square_from = square_to;
+//                 square_to += square_increment;
+//             }
+//         }
+//     };
+//     false
+// }
+
+pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: isize, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
+    let board = position.board();
+    let occupied_squares = board.bitboard_all_pieces();
+    let dx = target_piece_square % 8 - blocking_piece_square % 8;
+    let dy = target_piece_square / 8 - blocking_piece_square / 8;
+    if let Some(piece_type) =
+        if dx == 0 || dy == 0 {
+            Some(Rook)
+        } else if dx.abs() == dy.abs()  {
+            Some(Bishop)
+        } else {
+            None
+        } {
+        let square_increment = (blocking_piece_square - target_piece_square) / distance(target_piece_square, blocking_piece_square) as isize;
+        let mut square_from = target_piece_square;
+        let mut square_to = target_piece_square + square_increment;
+        let mut reached_blocking_square = false;
+        while on_board(square_from, square_to) {
+            if !reached_blocking_square {
+                if square_to == blocking_piece_square {
+                    // should check that blocking square is actually occupied?
+                    reached_blocking_square = true;
+                } else if (1 << square_to) & occupied_squares != 0 {
+                    return false;
+                }
+            } else {
+                if (1 << square_to) & occupied_squares != 0 {
+                    let piece = board.get_piece(square_to as usize).unwrap();
+                    return piece.piece_color == attacking_color && [piece_type, Queen].contains(&piece.piece_type)
+                }
+            }
+            square_from = square_to;
+            square_to += square_increment;
+        }
+    };
+    false
+}
+
 #[cfg(test)]
 mod tests {
+    use itertools::assert_equal;
     use crate::util::fen;
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
@@ -347,6 +417,85 @@ mod tests {
         let moves = "e2e4 e6e5".to_string();
         let result = replay_moves(&position, moves);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_column_bitboard() {
+        for column_index in 0..8 {
+            let bitboard = column_bitboard(column_index);
+            for i in 0..64 {
+                assert_eq!(1 << i & bitboard != 0, column_index == i % 8);
+            }
+        }
+    }
+
+    mod pinning {
+        use super::*;
+        #[test]
+        fn test_is_piece_pinned() {
+            let fen: &str = "R1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned2() {
+            let fen: &str = "Q1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), Black), false);
+        }
+
+        #[test]
+        fn test_is_piece_pinned3() {
+            let fen: &str = "B1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), false);
+        }
+
+        #[test]
+        fn test_is_piece_pinned4() {
+            let fen: &str = "RBn1k3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), false);
+        }
+
+        #[test]
+        fn test_is_piece_pinned5() {
+            let fen: &str = "Q2nk3/8/8/8/8/8/8/4K3 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("d8"), PieceColor::White), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned6() {
+            let fen: &str = "3nk3/8/8/1q6/8/3N4/8/5K2 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned7() {
+            let fen: &str = "3nk3/8/5r2/1b6/8/3N1R2/8/5K2 w - - 0 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
+            assert_eq!(is_piece_pinned(&position, sq!("e3"), PieceColor::Black), false);
+            assert_eq!(is_piece_pinned(&position, sq!("f3"), PieceColor::Black), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned8() {
+            let fen: &str = "4k2K/8/8/8/8/8/1R6/b7 b - - 1 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("b2"), PieceColor::Black), true);
+        }
+
+        #[test]
+        fn test_is_piece_pinned9() {
+            let fen: &str = "4k2K/8/8/8/8/8/1R6/r7 b - - 1 1";
+            let position: Position = Position::from(fen);
+            assert_eq!(is_piece_pinned(&position, sq!("b2"), PieceColor::Black), false);
+        }
+
     }
 }
 

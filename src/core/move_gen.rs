@@ -17,6 +17,9 @@ use crate::core::position::Position;
 
 include!("../util/generated_macro.rs");
 
+pub fn squares_attacked_by_pawn(piece_color: PieceColor, pawn_square_index: usize) -> u64 {
+    PAWN_ATTACKS_TABLE[&piece_color][pawn_square_index]
+}
 
 static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
     let mut table = HashMap::new();
@@ -305,7 +308,7 @@ fn get_sliding_moves_by_piece_type<T>(
     }
 }
 
-fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
+pub fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
     let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
@@ -428,9 +431,16 @@ where
         }
     }
 }
+pub fn square_attacks_finder_empty_board(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
+    square_attacks_finder_internal(position, attacking_color, square_index, 0)
+}
 
 pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
-    let occupied_squares = position.board().bitboard_all_pieces();
+    square_attacks_finder_internal(position, attacking_color, square_index, position.board().bitboard_all_pieces())
+}
+
+
+fn square_attacks_finder_internal(position: &Position, attacking_color: PieceColor, square_index: usize, occupied_squares: u64) -> u64 {
     let enemy_squares = position.board().bitboard_by_color(attacking_color);
     let enemy_queens = position.board().bitboard_by_color_and_piece_type(attacking_color, PieceType::Queen);
     let mut attacking_squares = 0;
@@ -478,6 +488,11 @@ pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
         position, king_color.opposite(), position.board().king_square(king_color))
 }
 
+pub fn king_attacks_finder_empty_board(position: &Position, king_color: PieceColor) -> u64 {
+    square_attacks_finder_empty_board(
+        position, king_color.opposite(), position.board().king_square(king_color))
+}
+
 pub fn check_count(position: &Position) -> usize {
     king_attacks_finder(position, position.side_to_move()).count_ones() as usize
 }
@@ -489,7 +504,7 @@ pub fn is_check(position: &Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::move_generator::generate_moves;
+    use crate::core::move_gen::generate_moves;
     use crate::core::r#move::BaseMove;
 
     /// 20 moves are generated from the initial position
@@ -805,6 +820,16 @@ mod tests {
     }
 
     #[test]
+    fn test_king_attacks_finder_empty_board() {
+        let fen = "5rk1/5p1p/8/8/2B5/8/8/4K1R1 b - - 0 1";
+        let mut position = Position::from(fen);
+        let attacking_square_indexes = king_attacks_finder_empty_board(&mut position, Black);
+        let attacking_squares = util::bit_indexes(attacking_square_indexes);
+        assert_eq!(attacking_squares.len(), 2);
+        assert!(attacking_squares.contains(&6) && attacking_squares.contains(&26));
+    }
+
+    #[test]
     fn test_pawn_attacks_table() {
         assert_eq!(PAWN_ATTACKS_TABLE[&White][0], 1 << 9);
         assert_eq!(PAWN_ATTACKS_TABLE[&White][1], 1 << 8 | 1 << 10);
@@ -814,6 +839,12 @@ mod tests {
 
         assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 22);
         assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 38);
+    }
+
+    #[test]
+    fn test_squares_attacked_by_pawn() {
+        assert_eq!(squares_attacked_by_pawn(Black, 63), 1 << 54);
+        assert_eq!(squares_attacked_by_pawn(White, 31), 1 << 38);
     }
 
     #[test]

@@ -4,7 +4,7 @@ use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
-use crate::core::move_generator;
+use crate::core::move_gen;
 use crate::util::util;
 use crate::core::position::Position;
 use crate::core::r#move::{Move};
@@ -15,10 +15,10 @@ include!("../util/generated_macro.rs");
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
 pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: isize) -> isize {
-    if move_generator::is_check(position) {
+    if move_gen::is_check(position) {
         // If in check: must respond with evasions
         let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply;
-        for mov in move_generator::generate_moves(position) {
+        for mov in move_gen::generate_moves(position) {
             if let Some(new_position) = position.make_move(&mov) {
                 let score = -quiescence_search(&new_position.0, ply + 1, -beta, -alpha);
                 best_score = best_score.max(score);
@@ -154,8 +154,8 @@ fn piece_on(position: &Position, source_square: usize) -> PieceType {
 }
 
 fn attackers_to(position: &Position, target_index: usize, occupied: u64) -> [u64; 2] {
-    let white_attackers = move_generator::square_attacks_finder(position, PieceColor::White, target_index) & occupied;
-    let black_attackers = move_generator::square_attacks_finder(position, PieceColor::Black, target_index) & occupied;
+    let white_attackers = move_gen::square_attacks_finder(position, PieceColor::White, target_index) & occupied;
+    let black_attackers = move_gen::square_attacks_finder(position, PieceColor::Black, target_index) & occupied;
     [white_attackers, black_attackers]
 }
 
@@ -171,7 +171,7 @@ fn select_least_valuable_attacker(position: &Position, attacking_color: PieceCol
 }
 
 fn generate_sorted_quiescence_moves(position: &Position) -> Vec<Move> {
-    let mut quiescence_moves = move_generator::generate_moves_for_quiescence(position);
+    let mut quiescence_moves = move_gen::generate_moves_for_quiescence(position);
     order_quiescence_moves(position, &mut quiescence_moves);
     quiescence_moves
 }
@@ -197,8 +197,8 @@ fn find_discovered_attacker(position: &Position, target_square: isize, previous_
 fn find_square_increment(from_square: isize, to_square: isize) -> Option<isize> {
     let square_delta = to_square - from_square;
     let distance = util::distance(from_square, to_square);
-    let square_increment = square_delta / distance;
-    if from_square + square_increment * distance == to_square {
+    let square_increment = square_delta / distance as isize;
+    if from_square + square_increment * distance as isize == to_square {
         Some(square_increment)
     } else {
         None
@@ -351,7 +351,7 @@ mod tests {
             let fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -2);
+            assert_eq!(score, 0);
         }
 
         #[test]
@@ -359,7 +359,7 @@ mod tests {
             let fen = "4q3/3P4/8/8/8/7k/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 905);
+            assert_eq!(score, 903);
         }
 
         #[test]
@@ -367,7 +367,7 @@ mod tests {
             let fen = "5rk1/2q2pbp/1p2pnp1/pP1pP3/P2P1P2/2N2BN1/6PP/R2Q1RK1 w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 961);
+            assert_eq!(score, 877);
         }
 
         #[test]
@@ -375,7 +375,7 @@ mod tests {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -524);
+            assert_eq!(score, -520);
         }
 
         #[test]
@@ -383,7 +383,7 @@ mod tests {
             let fen = "r4rk1/pp3ppp/2n1b3/3p4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -14);
+            assert_eq!(score, 301);
         }
 
         #[test]
@@ -391,7 +391,7 @@ mod tests {
             let fen = "r4rk1/pp3ppp/2n1b3/3q4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 780);
+            assert_eq!(score, 941);
         }
 
         #[test]

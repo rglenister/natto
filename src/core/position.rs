@@ -7,9 +7,9 @@ use crate::core::piece::PieceType::{King, Pawn, Rook};
 use crate::core::piece::{Piece, PieceColor};
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::core::r#move::{Move, RawMove};
-use crate::core::move_generator::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
+use crate::core::move_gen::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::util::distance;
-use crate::core::move_generator;
+use crate::core::move_gen;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
@@ -74,6 +74,7 @@ pub struct Position {
     half_move_clock: usize,
     full_move_number: usize,
     hash_code: u64,
+    castled: [bool; 2],
 }
 
 impl From<&str> for Position {
@@ -113,7 +114,8 @@ impl Position {
             en_passant_capture_square,
             half_move_clock,
             full_move_number,
-            hash_code: 0
+            hash_code: 0,
+            castled: [false, false],
         };
         position.hash_code = position.create_initial_hash();
         position
@@ -166,6 +168,10 @@ impl Position {
     pub fn hash_code(&self) -> u64 {
         self.hash_code
     }
+    
+    pub fn has_castled(&self, piece_color: PieceColor) -> bool {
+        self.castled[piece_color as usize]
+    }
 
     fn create_initial_hash(&self) -> u64 {
         let mut initial_hash: u64 = self.get_board_hash();
@@ -209,7 +215,7 @@ impl Position {
     }
 
     pub fn make_raw_move(&self, raw_move: &RawMove) -> Option<(Self, Move)> {
-        let chess_move = util::find_generated_move(move_generator::generate_moves(self), raw_move);
+        let chess_move = util::find_generated_move(move_gen::generate_moves(self), raw_move);
         self.make_move(&chess_move?)
     }
 
@@ -235,6 +241,7 @@ impl Position {
                     let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
                     new_position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
                     new_position.castling_rights[self.side_to_move as usize] = [false, false];
+                    new_position.castled[self.side_to_move as usize] = true;
                 } else {
                     return None;
                 }
@@ -323,7 +330,7 @@ impl Position {
 #[cfg(test)]
 mod tests {
     use crate::core::piece::PieceType::Queen;
-    use crate::core::move_generator::generate_moves;
+    use crate::core::move_gen::generate_moves;
     use super::*;
     
     #[test]
@@ -516,5 +523,22 @@ mod tests {
         let position_3 =  position_1.make_raw_move(&RawMove::new(sq!("f2"), sq!("e1"), Some(Queen))).unwrap();
         assert_eq!(position_3.0.half_move_clock, 0);
 
+    }
+
+    #[test]
+    fn test_castling_move_sets_castled_flag() {
+        let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        let position = Position::from(fen);
+        assert_eq!(position.has_castled(White), false);
+        assert_eq!(position.has_castled(Black), false);
+        
+        let moves = generate_moves(&position);
+        let castling_moves: Vec<_> = 
+            moves.iter().filter(|chess_move| matches!(chess_move, Castling { .. })).collect();
+        assert_eq!(castling_moves.len(), 2);
+        let positions: Vec<_> = castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).collect();
+        assert_eq!(positions.len(), 2);
+        assert_eq!(positions[0].0.has_castled(White), true);
+        assert_eq!(positions[1].0.has_castled(White), true);
     }
 }

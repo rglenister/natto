@@ -1,6 +1,6 @@
 use crate::eval::evaluation::GameStatus::{Checkmate, InProgress};
 use crate::util::move_formatter::{FormatMove, LONG_FORMATTER};
-use crate::core::{move_generator, r#move};
+use crate::core::{move_gen, r#move};
 use log::{debug, info, error};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -14,7 +14,7 @@ use crate::core::position::Position;
 use crate::eval::evaluation;
 use crate::core::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::core::move_generator::generate_moves;
+use crate::core::move_gen::generate_moves;
 use crate::eval::evaluation::GameStatus;
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};
@@ -407,7 +407,7 @@ mod tests {
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -970);
+        assert_eq!(search_results.score, -1113);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
         assert_eq!(pv, "♞c4xd6");
     }
@@ -628,7 +628,7 @@ mod tests {
             &in_progress_search_results,
             &SearchResults {
                 position: in_progress_position,
-                score: 318,
+                score: 316,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -675,7 +675,7 @@ mod tests {
             &win_search_results,
             &SearchResults {
                 position: win_search_results.position,
-                score: 974,
+                score: 1121,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -710,7 +710,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -828,
+                score: -681,
                 depth: 1,
                 pv: vec![],
                 game_status: InProgress,
@@ -729,7 +729,7 @@ mod tests {
             &drawn_search_results,
             &SearchResults {
                 position: drawn_search_results.position,
-                score: -533,
+                score: -604,
                 depth: 2,
                 pv: vec![],
                 game_status: InProgress,
