@@ -111,6 +111,12 @@ impl SearchResults {
     }
 }
 
+pub fn increment_node_counter() -> NodeCountStats {
+    let node_counter = NODE_COUNTER.read().unwrap();
+    node_counter.increment();
+    node_counter_stats()
+}
+
 pub fn iterative_deepening(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
     reset_node_counter();
     let mut search_results_stack = vec!();
@@ -163,10 +169,12 @@ fn negamax_search(
         if entry.depth >= depth {
             match entry.bound_type {
                 BoundType::Exact => {
-                    if entry.best_move.is_some() || ply == 0 {
+                    if let Some(best_move) = entry.best_move {
                         pv.clear();
-                        pv.push((*position, entry.best_move.unwrap()));
-                        return entry.score
+                        if let Some(next_pos) = position.make_move(&best_move) {
+                            pv.push((next_pos.0, best_move));
+                            return entry.score
+                        }
                     }
                 },
                 BoundType::LowerBound => if entry.score > alpha {
@@ -239,60 +247,60 @@ fn negamax_search(
     }
 }
 
-fn create_search_results(position: &Position, score: isize, depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
+fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: Vec<(Position, Move)>, search_context: &SearchContext) -> SearchResults {
     let last_position = pv.last().map_or(position, |m| &m.0);
     let game_status = get_game_status(last_position, search_context.repeat_position_counts.as_ref());
+    let expanded_pv = if pv.len() >= max_depth {
+        pv
+    } else {
+        retrieve_principal_variation(position, &pv, max_depth)
+    };
     SearchResults {
         position: *position,
         score,
-        depth,
-        pv: pv,
+        depth: max_depth,
+        pv: expanded_pv,
         game_status,
     }
 }
 
 // refined by ChatGPT
-fn retrieve_principal_variation(position: Position, mov: Option<Move>) -> Vec<(Position, Move)> {
-    let mut pv = Vec::with_capacity(MAXIMUM_SEARCH_DEPTH);
-    let mut current_position = position;
+fn retrieve_principal_variation(position: &Position, current_pv: &Vec<(Position, Move)>, max_depth: usize) -> Vec<(Position, Move)> {
+    let mut pv = current_pv.clone();
+    let mut current_position: Position =
+        if let Some(last_known_position) = current_pv.last().map(|m| &m.0) {
+            *last_known_position
+        } else {
+            *position
+        };
+    
     let mut visited_positions = HashSet::new();
-
-    if let Some(mv) = mov {
-        if let Some(next_position) = current_position.make_move(&mv) {
-            current_position = next_position.0;
-            pv.push(next_position);
-            visited_positions.insert(current_position.hash_code()); // Track the first position
-        }
-    }
-
+    let mut depth = max_depth - current_pv.len();
+    
     while let Some(entry) = TRANSPOSITION_TABLE.probe(current_position.hash_code()) {
-        // Check for early exit conditions
-        if entry.depth == 0
-            || entry.best_move.is_none()
-            || pv.len() >= MAXIMUM_SEARCH_DEPTH {
+        if depth <= 0
+            || entry.depth < depth
+            || entry.bound_type != BoundType::Exact {
             break;
         }
-
-        // Detect repeated position
-        if visited_positions.contains(&current_position.hash_code()) {
-            // Repeated position detected, exit early
-            break;
-        }
-
-        // Process the best move
+        
         if let Some(best_mv) = entry.best_move {
             if let Some(next_pos) = current_position.make_move(&best_mv) {
-                pv.push(next_pos);
                 current_position = next_pos.0;
-                visited_positions.insert(current_position.hash_code()); // Track the position
+                if visited_positions.contains(&current_position.hash_code()) {
+                    break;
+                }
+                pv.push(next_pos);
+                depth -= 1;
+                visited_positions.insert(current_position.hash_code());
             } else {
-                break; // Stop if a move cannot be made
+                break;
             }
         } else {
-            break; // Stop if no best move is present
+            break;
         }
     }
-
+    debug!("PV extended from length {} to length {}", current_pv.len(), pv.len());
     pv
 }
 
@@ -356,12 +364,6 @@ fn is_terminal_score(score: isize) -> bool {
 fn used_allocated_move_time(search_params: &SearchParams) -> bool {
     let stats = node_counter_stats();
     stats.elapsed_time.as_millis() > search_params.allocated_time_millis.try_into().unwrap()
-}
-
-fn increment_node_counter() -> NodeCountStats {
-    let node_counter = NODE_COUNTER.read().unwrap();
-    node_counter.increment();
-    node_counter_stats()
 }
 
 fn reset_node_counter() {
