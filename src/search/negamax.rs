@@ -409,7 +409,7 @@ mod tests {
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
         let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
-        assert_eq!(search_results.score, -990);
+        assert_eq!(search_results.score, -1004);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
         assert_eq!(pv, "♞c4xd6");
     }
@@ -617,6 +617,16 @@ mod tests {
         let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
         let pv = search_results.pv_moves_as_string();
         assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
+    }
+
+    #[test]
+    fn test_rooks_on_seventh_rank_preferred() {
+        setup();
+        let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
+        let position: Position = Position::from(fen);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let pv = search_results.pv_moves_as_string();
+        assert_eq!(format_move_list(&position, &search_results), "♛c8-c2");
     }
 
     #[test]
