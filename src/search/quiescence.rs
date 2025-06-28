@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
-use crate::search::negamax::{MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{increment_node_counter, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::core::move_gen;
 use crate::util::util;
 use crate::core::position::Position;
@@ -15,6 +15,7 @@ include!("../util/generated_macro.rs");
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
 pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: isize) -> isize {
+    increment_node_counter();
     if move_gen::is_check(position) {
         // If in check: must respond with evasions
         let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply;
@@ -375,7 +376,7 @@ mod tests {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -520);
+            assert_eq!(score, -550);
         }
 
         #[test]

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
+use crate::core::board::Board;
 use crate::core::piece::{Piece, PieceColor, PieceType};
 use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::core::move_gen;
@@ -11,6 +12,9 @@ use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;
 use crate::search;
 use crate::search::negamax::MAXIMUM_SCORE;
+use crate::util::bitboard_iterator::BitboardIterator;
+use crate::util::util;
+use crate::util::util::row_bitboard;
 
 include!("../util/generated_macro.rs");
 
@@ -39,6 +43,10 @@ const PHASE_WEIGHTS: [isize; 6] = [
     4, // queen
     0, // king
 ];
+
+const BISHOP_PAIR_BONUS: isize = 50;
+const ROOK_ON_OPEN_FILE_BONUS: isize = 30;
+const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 75;
 
 fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
     let mut phase = PHASE_TOTAL;
@@ -81,7 +89,8 @@ pub fn score_position(position: &Position) -> isize {
 
     let score =  blended_score
         + material_score
-        + score_bishops(position);
+        + score_bishops(position)
+        + score_rooks(position);
 
     if position.side_to_move() == White { score } else { -score }
 }
@@ -163,8 +172,30 @@ pub fn check_count(position: &Position) -> usize {
 
 fn score_bishops(position: &Position) -> isize {
     let board = position.board();
-    board.has_bishop_pair(White) as isize * 50 - board.has_bishop_pair(Black) as isize * 50
+    (board.has_bishop_pair(White) as isize - board.has_bishop_pair(Black) as isize) * BISHOP_PAIR_BONUS
 }
+
+fn score_rooks(position: &Position) -> isize {
+    fn score_rooks_for_color(board: &Board, piece_color: PieceColor) -> isize {
+        let my_bitboards = board.bitboards_for_color(piece_color);
+        let pawns = my_bitboards[Pawn as usize];
+        let rooks = my_bitboards[Rook as usize];
+        let queens = my_bitboards[Queen as usize];
+        let row = if piece_color == White { 6 } else { 1 };
+        let seventh_rank_bonus = ((((rooks | queens) & row_bitboard(row)).count_ones()) >= 2) as isize * DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS;
+        let mut on_open_file_count = 0;
+        let mut rook_iterator = BitboardIterator::new(rooks);
+        while let Some(rook_index) = rook_iterator.next() {
+            if util::column_bitboard(rook_index % 8) & (pawns) == 0 {
+                on_open_file_count += 1;                
+            }
+        }
+        seventh_rank_bonus + on_open_file_count as isize * ROOK_ON_OPEN_FILE_BONUS
+    }
+    let board = position.board();
+    score_rooks_for_color(board, White) - score_rooks_for_color(board, Black)
+}
+
 
 fn calculate_material_balance(piece_counts: [[usize; 6]; 2]) -> [isize; 6] {
     let mut result = [0; 6];
@@ -188,10 +219,10 @@ mod tests {
         assert_eq!(score_position(&position), 0);
 
         let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_position(&missing_white_pawn), -65);
+        assert_eq!(score_position(&missing_white_pawn), -35);
 
         let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_position(&missing_black_pawn), 65);
+        assert_eq!(score_position(&missing_black_pawn), 35);
 
 
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";
@@ -263,10 +294,43 @@ mod tests {
         assert_eq!(score_position(&position), 28);
     }
 
-    #[test]
-    fn test_score_bishops() {
-        let position: Position = Position::from("r2qk1nr/pppb1ppp/2n1b3/3pp3/3PP3/3B1N2/PPPB1PPP/RN1QK2R w KQkq - 0 1");
-        assert_eq!(score_bishops(&position), 50);
+    mod bishops {
+        use super::*;
+        #[test]
+        fn test_score_bishop_pairs() {
+            let position: Position = Position::from("r2qk1nr/pppb1ppp/2n1b3/3pp3/3PP3/3B1N2/PPPB1PPP/RN1QK2R w KQkq - 0 1");
+            assert_eq!(score_bishops(&position), BISHOP_PAIR_BONUS);
+        }
+    }
+
+    mod rooks {
+        use super::*;
+        #[test]
+        fn test_score_doubled_rooks_on_seventh_rank() {
+            let position: Position = Position::from("4k3/1R5R/8/8/8/8/7P/4K3 w - - 0 1");
+            assert_eq!(score_rooks(&position), DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS + ROOK_ON_OPEN_FILE_BONUS);
+
+            let position: Position = Position::from("4k3/p6p/8/8/8/8/r6r/4K3 w - - 0 1");
+            assert_eq!(score_rooks(&position), -DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS);
+        }
+
+        #[test]
+        fn test_score_rook_and_queen_on_seventh_rank() {
+            let position: Position = Position::from("4k3/6QR/8/8/8/8/7P/4K3 w - - 0 1");
+            assert_eq!(score_rooks(&position), DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS);
+
+            let position: Position = Position::from("4k3/7p/8/8/8/8/6qr/4K3 w - - 0 1");
+            assert_eq!(score_rooks(&position), -DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS);
+        }
+
+        #[test]
+        fn test_rook_on_open_file() {
+            let position: Position = Position::from("4k3/8/8/8/8/8/5P1P/4KRRR w K - 0 1");
+            assert_eq!(score_rooks(&position), ROOK_ON_OPEN_FILE_BONUS);
+
+            let position: Position = Position::from("2rrk2r/8/3p4/8/8/8/8/4K3 w k - 0 1");
+            assert_eq!(score_rooks(&position), -(ROOK_ON_OPEN_FILE_BONUS * 2));
+        }
     }
 
     mod insufficient_material {

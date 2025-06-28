@@ -107,6 +107,10 @@ pub const fn column_bitboard(file: usize) -> u64 {
     0x0101010101010101u64 << file
 }
 
+pub const fn row_bitboard(row: usize) -> u64 {
+    0x00000000000000ffu64 << row * 8
+}
+
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
     moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square }).collect::<Vec<Move>>()
 }
@@ -425,6 +429,20 @@ mod tests {
             let bitboard = column_bitboard(column_index);
             for i in 0..64 {
                 assert_eq!(1 << i & bitboard != 0, column_index == i % 8);
+            }
+        }
+    }
+
+    #[test]
+    fn test_row_bitboard() {
+        for row_index in 0..8 {
+            let bitboard = row_bitboard(row_index);
+            print_bitboard(bitboard);
+            for i in 0..64 {
+                assert_eq!(1 << i & bitboard != 0, row_index == i / 8);
+            }
+            for i in 0..64 {
+                assert_eq!(1 << i & bitboard != 0, row_index == i / 8);
             }
         }
     }
