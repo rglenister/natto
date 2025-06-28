@@ -45,8 +45,8 @@ const PHASE_WEIGHTS: [isize; 6] = [
 ];
 
 const BISHOP_PAIR_BONUS: isize = 50;
-const ROOK_ON_OPEN_FILE_BONUS: isize = 14;
-const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 50;
+const ROOK_ON_OPEN_FILE_BONUS: isize = 30;
+const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 75;
 
 fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
     let mut phase = PHASE_TOTAL;
@@ -219,10 +219,10 @@ mod tests {
         assert_eq!(score_position(&position), 0);
 
         let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_position(&missing_white_pawn), -51);
+        assert_eq!(score_position(&missing_white_pawn), -35);
 
         let missing_black_pawn: Position = Position::from("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(score_position(&missing_black_pawn), 51);
+        assert_eq!(score_position(&missing_black_pawn), 35);
 
 
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/8/4K3 b kq - 0 1";

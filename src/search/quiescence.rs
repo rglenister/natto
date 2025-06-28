@@ -376,7 +376,7 @@ mod tests {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
             let position: Position = Position::from(fen);
             let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -534);
+            assert_eq!(score, -550);
         }
 
         #[test]
