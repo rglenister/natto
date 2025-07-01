@@ -1,15 +1,25 @@
 use crate::core::move_gen;
 use crate::core::move_gen::{king_attacks_finder, king_attacks_finder_empty_board};
-use crate::core::piece::{PieceColor, PieceType};
+use crate::core::piece::PieceColor;
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::Pawn;
 use crate::core::position::Position;
 use crate::eval::pawns::is_passed_pawn;
 use crate::util::bitboard_iterator::BitboardIterator;
 use crate::util::util;
+use crate::util::util::{column_bitboard, row_bitboard};
 
 include!("../util/generated_macro.rs");
 
+const ENEMY_PIECES_NEAR_KING_RADIUS : usize = 2;
+const ENEMY_PIECE_NEAR_KING_PENALTIES: [isize; 6] = [
+    2, // pawn
+    5, // knight
+    5, // bishop
+    10, // rook
+    15, // queen
+    0, // king
+];
 
 pub fn score_kings(position: &Position) -> (isize, isize) {
     let score_mg = score_king_mg(position, White) - score_king_mg(position, Black);
@@ -41,6 +51,8 @@ fn score_king_mg(position: &Position, piece_color: PieceColor) -> isize {
     let attackers_near_king = count_attackers(position, piece_color);
     score -= 20 * attackers_near_king as isize;
 
+    score -= score_enemy_pieces_near_king(position, piece_color, king_square);
+
     score
 }
 
@@ -54,7 +66,7 @@ fn score_king_eg(position: &Position, piece_color: PieceColor) -> isize {
 
 fn count_pawns_near_king(position: &Position, piece_color: PieceColor, king_square: usize) -> usize {
     let pawns = position.board().bitboard_by_color_and_piece_type(piece_color, Pawn);
-    (pawns & square_proximity_mask(king_square)).count_ones() as usize
+    (pawns & square_proximity_mask_of_radius(king_square, 1)).count_ones() as usize
 }
 
 fn is_open_file(position: &Position, file: usize) -> bool {
@@ -70,8 +82,16 @@ fn count_attackers(position: &Position, king_color: PieceColor) -> usize {
         .count()
 }
 
+fn score_enemy_pieces_near_king(position: &Position, piece_color: PieceColor, king_square: usize) -> isize {
+    let enemy_piece_mask = square_proximity_mask_of_radius(king_square, ENEMY_PIECES_NEAR_KING_RADIUS);
+    let enemy_piece_bitboards = position.board().bitboards_for_color(!piece_color);
+    enemy_piece_bitboards.iter().enumerate().fold(0, |acc, (index, bitboard)| {
+        acc + (bitboard & enemy_piece_mask).count_ones() as isize * ENEMY_PIECE_NEAR_KING_PENALTIES[index]
+    })
+}
+
 fn king_near_passed_pawns(position: &Position, piece_color: PieceColor, king_square: usize) -> usize {
-    let square_proximity_mask = square_proximity_mask(king_square);
+    let square_proximity_mask = square_proximity_mask_of_radius(king_square, 1);
     let our_nearby_pawns = square_proximity_mask & position.board().bitboard_by_color_and_piece_type(piece_color, Pawn);
     if our_nearby_pawns != 0 {
         let their_pawns = position.board().bitboard_by_color_and_piece_type(!piece_color, Pawn);
@@ -83,24 +103,43 @@ fn king_near_passed_pawns(position: &Position, piece_color: PieceColor, king_squ
     0
 }
 
-fn square_proximity_mask(square: usize) -> u64 {
-    move_gen::non_sliding_piece_attacks_empty_board(PieceType::King, square) | 1 << square
+fn square_proximity_mask_of_radius(centre: usize, radius: usize) -> u64 {
+    let centre_row = centre / 8;
+    let row_range = centre_row.saturating_sub(radius)..(centre_row + radius + 1).min(8);
+    let mut rows: u64 = 0;
+    for row in row_range {
+        rows |= row_bitboard(row);
+    }
+    let mut columns: u64 = 0;
+    let centre_column = centre % 8;
+    let column_range = (centre % 8).saturating_sub(radius)..(centre_column + radius + 1).min(8);
+    for column in column_range {
+        columns |= column_bitboard(column);
+    }
+    rows & columns
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
     use super::*;
     
     #[test]
-    fn test_square_proximity_mask() {
-        let mask = square_proximity_mask(sq!("e1"));
+    fn test_square_proximity_mask_of_radius() {
+        let mask = square_proximity_mask_of_radius(sq!("e1"), 1);
         assert_eq!(mask, 14392);
 
-        let mask = square_proximity_mask(sq!("e3"));
+        let mask = square_proximity_mask_of_radius(sq!("e3"), 1);
         assert_eq!(mask, 943208448);
 
-        let mask = square_proximity_mask(sq!("h1"));
+        let mask = square_proximity_mask_of_radius(sq!("h1"), 1);
         assert_eq!(mask, 49344);
+
+        assert_eq!(square_proximity_mask_of_radius(sq!("e1"), 2), 0x7C7C7C);
+        assert_eq!(square_proximity_mask_of_radius(sq!("e8"), 3), 0xFEFEFEFE00000000);
+        assert_eq!(square_proximity_mask_of_radius(sq!("a1"), 3), 0xF0F0F0F);
+        assert_eq!(square_proximity_mask_of_radius(sq!("a1"), 1), 0x303);
+        assert_eq!(square_proximity_mask_of_radius(sq!("a1"), 0), 0x1);
     }
 
     #[test]
@@ -116,6 +155,30 @@ mod tests {
     }
 
     #[test]
+    fn test_score_enemy_pieces_near_king() {
+        let position: Position = Position::new_game();
+        assert_eq!(score_enemy_pieces_near_king(&position, White, sq!("e1")), 0);
+        assert_eq!(score_enemy_pieces_near_king(&position, Black, sq!("e8")), 0);
+
+        let position = Position::from("4k3/8/8/8/8/pppppppp/8/4K3 w - - 0 1");
+        assert_eq!(score_enemy_pieces_near_king(&position, White, sq!("e1")), 5 * ENEMY_PIECE_NEAR_KING_PENALTIES[Pawn as usize]);
+
+        let position = Position::from("4k3/8/8/8/8/pppppppp/6q1/4K3 w - - 0 1");
+        assert_eq!(score_enemy_pieces_near_king(&position, White, sq!("e1")),
+                   5 * ENEMY_PIECE_NEAR_KING_PENALTIES[Pawn as usize] + ENEMY_PIECE_NEAR_KING_PENALTIES[Queen as usize]);
+
+        let position = Position::from("4k3/8/8/8/8/pppppppp/6r1/4K3 w - - 0 1");
+        assert_eq!(score_enemy_pieces_near_king(&position, White, sq!("e1")),
+                   5 * ENEMY_PIECE_NEAR_KING_PENALTIES[Pawn as usize] + ENEMY_PIECE_NEAR_KING_PENALTIES[Rook as usize]);
+
+        let position = Position::from("4k3/8/8/8/8/8/8/3bK3 w - - 0 1");
+        assert_eq!(score_enemy_pieces_near_king(&position, White, sq!("e1")), ENEMY_PIECE_NEAR_KING_PENALTIES[Bishop as usize]);
+
+        let position = Position::from("4k3/8/8/8/8/8/8/3nK3 w - - 0 1");
+        assert_eq!(score_enemy_pieces_near_king(&position, White, sq!("e1")), ENEMY_PIECE_NEAR_KING_PENALTIES[Knight as usize]);
+    }
+
+        #[test]
     fn test_is_open_file() {
         let position = Position::from("2r4k/ppqb1p1Q/5Np1/3pPp2/8/P7/2P1RPPP/R5K1 b - - 0 30");
         for file in 0..8 {
