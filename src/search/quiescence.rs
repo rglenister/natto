@@ -82,8 +82,8 @@ fn good_capture(position: &Position, mov: &Move) -> bool {
 
 // with delta pruning
 fn static_exchange_evaluation(position: &Position, mv: &Move) -> isize {
-    let attacked_square = mv.get_base_move().to;
-    let attacking_square = mv.get_base_move().from;
+    let attacked_square = mv.get_base_move().to as usize;
+    let attacking_square = mv.get_base_move().from as usize;
     let attacking_piece = piece_on(position, attacking_square);
 
     let mut gain: ArrayVec<isize, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();

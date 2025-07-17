@@ -80,8 +80,8 @@ impl MoveOrderer {
 
     pub fn update_history_score(&mut self, position: &Position, mov: &Move, depth: i32) {
         let side_to_move = position.side_to_move() as usize;
-        let from = mov.get_base_move().from;
-        let to = mov.get_base_move().to;
+        let from = mov.get_base_move().from as usize;
+        let to = mov.get_base_move().to as usize;
 
         // Bonus based on depth - deeper searches get more weight
         let bonus = depth * depth;
@@ -103,18 +103,18 @@ impl MoveOrderer {
     }
 
     pub fn update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
-        if let Some(piece) = position.board().get_piece(last_move.get_base_move().to) {
+        if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
             let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
-            let to_square = last_move.get_base_move().to;
+            let to_square = last_move.get_base_move().to as usize;
             self.counter_moves[piece_idx][to_square] = Some(countermove);
         }
     }
 
     pub fn get_countermove(&self, position: &Position, last_move: &Option<&Move>) -> Option<Move> {
         if let Some(last_move) = last_move {
-            if let Some(piece) = position.board().get_piece(last_move.get_base_move().to) {
+            if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
                 let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
-                let to_square = last_move.get_base_move().to;
+                let to_square = last_move.get_base_move().to as usize;
                 return self.counter_moves[piece_idx][to_square];
             }
         }
@@ -149,10 +149,10 @@ impl MoveOrderer {
             let mut score = CAPTURE_SCORE_BASE;
 
             // Add MVV-LVA score
-            if let Some(victim) = position.board().get_piece(base_move.to) {
+            if let Some(victim) = position.board().get_piece(base_move.to as usize) {
                 let victim_value = PIECE_SCORES[victim.piece_type as usize];
 
-                if let Some(aggressor) = position.board().get_piece(base_move.from) {
+                if let Some(aggressor) = position.board().get_piece(base_move.from as usize) {
                     let aggressor_value = PIECE_SCORES[aggressor.piece_type as usize];
 
                     // MVV-LVA = victim value - aggressor value/100 
@@ -196,7 +196,7 @@ impl MoveOrderer {
 
         // Use history score for quiet moves
         let side = position.side_to_move() as usize;
-        self.history_table[side][base_move.from][base_move.to]
+        self.history_table[side][base_move.from as usize][base_move.to as usize]
     }
 
     // Sort moves based on scores (highest first)
@@ -218,10 +218,10 @@ impl MoveOrderer {
             return 0;
         }
 
-        if let Some(victim) = position.board().get_piece(base_move.to) {
+        if let Some(victim) = position.board().get_piece(base_move.to as usize) {
             let victim_value = PIECE_SCORES[victim.piece_type as usize];
 
-            if let Some(aggressor) = position.board().get_piece(base_move.from) {
+            if let Some(aggressor) = position.board().get_piece(base_move.from as usize) {
                 let aggressor_value = PIECE_SCORES[aggressor.piece_type as usize];
                 let difference_value = victim_value as i32 - (aggressor_value as i32);
                 if let Move::Promotion { promote_to, .. } = mov {

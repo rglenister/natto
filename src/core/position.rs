@@ -4,9 +4,9 @@ use crate::core::board::BoardSide;
 use crate::core::board::BoardSide::{KingSide, QueenSide};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::{King, Pawn, Rook};
-use crate::core::piece::{Piece, PieceColor};
+use crate::core::piece::{Piece, PieceColor, PieceType};
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-use crate::core::r#move::{Move, RawMove};
+use crate::core::r#move::{BaseMove, Move, RawMove};
 use crate::core::move_gen::{is_en_passant_capture_possible, king_attacks_finder, square_attacks_finder};
 use crate::util::util::distance;
 use crate::core::move_gen;
@@ -199,8 +199,7 @@ impl Position {
     }
 
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
-        let piece = self.board.remove_piece(square_index);
-        if let Some(piece) = piece {
+        if let Some(piece) = self.board.remove_piece(square_index) {
             self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][square_index];
             Some(piece)
         } else {
@@ -215,45 +214,38 @@ impl Position {
     }
 
     pub fn make_raw_move(&self, raw_move: &RawMove) -> Option<(Self, Move)> {
-        let chess_move = util::find_generated_move(move_gen::generate_moves(self), raw_move);
-        self.make_move(&chess_move?)
+        let mov = util::find_generated_move(move_gen::generate_moves(self), raw_move);
+        self.make_move(&mov?)
     }
 
-    pub fn make_move(&self, chess_move: &Move) -> Option<(Self, Move)> {
-        let mut new_position = *self;
-
-        new_position.en_passant_capture_square = None;
-
-        match chess_move {
-            Basic { base_move } => {
-                do_basic_move(&mut new_position, base_move.from, base_move.to, base_move.capture);
-            }
-            EnPassant { base_move, capture_square: _ } => {
-                do_basic_move(&mut new_position, base_move.from, base_move.to, true);
-                let forward_pawn_increment: i32 = if self.side_to_move == White {-8} else {8};
-                new_position.remove_piece((self.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment)as usize);
-            }
-            Castling { base_move, board_side } => {
-                let castling_metadata = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
-                if king_attacks_finder(&new_position, self.side_to_move) == 0 &&
-                            square_attacks_finder(&new_position, self.opposing_side(), castling_metadata.king_through_square) == 0 {
-                    do_basic_move(&mut new_position, base_move.from, base_move.to, false);
-                    let castling_meta_data = &CASTLING_METADATA[self.side_to_move as usize][*board_side as usize];
-                    new_position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
-                    new_position.castling_rights[self.side_to_move as usize] = [false, false];
-                    new_position.castled[self.side_to_move as usize] = true;
-                } else {
-                    return None;
-                }
-            }
-            Promotion { base_move, promote_to } => {
-                new_position.remove_piece(base_move.from);
-                new_position.put_piece(base_move.to, Piece { piece_color: self.side_to_move(), piece_type: *promote_to });
-                new_position.half_move_clock = 0;
+    pub fn make_move(&self, mov: &Move) -> Option<(Self, Move)> {
+        fn make_en_passant_move(old_position: &Position, mut new_position: &mut Position, base_move: &BaseMove) {
+            make_basic_move(&mut new_position, base_move.from as usize, base_move.to as usize, true);
+            let forward_pawn_increment: i32 = if old_position.side_to_move == White { -8 } else { 8 };
+            new_position.remove_piece((old_position.en_passant_capture_square.unwrap() as i32 + forward_pawn_increment) as usize);
+        }
+        fn make_castling_move(old_position: &Position, mut new_position: &mut Position, base_move: &BaseMove, board_side: &BoardSide) -> bool {
+            let castling_metadata = &CASTLING_METADATA[old_position.side_to_move as usize][*board_side as usize];
+            if king_attacks_finder(&new_position, old_position.side_to_move) == 0 &&
+                square_attacks_finder(&new_position, old_position.opposing_side(), castling_metadata.king_through_square) == 0 {
+                make_basic_move(&mut new_position, base_move.from as usize, base_move.to as usize, false);
+                let castling_meta_data = &CASTLING_METADATA[old_position.side_to_move as usize][*board_side as usize];
+                new_position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
+                new_position.castling_rights[old_position.side_to_move as usize] = [false, false];
+                new_position.castled[old_position.side_to_move as usize] = true;
+                true
+            } else {
+                false
             }
         }
 
-        fn do_basic_move(new_position: &mut Position, from: usize, to: usize, capture: bool) {
+        fn make_promotion_move(old_position: &Position, new_position: &mut Position, base_move: &BaseMove, promote_to: &PieceType) {
+            new_position.remove_piece(base_move.from as usize);
+            new_position.put_piece(base_move.to as usize, Piece { piece_color: old_position.side_to_move(), piece_type: *promote_to });
+            new_position.half_move_clock = 0;
+        }
+
+        fn make_basic_move(new_position: &mut Position, from: usize, to: usize, capture: bool) {
             let piece = new_position.move_piece(from, to);
             let piece_type = piece.piece_type;
             if piece_type == Pawn && distance(from as isize, to as isize) == 2 {
@@ -273,11 +265,31 @@ impl Position {
                 new_position.half_move_clock += 1;
             }
         }
+        let mut new_position = *self;
+
+        new_position.en_passant_capture_square = None;
+
+        match mov {
+            Basic { base_move } => {
+                make_basic_move(&mut new_position, base_move.from as usize, base_move.to as usize, base_move.capture);
+            }
+            EnPassant { base_move, capture_square: _ } => {
+                make_en_passant_move(&self, &mut new_position, base_move);
+            }
+            Castling { base_move, board_side } => {
+                if !make_castling_move(&self, &mut new_position, base_move, board_side) {
+                    return None;
+                }
+            }
+            Promotion { base_move, promote_to } => {
+                make_promotion_move(&self, &mut new_position, base_move, promote_to);
+            }
+        }
 
         if king_attacks_finder(&new_position, self.side_to_move()) == 0 {
             // it's a valid move because it doesn't leave the side making the move in check
-            self.update_hash_code(chess_move, &mut new_position);
-            Some((new_position, *chess_move))
+            self.update_hash_code(mov, &mut new_position);
+            Some((new_position, *mov))
         } else {
             None
         }

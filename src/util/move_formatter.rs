@@ -106,7 +106,7 @@ impl MoveFormatter {
             let piece = self.get_moved_piece(position, mov);
             if piece.piece_type == Pawn {
                 if mov.get_base_move().capture {
-                    util::format_square(mov.get_base_move().from).chars().nth(0).unwrap().to_string()
+                    util::format_square(mov.get_base_move().from as usize).chars().nth(0).unwrap().to_string()
                 } else {
                     "".to_string()
                 }
@@ -114,7 +114,7 @@ impl MoveFormatter {
                 self.get_short_algebraic_from_square_for_piece(position, mov)
             }
         } else {
-            util::format_square(mov.get_base_move().from)
+            util::format_square(mov.get_base_move().from as usize)
         }
     }
     fn get_from_to_separator(&self, position: &Position, mov: &Move) -> String {
@@ -128,7 +128,7 @@ impl MoveFormatter {
     }
 
     fn get_to_square(&self, position: &Position, mov: &Move) -> String {
-        util::format_square(mov.get_base_move().to)
+        util::format_square(mov.get_base_move().to as usize)
     }
 
     fn get_promotion_piece(&self, position: &Position, mov: &Move) -> String {
@@ -169,10 +169,10 @@ impl MoveFormatter {
         if other_moves_to_the_same_square.is_empty() {
             String::new()
         } else {
-            let algebraic = util::format_square(mov.get_base_move().from);
-            if other_moves_to_the_same_square.iter().filter(|m| Board::column(m.get_base_move().from) == Board::column(mov.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+            let algebraic = util::format_square(mov.get_base_move().from as usize);
+            if other_moves_to_the_same_square.iter().filter(|m| Board::column(m.get_base_move().from as usize) == Board::column(mov.get_base_move().from as usize)).collect::<Vec<_>>().is_empty() {
                 algebraic.chars().nth(0).unwrap().to_string()
-            } else if other_moves_to_the_same_square.iter().filter(|m| Board::row(m.get_base_move().from) == Board::row(mov.get_base_move().from)).collect::<Vec<_>>().is_empty() {
+            } else if other_moves_to_the_same_square.iter().filter(|m| Board::row(m.get_base_move().from as usize) == Board::row(mov.get_base_move().from as usize)).collect::<Vec<_>>().is_empty() {
                 algebraic.chars().nth(1).unwrap().to_string()
             } else {
                 algebraic
@@ -181,7 +181,7 @@ impl MoveFormatter {
     }
 
     fn get_moved_piece(&self, position: &Position, chess_move: &Move) -> Piece {
-        position.board().get_piece(chess_move.get_base_move().from).unwrap()
+        position.board().get_piece(chess_move.get_base_move().from as usize).unwrap()
     }
 
 }

@@ -112,7 +112,7 @@ pub const fn row_bitboard(row: usize) -> u64 {
 }
 
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
-    moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square }).collect::<Vec<Move>>()
+    moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square as u8 }).collect::<Vec<Move>>()
 }
 
 pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move> {
@@ -165,8 +165,8 @@ pub fn parse_move(raw_move_string: String) -> Option<RawMove> {
     captures.map(|captures| {
         let promote_to = captures.name("promote_to").map(|m| piece::PieceType::from_char(m.as_str().to_string().chars().next().unwrap()));
         RawMove::new(
-            parse_square(captures.name("from").unwrap().as_str()).unwrap(),
-            parse_square(captures.name("to").unwrap().as_str()).unwrap(),
+            parse_square(captures.name("from").unwrap().as_str()).unwrap() as u8,
+            parse_square(captures.name("to").unwrap().as_str()).unwrap() as u8,
             if promote_to.is_some() { Some(promote_to.unwrap().expect("REASON")) } else { None }
         )
     })
