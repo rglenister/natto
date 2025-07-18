@@ -84,7 +84,7 @@ pub struct UndoMoveInfo {
     pub old_castling_rights: [[bool; 2]; 2],
     pub old_en_passant_capture_square: Option<usize>,
     pub old_half_move_clock: usize,
-    pub old_full_move_clock: usize,
+    pub old_full_move_number: usize,
     pub old_zobrist_hash: u64,
 }
 
@@ -96,7 +96,7 @@ impl UndoMoveInfo {
             old_castling_rights: position.castling_rights,
             old_en_passant_capture_square: position.en_passant_capture_square,
             old_half_move_clock: position.half_move_clock,
-            old_full_move_clock: position.full_move_number,
+            old_full_move_number: position.full_move_number,
             old_zobrist_hash: position.hash_code,
         }
     }
@@ -327,6 +327,14 @@ impl Position {
                 White
             };
             self.update_hash_code(mov, &mut new_position);
+
+            #[cfg(debug_assertions)]
+            {
+                let mut temp_new_position = new_position;
+                let previous_position = *temp_new_position.unmake_move(&undo_move_info);
+                assert_eq!(self, &previous_position);
+            }
+
             Some((new_position, *mov, undo_move_info))
         } else {
             None
@@ -336,27 +344,35 @@ impl Position {
     pub fn unmake_move(&mut self, undo_move_info: &UndoMoveInfo) -> &Position {
         let mov = &undo_move_info.mov;
         let base_move = mov.get_base_move();
-        self.move_piece(base_move.to as usize, base_move.from as usize);
 
         match mov {
             Basic { base_move } => {
+                self.move_piece(base_move.to as usize, base_move.from as usize);
                 if let Some(piece_type) = undo_move_info.captured_piece_type {
                     self.put_piece(base_move.to as usize, Piece { piece_color: self.side_to_move, piece_type });
                 }
             }
             EnPassant { base_move, capture_square } => {
+                self.move_piece(base_move.to as usize, base_move.from as usize);
                 self.put_piece(*capture_square as usize, Piece { piece_color: self.side_to_move, piece_type: Pawn });
-                self.en_passant_capture_square = undo_move_info.old_en_passant_capture_square;
             }
             Castling { base_move, board_side } => {
+                self.move_piece(base_move.to as usize, base_move.from as usize);
                 let castling_metadata = &CASTLING_METADATA[!self.side_to_move as usize][*board_side as usize];
                 self.move_piece(castling_metadata.rook_to_square, castling_metadata.rook_from_square);
-                self.castling_rights = undo_move_info.old_castling_rights;
             }
             Promotion { base_move, promote_to } => {
-
+                self.remove_piece(base_move.to as usize);
+                self.put_piece(base_move.from as usize, Piece { piece_color: !self.side_to_move(), piece_type: Pawn });
+                if let Some(piece_type) = undo_move_info.captured_piece_type {
+                    self.put_piece(base_move.to as usize, Piece { piece_color: self.side_to_move, piece_type });
+                }
             }
         }
+        self.castling_rights = undo_move_info.old_castling_rights;
+        self.en_passant_capture_square = undo_move_info.old_en_passant_capture_square;
+        self.half_move_clock = undo_move_info.old_half_move_clock;
+        self.full_move_number = undo_move_info.old_full_move_number;
         self.side_to_move = !self.side_to_move;
         self
     }
@@ -666,11 +682,11 @@ mod tests {
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("b7"), sq!("b8"), Some(Queen))).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_2, position_3);
+        assert_eq!(position_1, position_3);
 
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen))).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_2, position_3);
+        assert_eq!(position_1, position_3);
     }
 }
