@@ -7,7 +7,7 @@ use std::fmt;
 
 include!("../util/generated_macro.rs");
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 #[derive(Clone, Copy, Ord, PartialOrd)]
 pub struct BaseMove {
     pub from: u8,
@@ -29,7 +29,7 @@ pub enum Move {
     },
     EnPassant {
         base_move: BaseMove,
-        capture_square: usize
+        capture_square: u8
     },
     Promotion {
         base_move: BaseMove,
@@ -41,13 +41,17 @@ pub enum Move {
     }
 }
 
-impl Move {
-    pub(crate) fn default() -> Move {
-        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }   
+impl Default for Move {
+    fn default() -> Self {
+        Move::Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
     }
 }
 
 impl Move {
+    pub(crate) fn default() -> Move {
+        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
+    }
+
     pub fn get_base_move(&self) -> &BaseMove {
         match self {
             Basic { base_move }

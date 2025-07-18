@@ -170,7 +170,7 @@ impl TranspositionTable {
             },
             1 => EnPassant {
                 base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
-                capture_square: (move_packed & 0x3F) as usize,
+                capture_square: (move_packed & 0x3F) as u8,
             },
             2 => Promotion {
                 base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },

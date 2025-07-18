@@ -470,7 +470,7 @@ where
         // generate en passant capture
         if let Some(ep_square) = position.en_passant_capture_square() {
             if ((1 << ep_square) & attacked_squares) != 0 {
-                let ep_move = EnPassant { base_move: BaseMove::new(square_index as u8, ep_square as u8, true), capture_square: (ep_square as isize - pawn_increment) as usize };
+                let ep_move = EnPassant { base_move: BaseMove::new(square_index as u8, ep_square as u8, true), capture_square: (ep_square as isize - pawn_increment) as u8 };
                 move_processor.process_move(ep_move);
             }
         }

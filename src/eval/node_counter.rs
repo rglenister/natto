@@ -93,13 +93,13 @@ fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &Position, depth:
             moves
                 .par_iter()
                 .filter_map(|cm| position.make_move(cm))
-                .map(|(pos, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
+                .map(|(pos, _, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
                 .sum()
         } else {
             moves
                 .iter()
                 .filter_map(|cm| position.make_move(cm))
-                .map(|(pos, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
+                .map(|(pos, _, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
                 .sum()
         }
     } else {

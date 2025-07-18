@@ -133,7 +133,7 @@ pub fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec
     let result: Option<Vec<(Position, Move)>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, Move)>, rm: &RawMove| {
         let current_position = if !acc.is_empty() { &acc.last().unwrap().0.clone()} else { position };
         if let Some(next_position) = current_position.make_raw_move(rm) {
-            acc.push(next_position);
+            acc.push((next_position.0, next_position.1));
             return Some(acc);
         }
         None

@@ -203,7 +203,7 @@ fn negamax_search(
             if let Some(next_position) = position.make_move(&mv) {
                 // there isn't a checkmate or a stalemate
                 let mut child_pv: ArrayVec<(Position, Move), MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-                current_line.push(next_position);
+                current_line.push((next_position.0, next_position.1));
                 let next_score = if get_repeat_position_count(&next_position.0, current_line, search_context.repeat_position_counts.as_ref()) >= 2 {
                     // Apply contempt to repetition-based draws
                     evaluation::apply_contempt(0)
@@ -215,7 +215,7 @@ fn negamax_search(
                     best_score = next_score;
                     best_move = Some(mv);
                     pv.clear();
-                    pv.push(next_position);
+                    pv.push((next_position.0, next_position.1));
                     pv.extend(child_pv);
                 }
                 alpha = alpha.max(next_score);
@@ -290,7 +290,7 @@ fn retrieve_principal_variation(position: &Position, current_pv: &Vec<(Position,
                 if visited_positions.contains(&current_position.hash_code()) {
                     break;
                 }
-                pv.push(next_pos);
+                pv.push((next_pos.0, next_pos.1));
                 depth -= 1;
                 visited_positions.insert(current_position.hash_code());
             } else {
