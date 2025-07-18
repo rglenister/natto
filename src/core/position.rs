@@ -320,6 +320,12 @@ impl Position {
 
         if king_attacks_finder(&new_position, self.side_to_move) == 0 {
             // it's a valid move because it doesn't leave the side making the move in check
+            new_position.side_to_move = if self.side_to_move == White {
+                Black
+            } else {
+                new_position.full_move_number += 1;
+                White
+            };
             self.update_hash_code(mov, &mut new_position);
             Some((new_position, *mov, undo_move_info))
         } else {
@@ -356,12 +362,6 @@ impl Position {
     }
 
     fn update_hash_code(&self, chess_move: &Move, new_position: &mut Position) {
-        new_position.side_to_move = if self.side_to_move == White {
-            Black
-        } else {
-            new_position.full_move_number += 1;
-            White
-        };
         new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[White as usize];
         new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[Black as usize];
 
@@ -378,9 +378,12 @@ impl Position {
             // add the new en passant square to the hash only if an en passant capture can actually be made
             new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
         }
-        // todo this should be conditionally compiled out
-        if new_position.hash_code != new_position.create_initial_hash() {
-            panic!("Hash code mismatch after move: {}", chess_move);
+
+        #[cfg(debug_assertions)]
+        {
+            if new_position.hash_code != new_position.create_initial_hash() {
+                panic!("Hash code mismatch after move: {}", chess_move);
+            }
         }
     }
 
