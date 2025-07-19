@@ -82,6 +82,7 @@ pub struct UndoMoveInfo {
     pub mov: Move,
     pub captured_piece_type: Option<PieceType>,
     pub old_castling_rights: [[bool; 2]; 2],
+    pub old_castled: [bool; 2],
     pub old_en_passant_capture_square: Option<usize>,
     pub old_half_move_clock: usize,
     pub old_full_move_number: usize,
@@ -94,6 +95,7 @@ impl UndoMoveInfo {
             mov,
             captured_piece_type: None,
             old_castling_rights: position.castling_rights,
+            old_castled: position.castled,
             old_en_passant_capture_square: position.en_passant_capture_square,
             old_half_move_clock: position.half_move_clock,
             old_full_move_number: position.full_move_number,
@@ -332,7 +334,7 @@ impl Position {
             {
                 let mut temp_new_position = new_position;
                 let previous_position = *temp_new_position.unmake_move(&undo_move_info);
-                assert_eq!(self, &previous_position);
+                assert_eq!(format!("{:?}", self), format!("{:?}", &previous_position));
             }
 
             Some((new_position, *mov, undo_move_info))
@@ -343,7 +345,6 @@ impl Position {
 
     pub fn unmake_move(&mut self, undo_move_info: &UndoMoveInfo) -> &Position {
         let mov = &undo_move_info.mov;
-        let base_move = mov.get_base_move();
 
         match mov {
             Basic { base_move } => {
@@ -370,9 +371,11 @@ impl Position {
             }
         }
         self.castling_rights = undo_move_info.old_castling_rights;
+        self.castled = undo_move_info.old_castled;
         self.en_passant_capture_square = undo_move_info.old_en_passant_capture_square;
         self.half_move_clock = undo_move_info.old_half_move_clock;
         self.full_move_number = undo_move_info.old_full_move_number;
+        self.hash_code = undo_move_info.old_zobrist_hash;
         self.side_to_move = !self.side_to_move;
         self
     }
@@ -642,13 +645,13 @@ mod tests {
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("g5"), sq!("e6"), None)).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_1, position_3);
+        assert_eq!(format!("{:?}", position_1), format!("{:?}", position_3));
 
         // with capture
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("g5"), sq!("e4"), None)).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_1, position_3);
+        assert_eq!(format!("{:?}", position_1), format!("{:?}", position_3));
     }
 
     #[test]
@@ -660,18 +663,17 @@ mod tests {
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
         let (mut position_3, mov, undo_move_info) = position_2.make_raw_move(&RawMove::new(sq!("f5"), sq!("e6"), None)).unwrap();
         let position_4 = *position_3.unmake_move(&undo_move_info);
-        assert_eq!(position_2, position_4);
+        assert_eq!(format!("{:?}", position_2), format!("{:?}", position_4));
     }
 
     #[test]
     fn test_unmake_castling_move() {
         let fen = "r3k3/8/8/8/8/8/8/4K3 b q - 0 1";
 
-        // no capture
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("e8"), sq!("c8"), None)).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_1, position_3);
+        assert_eq!(format!("{:?}", position_1), format!("{:?}", position_3));
     }
 
     #[test]
@@ -682,11 +684,12 @@ mod tests {
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("b7"), sq!("b8"), Some(Queen))).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_1, position_3);
+        assert_eq!(format!("{:?}", position_1), format!("{:?}", position_3));
 
+        // with capture
         let position_1 = Position::from(fen);
         let (mut position_2, mov, undo_move_info) = position_1.make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen))).unwrap();
         let position_3 = *position_2.unmake_move(&undo_move_info);
-        assert_eq!(position_1, position_3);
+        assert_eq!(format!("{:?}", position_1), format!("{:?}", position_3));
     }
 }
