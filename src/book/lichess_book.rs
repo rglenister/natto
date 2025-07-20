@@ -109,37 +109,37 @@ fn validate_move(position: &Position, raw_chess_move: RawMove) -> Result<Move, E
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn test_get_opening_move() {
-    //     let opening_book = LiChessOpeningBook::new();
-    //     let opening_move = opening_book.get_opening_move(&Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
-    //     let opening_move = opening_move.unwrap();
-    //     assert!(opening_move.promote_to.is_none());
-    // }
-    //
-    // #[test]
-    // fn test_get_opening_move_for_kings_only_position() {
-    //     let opening_book = LiChessOpeningBook::new();
-    //     let result = opening_book.get_opening_move(&Position::from("k7/8/8/8/8/8/8/K7 w - - 0 1"));
-    //     assert_eq!(result.err().unwrap(), ErrorKind::NoOpeningMovesFound);
-    // }
-    //
-    // #[test]
-    // fn test_map_castling_move_to_uci_format() {
-    //     let position = Position::new_game();
-    //     assert_eq!(map_castling_move_to_uci_format("a2a3", &position), "a2a3");
-    //     assert_eq!(map_castling_move_to_uci_format("e1g1", &position), "e1g1");
-    //     assert_eq!(map_castling_move_to_uci_format("e1h1", &position), "e1g1");
-    //     assert_eq!(map_castling_move_to_uci_format("e1a1", &position), "e1c1");
-    //     assert_eq!(map_castling_move_to_uci_format("e8h8", &position), "e8g8");
-    //     assert_eq!(map_castling_move_to_uci_format("e8a8", &position), "e8c8");
-    //
-    //     let position = Position::from("k7/8/8/8/8/8/8/K7 w - - 0 1");
-    //     assert_eq!(map_castling_move_to_uci_format("a2a3", &position), "a2a3");
-    //     assert_eq!(map_castling_move_to_uci_format("e1g1", &position), "e1g1");
-    //     assert_eq!(map_castling_move_to_uci_format("e1h1", &position), "e1h1");
-    //     assert_eq!(map_castling_move_to_uci_format("e1a1", &position), "e1a1");
-    //     assert_eq!(map_castling_move_to_uci_format("e8h8", &position), "e8h8");
-    //     assert_eq!(map_castling_move_to_uci_format("e8a8", &position), "e8a8");
-    // }
+    #[test]
+    fn test_get_opening_move() {
+        let opening_book = LiChessOpeningBook::new();
+        let opening_move = opening_book.get_opening_move(&Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+        let opening_move = opening_move.unwrap();
+        assert!(opening_move.promote_to.is_none());
+    }
+
+    #[test]
+    fn test_get_opening_move_for_kings_only_position() {
+        let opening_book = LiChessOpeningBook::new();
+        let result = opening_book.get_opening_move(&Position::from("k7/8/8/8/8/8/8/K7 w - - 0 1"));
+        assert_eq!(result.err().unwrap(), ErrorKind::NoOpeningMovesFound);
+    }
+
+    #[test]
+    fn test_map_castling_move_to_uci_format() {
+        let position = Position::new_game();
+        assert_eq!(map_castling_move_to_uci_format("a2a3", &position), "a2a3");
+        assert_eq!(map_castling_move_to_uci_format("e1g1", &position), "e1g1");
+        assert_eq!(map_castling_move_to_uci_format("e1h1", &position), "e1g1");
+        assert_eq!(map_castling_move_to_uci_format("e1a1", &position), "e1c1");
+        assert_eq!(map_castling_move_to_uci_format("e8h8", &position), "e8g8");
+        assert_eq!(map_castling_move_to_uci_format("e8a8", &position), "e8c8");
+
+        let position = Position::from("k7/8/8/8/8/8/8/K7 w - - 0 1");
+        assert_eq!(map_castling_move_to_uci_format("a2a3", &position), "a2a3");
+        assert_eq!(map_castling_move_to_uci_format("e1g1", &position), "e1g1");
+        assert_eq!(map_castling_move_to_uci_format("e1h1", &position), "e1h1");
+        assert_eq!(map_castling_move_to_uci_format("e1a1", &position), "e1a1");
+        assert_eq!(map_castling_move_to_uci_format("e8h8", &position), "e8h8");
+        assert_eq!(map_castling_move_to_uci_format("e8a8", &position), "e8a8");
+    }
 }
