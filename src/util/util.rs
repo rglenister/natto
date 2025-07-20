@@ -9,6 +9,7 @@ use std::ops::Add;
 use crate::core::board::Board;
 use crate::core::piece::PieceType::{Bishop, Queen, Rook};
 use crate::core::position::Position;
+use crate::search::negamax::RepetitionKey;
 
 include!("generated_macro.rs");
 
@@ -141,6 +142,17 @@ pub fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec
     result
 }
 
+pub fn create_repetition_keys(position: &Position, raw_moves_string: String) -> Option<Vec<RepetitionKey>> {
+    std::iter::once(RepetitionKey::new(position))
+        .chain(
+            replay_moves(position, raw_moves_string)?
+                .into_iter()
+                .map(|(pos, _)| RepetitionKey::new(&pos))
+        )
+        .collect::<Vec<RepetitionKey>>()
+        .into()
+}
+
 pub fn parse_initial_moves(raw_move_strings: Vec<String>) -> Option<Vec<RawMove>> {
     let result: Option<Vec<RawMove>> = raw_move_strings.iter().try_fold(Vec::new(), |mut acc: Vec<RawMove>, rms: &String| {
         match parse_move(rms.clone()) {
@@ -257,7 +269,6 @@ mod tests {
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
     use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::core::position::NEW_GAME_FEN;
     use crate::core::r#move::BaseMove;
     use crate::core::r#move::Move::{Basic, Promotion};
     use super::*;
@@ -392,9 +403,9 @@ mod tests {
 
     #[test]
     fn test_repeat_position_counts() {
-        let position_1 = Position::from(NEW_GAME_FEN);
+        let position_1 = Position::new_game();
         let position_2 = position_1.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap().0;
-        let position_3 = Position::from(NEW_GAME_FEN);
+        let position_3 = Position::new_game();
         let repeat_position_counts = create_repeat_position_counts(vec!(position_1, position_2, position_3));
 
         assert_eq!(position_1, position_3);
@@ -407,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_replay_moves() {
-        let position = Position::from(NEW_GAME_FEN);
+        let position = Position::new_game();
         let moves = "e2e4 e7e5".to_string();
         let result = replay_moves(&position, moves);
         assert!(result.is_some());
@@ -417,11 +428,39 @@ mod tests {
         let fen = fen::write(&last_position);
         assert_eq!(fen, "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".to_string());
 
-        let position = Position::from(NEW_GAME_FEN);
+        let position = Position::new_game();
         let moves = "e2e4 e6e5".to_string();
         let result = replay_moves(&position, moves);
         assert!(result.is_none());
     }
+
+    #[test]
+    fn test_create_repetition_keys() {
+        let position_1 = Position::new_game();
+        let moves = "e2e4 e7e5".to_string();
+        let result = create_repetition_keys(&position_1, moves);
+        assert!(result.is_some());
+        let repetition_keys = result.unwrap();
+        assert_eq!(repetition_keys.len(), 3);
+
+        assert_eq!(repetition_keys[0], RepetitionKey::new(&position_1));
+
+        let position_2 = position_1.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap().0;
+        assert_eq!(repetition_keys[1], RepetitionKey::new(&position_2));
+
+        let position_3 = position_2.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap().0;
+        assert_eq!(repetition_keys[2], RepetitionKey::new(&position_3));
+    }
+    #[test]
+    fn test_create_repetition_keys_no_moves() {
+        let position = Position::new_game();
+        let moves = "".to_string();
+        let result = create_repetition_keys(&position, moves);
+        assert!(result.is_some());
+        let repetition_keys = result.unwrap();
+        assert_eq!(repetition_keys.len(), 1);
+    }
+
 
     #[test]
     fn test_column_bitboard() {

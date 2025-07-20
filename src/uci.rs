@@ -1,6 +1,6 @@
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::r#move::{Move, RawMove};
-use crate::search::negamax::{SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{RepetitionKey, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
@@ -21,6 +21,7 @@ pub struct UciPosition {
     pub given_position: Position,
     pub end_position: Position,
     pub position_move_pairs: Option<Vec<(Position, Move)>>,
+    pub repetition_keys: Vec<RepetitionKey>,
 }
 
 impl UciPosition {
@@ -93,7 +94,8 @@ pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
             .map(|moves| UciPosition {
                 given_position: *position,
                 end_position: if !moves.is_empty() { moves.last().unwrap().0 } else {*position},
-                position_move_pairs: Some(moves)
+                position_move_pairs: Some(moves),
+                repetition_keys: util::create_repetition_keys(position, captures.get(3).map_or("".to_string(), |m| m.as_str().to_string())).unwrap(),
             })
     }
 
@@ -161,7 +163,7 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);
     let repeat_position_counts = Some(create_repeat_position_counts(uci_position.all_game_positions()));
-    search::negamax::iterative_deepening(&uci_position.end_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts)
+    search::negamax::iterative_deepening(&uci_position.end_position, &search_params, Arc::new(AtomicBool::new(false)), repeat_position_counts, vec!(RepetitionKey::new(&uci_position.end_position)))
 }
 
 #[cfg(test)]
@@ -173,7 +175,7 @@ mod tests {
         let white_to_move = Position::new_game();
         let black_to_move = white_to_move.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None));
         let position = if side_to_move == White {white_to_move} else {black_to_move.unwrap().0};
-        UciPosition { given_position: position, end_position: position, position_move_pairs: None }
+        UciPosition { given_position: position, end_position: position, position_move_pairs: None, repetition_keys: vec!() }
     }
 
     #[test]

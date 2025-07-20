@@ -10,7 +10,7 @@ use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use crate::util::{fen, util};
-use crate::core::position::Position;
+use crate::core::position::{Position, UndoMoveInfo};
 use crate::eval::evaluation;
 use crate::core::r#move::Move;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
@@ -82,6 +82,8 @@ impl SearchParams {
 pub struct SearchContext<'a> {
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
+    pub repetition_key_stack: Vec<RepetitionKey>,
+    pub undo_move_info_stack: Vec<UndoMoveInfo>,
     pub repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
     pub move_orderer: MoveOrderer,
 }
@@ -96,6 +98,8 @@ impl SearchContext<'_> {
         SearchContext {
             search_params,
             stop_flag,
+            repetition_key_stack: vec![],
+            undo_move_info_stack: vec![],
             repeat_position_counts,
             move_orderer,
         }
@@ -111,13 +115,35 @@ impl SearchResults {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepetitionKey {
+    pub zobrist_hash: u64,
+    pub half_move_clock: usize,
+}
+
+
+impl RepetitionKey {
+    pub fn new(position: &Position) -> Self {
+        Self {
+            zobrist_hash: position.hash_code(),
+            half_move_clock: position.half_move_clock(),
+        }
+    }
+}
+
 pub fn increment_node_counter() -> NodeCountStats {
     let node_counter = NODE_COUNTER.read().unwrap();
     node_counter.increment();
     node_counter_stats()
 }
 
-pub fn iterative_deepening(position: &Position, search_params: &SearchParams, stop_flag: Arc<AtomicBool>, repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> SearchResults {
+pub fn iterative_deepening(
+    position: &Position,
+    search_params: &SearchParams,
+    stop_flag: Arc<AtomicBool>,
+    repeat_position_counts: Option<HashMap<u64, (Position, usize)>>,
+    repetition_keys: Vec<RepetitionKey>) -> SearchResults {
+
     reset_node_counter();
     let mut search_results_stack = vec!();
     for iteration_max_depth in 1..=search_params.max_depth {
@@ -408,7 +434,7 @@ mod tests {
         setup();
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX }, Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(search_results.score, -1020);
         let pv = move_formatter::LONG_FORMATTER.format_move_list(&position, &search_results.pv).unwrap().join(", ");
         assert_eq!(pv, "♞c4xd6");
@@ -419,7 +445,7 @@ mod tests {
         setup();
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(
             search_results,
             SearchResults {
@@ -437,7 +463,7 @@ mod tests {
         setup();
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(
             search_results,
             SearchResults {
@@ -455,7 +481,7 @@ mod tests {
         setup();
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -474,7 +500,7 @@ mod tests {
         setup();
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -493,7 +519,7 @@ mod tests {
         setup();
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
         test_eq(
             &search_results,
@@ -512,7 +538,7 @@ mod tests {
         setup();
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(format_move_list(&position, &search_results), "♖f6-a6+,f7-f6,♗e5xf6+,♜g8-g7,♖a6xa8#");
         test_eq(
             &search_results,
@@ -567,7 +593,7 @@ mod tests {
         setup();
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(7), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(long_format_moves(&position, &search_results), "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,f5xg6#");
         test_eq(
             &search_results,
@@ -586,7 +612,7 @@ mod tests {
         setup();
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(format_move_list(&position, &search_results), "♗f1-c4,♚e4-e5,♕d1-d5+,♚e5-f6,♕d5-g5#");
         test_eq(
             &search_results,
@@ -605,7 +631,7 @@ mod tests {
         setup();
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
     
@@ -614,7 +640,7 @@ mod tests {
         setup();
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), None, vec!());
         let pv = search_results.pv_moves_as_string();
         assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
     }
@@ -624,7 +650,7 @@ mod tests {
         setup();
         let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         let pv = search_results.pv_moves_as_string();
         assert_eq!(format_move_list(&position, &search_results), "♛c8-c2");
     }
@@ -634,7 +660,7 @@ mod tests {
         setup();
         let fen = "4k3/8/R7/7n/7r/8/8/4K3 b - - 98 76";
         let in_progress_position: Position = Position::from(fen);
-        let in_progress_search_results = iterative_deepening(&in_progress_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let in_progress_search_results = iterative_deepening(&in_progress_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(in_progress_search_results.pv_moves_as_string(), "h5-f4".to_string());
         test_eq(
             &in_progress_search_results,
@@ -648,7 +674,7 @@ mod tests {
         );
 
         let drawn_position = in_progress_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap().0;
-        let drawn_position_search_results = iterative_deepening(&drawn_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let drawn_position_search_results = iterative_deepening(&drawn_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
             &drawn_position_search_results,
@@ -810,7 +836,7 @@ mod tests {
         setup();
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
         let position: Position = Position::from(fen);
-        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None);
+        let search_results = iterative_deepening(&position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), None, vec!());
         assert_eq!(format_move_list(&position, &search_results), "♛g7xh6");
     }
 }
