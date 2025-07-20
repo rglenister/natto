@@ -184,14 +184,6 @@ pub fn parse_move(raw_move_string: String) -> Option<RawMove> {
     })
 }
 
-pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (Position, usize)> {
-    let mut repeat_position_counts: HashMap<u64, (Position, usize)> = HashMap::new();
-    for position in positions {
-        repeat_position_counts.entry(position.hash_code()).or_insert((position, 0)).1 += 1;
-    }
-    repeat_position_counts
-}
-
 pub fn is_piece_pinned(position: &Position, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
     is_blocking_attack_to_square(position, position.board().king_square(!attacking_color) as isize, blocking_piece_square, attacking_color)
 }
@@ -402,21 +394,6 @@ mod tests {
     }
 
     #[test]
-    fn test_repeat_position_counts() {
-        let position_1 = Position::new_game();
-        let position_2 = position_1.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap().0;
-        let position_3 = Position::new_game();
-        let repeat_position_counts = create_repeat_position_counts(vec!(position_1, position_2, position_3));
-
-        assert_eq!(position_1, position_3);
-        assert_eq!(position_1.hash_code(), position_3.hash_code());
-        assert_eq!(repeat_position_counts.iter().count(), 2);
-        assert_eq!(repeat_position_counts[&position_1.hash_code()], (position_1, 2));
-        assert_eq!(repeat_position_counts[&position_2.hash_code()], (position_2, 1));
-
-    }
-
-    #[test]
     fn test_replay_moves() {
         let position = Position::new_game();
         let moves = "e2e4 e7e5".to_string();
@@ -451,6 +428,7 @@ mod tests {
         let position_3 = position_2.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap().0;
         assert_eq!(repetition_keys[2], RepetitionKey::new(&position_3));
     }
+
     #[test]
     fn test_create_repetition_keys_no_moves() {
         let position = Position::new_game();
@@ -460,7 +438,6 @@ mod tests {
         let repetition_keys = result.unwrap();
         assert_eq!(repetition_keys.len(), 1);
     }
-
 
     #[test]
     fn test_column_bitboard() {

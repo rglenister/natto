@@ -1,20 +1,19 @@
-use std::collections::HashMap;
-use strum::IntoEnumIterator;
 use crate::core::board::Board;
-use crate::core::piece::{Piece, PieceColor, PieceType};
-use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::core::move_gen;
 use crate::core::piece::PieceColor::{Black, White};
+use crate::core::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
+use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
 use crate::engine::config::get_contempt;
 use crate::eval::kings::score_kings;
 use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;
 use crate::search;
-use crate::search::negamax::MAXIMUM_SCORE;
+use crate::search::negamax::{RepetitionKey, MAXIMUM_SCORE};
 use crate::util::bitboard_iterator::BitboardIterator;
 use crate::util::util;
 use crate::util::util::row_bitboard;
+use strum::IntoEnumIterator;
 
 include!("../util/generated_macro.rs");
 
@@ -95,8 +94,8 @@ pub fn score_position(position: &Position) -> isize {
     if position.side_to_move() == White { score } else { -score }
 }
 
-pub fn evaluate(position: &Position, depth: usize, historic_repeat_position_counts: Option<&HashMap<u64, (Position, usize)>>) -> isize {
-    let game_status = get_game_status(position, historic_repeat_position_counts.cloned());
+pub fn evaluate(position: &Position, depth: usize, repetition_key_stack: &Vec<RepetitionKey>) -> isize {
+    let game_status = get_game_status(position, repetition_key_stack);
     match game_status {
         GameStatus::InProgress => {
             let score = score_position(position);
@@ -140,7 +139,7 @@ pub fn has_insufficient_material(position: &Position) -> bool {
     false
 }
 
-pub fn get_game_status(position: &Position, historic_repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> GameStatus {
+pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<RepetitionKey>) -> GameStatus {
     let has_legal_move = move_gen::has_legal_move(position);
     let check_count = move_gen::king_attacks_finder(position, position.side_to_move()).count_ones() as usize;
     match (!has_legal_move, check_count > 0) {
@@ -149,7 +148,7 @@ pub fn get_game_status(position: &Position, historic_repeat_position_counts: Opt
         _ => {
             if position.half_move_clock() >= 100 {
                 GameStatus::DrawnByFiftyMoveRule
-            } else if has_three_fold_repetition(position, historic_repeat_position_counts) {
+            } else if has_three_fold_repetition(position, repetition_key_stack) {
                 GameStatus::DrawnByThreefoldRepetition
             } else if has_insufficient_material(&position) {
                 GameStatus::DrawnByInsufficientMaterial
@@ -159,8 +158,8 @@ pub fn get_game_status(position: &Position, historic_repeat_position_counts: Opt
         }
     }
 }
-pub fn has_three_fold_repetition(position: &Position, historic_repeat_position_counts: Option<HashMap<u64, (Position, usize)>>) -> bool {
-    search::negamax::get_repeat_position_count(position, &*vec!(), historic_repeat_position_counts.as_ref()) >= 3
+pub fn has_three_fold_repetition(position: &Position, repetition_key_stack: &Vec<RepetitionKey>) -> bool {
+    search::negamax::get_repeat_position_count(repetition_key_stack) >= 2
 }
 pub fn is_check(position: &Position) -> bool {
     check_count(position) >= 1
@@ -397,15 +396,15 @@ mod tests {
 
     #[cfg(test)]
     mod game_tests {
-        use crate::core::move_gen::has_legal_move;
         use super::*;
+        use crate::core::move_gen::has_legal_move;
         #[test]
         fn test_double_check() {
             let fen = "2r2q1k/5pp1/4p1N1/8/1bp5/5P1R/6P1/2R4K b - - 0 1";
             let position = Position::from(fen);
             assert_eq!(is_check(&position), true);
             assert_eq!(check_count(&position), 2);
-            assert_eq!(get_game_status(&position, None), GameStatus::InProgress);
+            assert_eq!(get_game_status(&position, &vec!()), GameStatus::InProgress);
             assert_eq!(has_legal_move(&position), true);
         }
 
@@ -415,7 +414,7 @@ mod tests {
             let position = Position::from(fen);
             assert_eq!(is_check(&position), true);
             assert_eq!(check_count(&position), 1);
-            assert_eq!(get_game_status(&position, None), GameStatus::Checkmate);
+            assert_eq!(get_game_status(&position, &vec!()), GameStatus::Checkmate);
             assert_eq!(has_legal_move(&position), false);
         }
 
@@ -425,7 +424,7 @@ mod tests {
             let position = Position::from(fen);
             assert_eq!(is_check(&position), false);
             assert_eq!(check_count(&position), 0);
-            assert_eq!(get_game_status(&position, None), GameStatus::Stalemate);
+            assert_eq!(get_game_status(&position, &vec!()), GameStatus::Stalemate);
             assert_eq!(has_legal_move(&position), false);
         }
     }

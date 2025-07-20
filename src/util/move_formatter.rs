@@ -151,7 +151,7 @@ impl MoveFormatter {
 
     fn get_result(&self, position: &Position, mov: &Move) -> String {
         let next_position = &position.make_move(mov).unwrap().0;
-        match evaluation::get_game_status(next_position, None) {
+        match evaluation::get_game_status(next_position, &vec!()) {
             GameStatus::Checkmate => { "#".to_string() }
             _ => "+".repeat(evaluation::check_count(next_position)).to_string()
         }
