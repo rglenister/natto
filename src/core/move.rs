@@ -97,7 +97,7 @@ impl fmt::Display for RawMove {
     }
 }
 
-pub fn convert_chess_moves_to_raw(moves: Vec<Move>) -> Vec<RawMove> {
+pub fn convert_chess_moves_to_raw(moves: &Vec<Move>) -> Vec<RawMove> {
     moves.into_iter().map(|m| {
         convert_chess_move_to_raw(&m)
     }).collect()
@@ -201,7 +201,7 @@ mod tests {
             Promotion { base_move: BaseMove { from: 5, to: 6, capture: false}, promote_to: PieceType::Rook },
             Castling { base_move: BaseMove { from: 7, to: 8, capture: false}, board_side: BoardSide::KingSide },
         ];
-        let raw_moves = convert_chess_moves_to_raw(moves);
+        let raw_moves = convert_chess_moves_to_raw(&moves);
         assert_eq!(raw_moves.len(), 4);
         assert_eq!(raw_moves[0], RawMove::new(1, 2, None));
         assert_eq!(raw_moves[1], RawMove::new(3, 4, None));
