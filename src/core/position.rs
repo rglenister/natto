@@ -82,8 +82,8 @@ pub struct UndoMoveInfo {
     pub mov: Move,
     pub captured_piece_type: Option<PieceType>,
     pub old_castling_rights: [[bool; 2]; 2],
-    pub old_castled: [bool; 2],
     pub old_en_passant_capture_square: Option<usize>,
+    pub old_is_en_passant_capture_possible: bool,
     pub old_half_move_clock: usize,
     pub old_full_move_number: usize,
     pub old_side_to_move: PieceColor,
@@ -96,8 +96,8 @@ impl UndoMoveInfo {
             mov,
             captured_piece_type: None,
             old_castling_rights: position.castling_rights,
-            old_castled: position.castled,
             old_en_passant_capture_square: position.en_passant_capture_square,
+            old_is_en_passant_capture_possible: is_en_passant_capture_possible(position),
             old_half_move_clock: position.half_move_clock,
             old_full_move_number: position.full_move_number,
             old_side_to_move: position.side_to_move,
@@ -176,13 +176,6 @@ impl Position {
         self.castling_rights
     }
 
-    pub fn castling_rights_as_u64(&self) -> u64 {
-        (self.castling_rights[White as usize][KingSide as usize] as u64) |
-            ((self.castling_rights[White as usize][QueenSide as usize] as u64) << 1) |
-            ((self.castling_rights[Black as usize][KingSide as usize] as u64) << 2) |
-            ((self.castling_rights[Black as usize][QueenSide as usize] as u64) << 3)
-    }
-
     pub fn en_passant_capture_square(&self) -> Option<usize> {
         self.en_passant_capture_square
     }
@@ -206,7 +199,7 @@ impl Position {
     fn create_initial_hash(&self) -> u64 {
         let mut initial_hash: u64 = self.get_board_hash();
         initial_hash ^= POSITION_HASHES.side_to_move_hashes_table[self.side_to_move as usize];
-        initial_hash ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
+        initial_hash ^= POSITION_HASHES.castling_hashes_table[Position::castling_rights_as_u8(&self.castling_rights) as usize];
 
         if is_en_passant_capture_possible(self) {
             initial_hash ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
@@ -299,8 +292,10 @@ impl Position {
                 position.half_move_clock += 1;
             }
         }
-
-        let original_position = self.clone();
+        let original_position: Position;
+        #[cfg(debug_assertions)] {
+            original_position = self.clone();
+        }
         let mut undo_move_info = UndoMoveInfo::new(self, *mov);
         self.en_passant_capture_square = None;
 
@@ -329,14 +324,14 @@ impl Position {
         };
         if king_attacks_finder(self, !self.side_to_move) == 0 {
             // it's a valid move because it doesn't leave the side making the move in check
-            self.update_hash_code(mov, &undo_move_info);
+            self.update_hash_code(&undo_move_info);
 
-            // #[cfg(debug_assertions)]
-            // {
-            //     let mut temp_new_position = self.clone();
-            //     temp_new_position.unmake_move(&undo_move_info);
-            //     assert_eq!(format!("{:?}", temp_new_position), format!("{:?}", &original_position));
-            // }
+            #[cfg(debug_assertions)]
+            {
+                let mut temp_new_position = self.clone();
+                temp_new_position.unmake_move(&undo_move_info);
+                assert_eq!(format!("{:?}", temp_new_position), format!("{:?}", &original_position));
+            }
 
             Some(undo_move_info)
         } else {
@@ -363,17 +358,17 @@ impl Position {
                 self.move_piece(base_move.to as usize, base_move.from as usize);
                 let castling_metadata = &CASTLING_METADATA[!self.side_to_move as usize][*board_side as usize];
                 self.move_piece(castling_metadata.rook_to_square, castling_metadata.rook_from_square);
+                self.castled[!self.side_to_move as usize] = false;
             }
             Promotion { base_move, promote_to } => {
                 self.remove_piece(base_move.to as usize);
-                self.put_piece(base_move.from as usize, Piece { piece_color: !self.side_to_move(), piece_type: Pawn });
+                self.put_piece(base_move.from as usize, Piece { piece_color: !self.side_to_move, piece_type: Pawn });
                 if let Some(piece_type) = undo_move_info.captured_piece_type {
                     self.put_piece(base_move.to as usize, Piece { piece_color: self.side_to_move, piece_type });
                 }
             }
         }
         self.castling_rights = undo_move_info.old_castling_rights;
-        self.castled = undo_move_info.old_castled;
         self.en_passant_capture_square = undo_move_info.old_en_passant_capture_square;
         self.half_move_clock = undo_move_info.old_half_move_clock;
         self.full_move_number = undo_move_info.old_full_move_number;
@@ -381,31 +376,30 @@ impl Position {
         self.side_to_move = undo_move_info.old_side_to_move;
     }
 
-    fn update_hash_code(&mut self, chess_move: &Move, undo_move_info: &UndoMoveInfo) {
-        let mut new_position = self;
-        new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[White as usize];
-        new_position.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[Black as usize];
+    fn update_hash_code(&mut self, undo_move_info: &UndoMoveInfo) {
+        self.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[White as usize];
+        self.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[Black as usize];
 
-        if new_position.castling_rights != undo_move_info.old_castling_rights {
-//            new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[self.castling_rights_as_u64() as usize];
-            new_position.hash_code ^= POSITION_HASHES.castling_hashes_table[new_position.castling_rights_as_u64() as usize];
+        if self.castling_rights != undo_move_info.old_castling_rights {
+            self.hash_code ^= POSITION_HASHES.castling_hashes_table[Position::castling_rights_as_u8(&undo_move_info.old_castling_rights) as usize];
+            self.hash_code ^= POSITION_HASHES.castling_hashes_table[Position::castling_rights_as_u8(&self.castling_rights) as usize];
         }
         // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
-        //if is_en_passant_capture_possible(self) {
+        if undo_move_info.old_en_passant_capture_square.is_some() && undo_move_info.old_is_en_passant_capture_possible {
             // remove the old en passant from the hash only if an en passant capture could be made because it won't have been added to the hash
-            //new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
-        //}
-        if is_en_passant_capture_possible(new_position) {
+            self.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[undo_move_info.old_en_passant_capture_square.unwrap()];
+        }
+        if is_en_passant_capture_possible(self) {
             // add the new en passant square to the hash only if an en passant capture can actually be made
-            new_position.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[new_position.en_passant_capture_square.unwrap()];
+            self.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
         }
 
-        // #[cfg(debug_assertions)]
-        // {
-        //     if new_position.hash_code != new_position.create_initial_hash() {
-        //         panic!("Hash code mismatch after move: {}", chess_move);
-        //     }
-        // }
+        #[cfg(debug_assertions)]
+        {
+            if self.hash_code != self.create_initial_hash() {
+                panic!("Hash code mismatch after move: {}", undo_move_info.mov);
+            }
+        }
     }
 
     pub fn can_castle(&self, piece_color: PieceColor, board_side: &BoardSide) -> bool {
@@ -422,6 +416,13 @@ impl Position {
             flags[1][1] = castling_rights.contains('q');
         }
         flags
+    }
+
+    fn castling_rights_as_u8(castling_rights: &[[bool; 2]; 2]) -> u8 {
+        (castling_rights[White as usize][KingSide as usize] as u8) |
+            ((castling_rights[White as usize][QueenSide as usize] as u8) << 1) |
+            ((castling_rights[Black as usize][KingSide as usize] as u8) << 2) |
+            ((castling_rights[Black as usize][QueenSide as usize] as u8) << 3)
     }
 }
 #[cfg(test)]
@@ -530,7 +531,7 @@ mod tests {
         let position = Position::from(fen);
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_u64(), 15);
+        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 15);
 
         let moves = generate_moves(&position);
         let castling_moves: Vec<_> =
@@ -544,7 +545,7 @@ mod tests {
         let mut position_1 = position.clone();
         position_1.make_move(&castling_moves[0]).unwrap();
         assert_eq!(position_1.castling_rights[White as usize], [false, false]);
-        assert_eq!(position_1.castling_rights_as_u64(), 12);
+        assert_eq!(Position::castling_rights_as_u8(&position_1.castling_rights), 12);
     }
 
     #[test]
@@ -553,14 +554,14 @@ mod tests {
         let mut position = Position::from(fen);
         assert_eq!(position.castling_rights[White as usize], [true, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_u64(), 15);
+        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 15);
         let moves = generate_moves(&position);
         let king_moves: Vec<_> = util::filter_moves_by_from_square(moves, sq!("e1"));
         assert_eq!(king_moves.len(), 7);
         let new_position = position.make_move(&king_moves[0]).unwrap();
         assert_eq!(position.castling_rights[White as usize], [false, false]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_u64(), 12);
+        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 12);
     }
     #[test]
     fn test_castling_rights_lost_after_moving_rook() {
@@ -573,13 +574,13 @@ mod tests {
         position.make_raw_move(&RawMove::new(sq!("a1"), sq!("a2"), None)).unwrap();
         assert_eq!(position.castling_rights[White as usize], [true, false]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_u64(), 13);
+        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 13);
 
         let mut position = original_position.clone();
         position.make_raw_move(&RawMove::new(sq!("h1"), sq!("h2"), None)).unwrap();
         assert_eq!(position.castling_rights[White as usize], [false, true]);
         assert_eq!(position.castling_rights[Black as usize], [true, true]);
-        assert_eq!(position.castling_rights_as_u64(), 14);
+        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 14);
     }
 
     #[test]

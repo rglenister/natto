@@ -237,7 +237,7 @@ impl MoveProcessor for HasLegalMoveProcessor {
     type Output = bool;
     fn process_move(&mut self, mov: Move) {
         if !self.found_legal_move {
-             self.found_legal_move = self.position.clone().make_move(&mov).is_some();
+            self.found_legal_move = self.position.clone().make_move(&mov).is_some();
         }
     }
 
