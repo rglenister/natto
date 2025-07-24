@@ -18,15 +18,15 @@ use crate::core::position::Position;
 include!("../util/generated_macro.rs");
 
 pub fn squares_attacked_by_pawn(piece_color: PieceColor, pawn_square_index: usize) -> u64 {
-    PAWN_ATTACKS_TABLE[&piece_color][pawn_square_index]
+    PAWN_ATTACKS_TABLE[piece_color as usize][pawn_square_index]
 }
 
-static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy::new(|| {
-    let mut table = HashMap::new();
+static PAWN_ATTACKS_TABLE: Lazy<[[u64; 64]; 2]> = Lazy::new(|| {
+    let mut table = [[0u64; 64]; 2];
     // the white table contains the attacks by white pawns on a square
-    table.insert(&White, generate_move_table([7, 9]));
+    table[0].clone_from_slice(&generate_move_table([7, 9]));
     // the black table contains the attacks by black pawns on a square
-    table.insert(&Black, generate_move_table([-7, -9]));
+    table[1].clone_from_slice(&generate_move_table([-7, -9]));
     fn generate_move_table(increments: [isize; 2]) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
         for square_index in 0..64 {
@@ -44,22 +44,30 @@ static PAWN_ATTACKS_TABLE: Lazy<HashMap<&'static PieceColor, [u64; 64]>> = Lazy:
     table
 });
 
-static PIECE_INCREMENTS_TABLE: Lazy<HashMap<&'static PieceType, Vec<isize>>> = Lazy::new(|| {
-    let mut table = HashMap::new();
-    table.insert(&PieceType::Knight, vec![10, 17, 15, 6, -10, -17, -15, -6]);
-    table.insert(&PieceType::Bishop, vec![9, 7, -9, -7]);
-    table.insert(&PieceType::Rook, vec![1, 8, -1, -8]);
-    table.insert(&PieceType::Queen, table.get(&PieceType::Bishop).unwrap().iter().chain(table.get(&PieceType::Rook).unwrap()).cloned().collect());
-    table.insert(&PieceType::King, table.get(&PieceType::Queen).unwrap().clone());
+static PIECE_INCREMENTS_TABLE: Lazy<[Vec<isize>; 6]> = Lazy::new(|| {
+    let mut table: [Vec<isize>; 6] = Default::default();
+    table[PieceType::Pawn as usize] = vec![];
+    table[PieceType::Knight as usize] = vec![10, 17, 15, 6, -10, -17, -15, -6];
+    table[PieceType::Bishop as usize] = vec![9, 7, -9, -7];
+    table[PieceType::Rook as usize] = vec![1, 8, -1, -8];
+    table[PieceType::Queen as usize] = table[PieceType::Bishop as usize]
+        .iter()
+        .chain(&table[PieceType::Rook as usize])
+        .cloned()
+        .collect();
+    table[PieceType::King as usize] = table[PieceType::Queen as usize].clone();
     table
 });
 
-static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, [u64; 64]>> = Lazy::new(|| {
-    let move_table = [PieceType::Knight, PieceType::King]
-        .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
+static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<[[u64; 64]; 6]> = Lazy::new(|| {
+    let mut table = [[0u64; 64]; 6];
+    for piece_type in [PieceType::Knight, PieceType::King] {
+        table[piece_type as usize].clone_from_slice(generate_move_table(piece_type).as_slice());
+    }
+
     fn generate_move_table(piece_type: PieceType) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
-        let increments = PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap();
+        let increments = PIECE_INCREMENTS_TABLE.get(piece_type as usize).unwrap();
         for square_index in 0..64 {
             let move_squares: u64 = generate_move_bitboard(
                 square_index,
@@ -72,24 +80,30 @@ static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, [u64; 64]>> = Lazy:
         }
         squares
     }
-    move_table
+    table
 });
 
+
+#[derive(Clone)]
 struct TableEntry {
     blocking_squares_bitboard: u64,
     moves_bitboard: Vec<u64>,
 }
 
-static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Lazy::new(|| {
-    let move_table = [PieceType::Bishop, PieceType::Rook]
-        .into_iter().map(|piece_type| (piece_type, generate_move_table(piece_type))).collect();
+static SLIDING_PIECE_MOVE_TABLE: Lazy<[Vec<TableEntry>; 6]> = Lazy::new(|| {
+    let mut table: [Vec<TableEntry>; 6] = Default::default();
+
+    for piece_type in [PieceType::Bishop, PieceType::Rook] {
+        table[piece_type as usize] = generate_move_table(piece_type);
+    }
+
     fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
         let mut squares: Vec<TableEntry> = Vec::new();
         for square_index in 0..64 {
             let blocking_squares_bitboard: u64 =
                 generate_move_bitboard(
                     square_index,
-                    PIECE_INCREMENTS_TABLE[&piece_type].clone(),
+                    PIECE_INCREMENTS_TABLE[piece_type as usize].clone(),
                     0,
                     true,
                     true
@@ -101,7 +115,7 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
                 let blocking_pieces_bitboard: u64 = table_index.pdep(blocking_squares_bitboard);
                 let sliding_move_bitboard = generate_move_bitboard(
                     square_index,
-                    PIECE_INCREMENTS_TABLE.get(&piece_type).unwrap().clone(),
+                    PIECE_INCREMENTS_TABLE.get(piece_type as usize).unwrap().clone(),
                     blocking_pieces_bitboard,
                     false,
                     true,
@@ -117,7 +131,7 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<HashMap<PieceType, Vec<TableEntry>>> = Laz
         squares
     }
 
-    move_table
+    table
 });
 
 trait MoveProcessor {
@@ -290,7 +304,7 @@ fn get_non_sliding_moves_by_piece_type<T, U>(
 ) {
     let mut square_iterator = BitboardIterator::new(square_indexes);
     while let Some(square_index) = square_iterator.next() {
-        let destinations = NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index];
+        let destinations = NON_SLIDING_PIECE_MOVE_TABLE[piece_type as usize][square_index];
         generate_moves_for_destinations(square_index as usize, destinations, occupied_squares, friendly_squares, move_processor);
     }
 }
@@ -309,7 +323,7 @@ fn get_sliding_moves_by_piece_type<T>(
 }
 
 pub fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
-    let table_entry = &SLIDING_PIECE_MOVE_TABLE[piece_type][square_index as usize];
+    let table_entry = &SLIDING_PIECE_MOVE_TABLE[*piece_type as usize][square_index];
     let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
     let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
     let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
@@ -416,7 +430,7 @@ where
         }
 
         // generate standard captures
-        let attacked_squares = PAWN_ATTACKS_TABLE[&side_to_move][square_index];
+        let attacked_squares = PAWN_ATTACKS_TABLE[side_to_move as usize][square_index];
         let attacked_opposing_piece_squares = attacked_squares & opposing_side_bitboard;
         for attacked_square_index in BitboardIterator::new(attacked_opposing_piece_squares) {
             create_moves(square_index, attacked_square_index, true, move_processor);
@@ -457,7 +471,7 @@ fn square_attacks_finder_internal(position: &Position, attacking_color: PieceCol
     attacking_squares |= non_sliding_piece_attacks(position, PieceType::King, attacking_color, square_index);
     attacking_squares |= non_sliding_piece_attacks(position, PieceType::Knight, attacking_color, square_index);
 
-    let pawn_attack_squares = PAWN_ATTACKS_TABLE[&!attacking_color][square_index as usize];
+    let pawn_attack_squares = PAWN_ATTACKS_TABLE[!attacking_color as usize][square_index as usize];
     let attacking_pawns = position.board().bitboard_by_color_and_piece_type(attacking_color, PieceType::Pawn);
     let attacking_pawn = pawn_attack_squares & attacking_pawns;
     attacking_squares |= attacking_pawn;
@@ -468,17 +482,17 @@ fn square_attacks_finder_internal(position: &Position, attacking_color: PieceCol
 pub fn is_en_passant_capture_possible(position: &Position) -> bool {
     if let Some(en_passant_capture_square) = position.en_passant_capture_square() {
         position.board().bitboard_by_color_and_piece_type(position.side_to_move(), PieceType::Pawn) &
-            PAWN_ATTACKS_TABLE[&position.opposing_side()][en_passant_capture_square] != 0
+            PAWN_ATTACKS_TABLE[position.opposing_side() as usize][en_passant_capture_square] != 0
     } else {
         false
     }
 }
 pub fn non_sliding_piece_attacks_empty_board(piece_type: PieceType, square_index: usize) -> u64 {
-    NON_SLIDING_PIECE_MOVE_TABLE[&piece_type][square_index]
+    NON_SLIDING_PIECE_MOVE_TABLE[piece_type as usize][square_index]
 }
 
 pub fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: usize) -> u64 {
-    let moves = NON_SLIDING_PIECE_MOVE_TABLE[&attacking_piece_type][square_index as usize];
+    let moves = NON_SLIDING_PIECE_MOVE_TABLE[attacking_piece_type as usize][square_index as usize];
     let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
     moves & enemy_squares
 }
@@ -831,14 +845,14 @@ mod tests {
 
     #[test]
     fn test_pawn_attacks_table() {
-        assert_eq!(PAWN_ATTACKS_TABLE[&White][0], 1 << 9);
-        assert_eq!(PAWN_ATTACKS_TABLE[&White][1], 1 << 8 | 1 << 10);
+        assert_eq!(PAWN_ATTACKS_TABLE[White as usize][0], 1 << 9);
+        assert_eq!(PAWN_ATTACKS_TABLE[White as usize][1], 1 << 8 | 1 << 10);
 
-        assert_eq!(PAWN_ATTACKS_TABLE[&Black][63], 1 << 54);
-        assert_eq!(PAWN_ATTACKS_TABLE[&Black][62], 1 << 53 | 1 << 55);
+        assert_eq!(PAWN_ATTACKS_TABLE[Black as usize][63], 1 << 54);
+        assert_eq!(PAWN_ATTACKS_TABLE[Black as usize][62], 1 << 53 | 1 << 55);
 
-        assert_eq!(PAWN_ATTACKS_TABLE[&Black][31], 1 << 22);
-        assert_eq!(PAWN_ATTACKS_TABLE[&White][31], 1 << 38);
+        assert_eq!(PAWN_ATTACKS_TABLE[Black as usize][31], 1 << 22);
+        assert_eq!(PAWN_ATTACKS_TABLE[White as usize][31], 1 << 38);
     }
 
     #[test]
