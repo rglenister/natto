@@ -124,7 +124,11 @@ impl PartialEq for Position {
         self.board == other.board &&
         self.side_to_move == other.side_to_move &&
         self.castling_rights == other.castling_rights &&
-        is_en_passant_capture_possible(self) == is_en_passant_capture_possible(other)
+        match (is_en_passant_capture_possible(self), is_en_passant_capture_possible(other)) {
+            (true, true) => self.en_passant_capture_square == other.en_passant_capture_square,
+            (false, false) => true,
+            _ => false,
+        }
     }
 }
 
