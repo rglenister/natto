@@ -1,3 +1,4 @@
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use dotenv::var;
 use log::{error, info};
