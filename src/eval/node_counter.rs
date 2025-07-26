@@ -82,7 +82,7 @@ pub fn perf_t() {
 pub fn count_nodes(position: &Position, max_depth: usize) -> NodeCountStats {
     let mut node_counter = NodeCounter::new();
     node_counter.reset();
-    let count = do_count_nodes::<false>(position, 0, max_depth);
+    let count = do_count_nodes::<false>(&mut position.clone(), 0, max_depth);
     node_counter.add(count);
     node_counter.stats()
 }
