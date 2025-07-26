@@ -27,12 +27,12 @@ produced:
 
 Running perft test  
 Depth 0 nodes 1 nps 0  
-Depth 1 nodes 20 nps 2910  
-Depth 2 nodes 400 nps 2352941  
-Depth 3 nodes 8902 nps 15037162  
-Depth 4 nodes 197281 nps 38351671  
-Depth 5 nodes 4865609 nps 44445338  
-Depth 6 nodes 119060324 nps 48744253  
+Depth 1 nodes 20 nps 3985  
+Depth 2 nodes 400 nps 3361344  
+Depth 3 nodes 8902 nps 4132776  
+Depth 4 nodes 197281 nps 5241955  
+Depth 5 nodes 4865609 nps 7174943  
+Depth 6 nodes 119060324 nps 6902277  
 
 
 The same procedure was then used to test the new make move / unmake move version:
@@ -50,4 +50,4 @@ Depth 6 nodes 119060324 nps 10257354
 
 ---
 ## Conclusion
-The changes more than doubled the performance of the perft test.
+The changes improved the performance of the perft test by about 50%.

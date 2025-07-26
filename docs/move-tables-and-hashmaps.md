@@ -26,12 +26,12 @@ This was produced using the perft command line option. Here's the output produce
 
 Running perft test  
 Depth 0 nodes 1 nps 0  
-Depth 1 nodes 20 nps 3688  
-Depth 2 nodes 400 nps 5333333  
-Depth 3 nodes 8902 nps 4283926  
-Depth 4 nodes 197281 nps 5460007  
-Depth 5 nodes 4865609 nps 6585978  
-Depth 6 nodes 119060324 nps 7127481  
+Depth 1 nodes 20 nps 3108  
+Depth 2 nodes 400 nps 3603603  
+Depth 3 nodes 8902 nps 5035067  
+Depth 4 nodes 197281 nps 5201734  
+Depth 5 nodes 4865609 nps 7108890  
+Depth 6 nodes 119060324 nps 6985569  
 
 
 After the changes the test was repeated and produced this flamegraph and output:
