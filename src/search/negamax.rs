@@ -82,9 +82,8 @@ impl SearchParams {
 pub struct SearchContext<'a> {
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
-    pub repetition_key_stack: Vec<RepetitionKey>,
-    pub undo_move_info_stack: Vec<UndoMoveInfo>,
-    pub move_orderer: MoveOrderer,
+    repetition_key_stack: Vec<RepetitionKey>,
+    move_orderer: MoveOrderer,
 }
 
 impl SearchContext<'_> {
@@ -98,7 +97,6 @@ impl SearchContext<'_> {
             search_params,
             stop_flag,
             repetition_key_stack: repetition_keys,
-            undo_move_info_stack: vec![],
             move_orderer,
         }
     }
@@ -228,7 +226,6 @@ fn negamax_search(
                 // there isn't a checkmate or a stalemate
                 let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                 current_line.push(mv);
-                search_context.undo_move_info_stack.push(undo_move_info);
                 search_context.repetition_key_stack.push(RepetitionKey::new(position));
                 let next_score = if get_repeat_position_count(&search_context.repetition_key_stack) >= 2 {
                     // Apply contempt to repetition-based draws
@@ -246,7 +243,7 @@ fn negamax_search(
                     pv.extend(child_pv);
                 }
                 alpha = alpha.max(next_score);
-                position.unmake_move(&mut search_context.undo_move_info_stack.pop().unwrap());
+                position.unmake_move(&undo_move_info);
                 if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
                     break;
                 }
@@ -300,7 +297,7 @@ fn retrieve_principal_variation(position: &Position, current_pv: &Vec<Move>, max
     let raw_moves = convert_chess_moves_to_raw(&pv);
     let pv_with_positions: Vec<((Position, Move))> = util::replay_moves(&position, raw_moves).unwrap();
     let last_position = pv_with_positions.last().map_or(position, |(p, m)| p);
-    let mut current_position = position.clone();
+    let mut current_position = last_position.clone();
 
     let mut visited_positions = HashSet::new();
     let mut depth = max_depth - current_pv.len();
