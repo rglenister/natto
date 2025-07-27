@@ -4,11 +4,11 @@ use crate::core::piece::PieceColor::{Black, White};
 use crate::core::r#move::{Move, RawMove};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::HashMap;
 use std::ops::Add;
 use crate::core::board::Board;
 use crate::core::piece::PieceType::{Bishop, Queen, Rook};
 use crate::core::position::Position;
+use crate::search::negamax::RepetitionKey;
 
 include!("generated_macro.rs");
 
@@ -112,7 +112,7 @@ pub const fn row_bitboard(row: usize) -> u64 {
 }
 
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
-    moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square }).collect::<Vec<Move>>()
+    moves.into_iter().filter(|mov| { mov.get_base_move().from == from_square as u8 }).collect::<Vec<Move>>()
 }
 
 pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move> {
@@ -128,17 +128,37 @@ pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move>
     })
 }
 
-pub fn replay_moves(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, Move)>> {
-    let raw_moves = moves_string_to_raw_moves(raw_moves_string)?;
+pub fn replay_move_string(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, Move)>> {
+    replay_moves(position, moves_string_to_raw_moves(raw_moves_string)?)
+}
+
+pub fn replay_moves(position: &Position, raw_moves: Vec<RawMove>) -> Option<Vec<(Position, Move)>> {
     let result: Option<Vec<(Position, Move)>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, Move)>, rm: &RawMove| {
-        let current_position = if !acc.is_empty() { &acc.last().unwrap().0.clone()} else { position };
-        if let Some(next_position) = current_position.make_raw_move(rm) {
-            acc.push(next_position);
+        let mut current_position = if !acc.is_empty() { acc.last().unwrap().0.clone()} else { position.clone() };
+        if let Some(undo_move_info) = current_position.make_raw_move(rm) {
+            acc.push((current_position, undo_move_info.mov));
             return Some(acc);
         }
         None
     });
     result
+}
+
+pub fn create_move_list(position: &Position, raw_moves_string: String) -> Option<Vec<Move>> {
+    Some(
+        replay_move_string(position, raw_moves_string)?.into_iter().map(|(_, mov)| mov).collect::<Vec<Move>>()
+    )
+}
+
+pub fn create_repetition_keys(position: &Position, raw_moves_string: String) -> Option<Vec<RepetitionKey>> {
+    std::iter::once(RepetitionKey::new(position))
+        .chain(
+            replay_move_string(position, raw_moves_string)?
+                .into_iter()
+                .map(|(pos, _)| RepetitionKey::new(&pos))
+        )
+        .collect::<Vec<RepetitionKey>>()
+        .into()
 }
 
 pub fn parse_initial_moves(raw_move_strings: Vec<String>) -> Option<Vec<RawMove>> {
@@ -165,19 +185,11 @@ pub fn parse_move(raw_move_string: String) -> Option<RawMove> {
     captures.map(|captures| {
         let promote_to = captures.name("promote_to").map(|m| piece::PieceType::from_char(m.as_str().to_string().chars().next().unwrap()));
         RawMove::new(
-            parse_square(captures.name("from").unwrap().as_str()).unwrap(),
-            parse_square(captures.name("to").unwrap().as_str()).unwrap(),
+            parse_square(captures.name("from").unwrap().as_str()).unwrap() as u8,
+            parse_square(captures.name("to").unwrap().as_str()).unwrap() as u8,
             if promote_to.is_some() { Some(promote_to.unwrap().expect("REASON")) } else { None }
         )
     })
-}
-
-pub fn create_repeat_position_counts(positions: Vec<Position>) -> HashMap<u64, (Position, usize)> {
-    let mut repeat_position_counts: HashMap<u64, (Position, usize)> = HashMap::new();
-    for position in positions {
-        repeat_position_counts.entry(position.hash_code()).or_insert((position, 0)).1 += 1;
-    }
-    repeat_position_counts
 }
 
 pub fn is_piece_pinned(position: &Position, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
@@ -257,7 +269,6 @@ mod tests {
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
     use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
-    use crate::core::position::NEW_GAME_FEN;
     use crate::core::r#move::BaseMove;
     use crate::core::r#move::Move::{Basic, Promotion};
     use super::*;
@@ -391,25 +402,10 @@ mod tests {
     }
 
     #[test]
-    fn test_repeat_position_counts() {
-        let position_1 = Position::from(NEW_GAME_FEN);
-        let position_2 = position_1.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap().0;
-        let position_3 = Position::from(NEW_GAME_FEN);
-        let repeat_position_counts = create_repeat_position_counts(vec!(position_1, position_2, position_3));
-
-        assert_eq!(position_1, position_3);
-        assert_eq!(position_1.hash_code(), position_3.hash_code());
-        assert_eq!(repeat_position_counts.iter().count(), 2);
-        assert_eq!(repeat_position_counts[&position_1.hash_code()], (position_1, 2));
-        assert_eq!(repeat_position_counts[&position_2.hash_code()], (position_2, 1));
-
-    }
-
-    #[test]
     fn test_replay_moves() {
-        let position = Position::from(NEW_GAME_FEN);
+        let position = Position::new_game();
         let moves = "e2e4 e7e5".to_string();
-        let result = replay_moves(&position, moves);
+        let result = replay_move_string(&position, moves);
         assert!(result.is_some());
         let moves = result.unwrap();
         assert_eq!(moves.len(), 2);
@@ -417,10 +413,38 @@ mod tests {
         let fen = fen::write(&last_position);
         assert_eq!(fen, "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".to_string());
 
-        let position = Position::from(NEW_GAME_FEN);
+        let position = Position::new_game();
         let moves = "e2e4 e6e5".to_string();
-        let result = replay_moves(&position, moves);
+        let result = replay_move_string(&position, moves);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_create_repetition_keys() {
+        let mut position = Position::new_game();
+        let moves = "e2e4 e7e5".to_string();
+        let result = create_repetition_keys(&position, moves);
+        assert!(result.is_some());
+        let repetition_keys = result.unwrap();
+        assert_eq!(repetition_keys.len(), 3);
+
+        assert_eq!(repetition_keys[0], RepetitionKey::new(&position));
+
+        position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
+        assert_eq!(repetition_keys[1], RepetitionKey::new(&position));
+
+        position.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
+        assert_eq!(repetition_keys[2], RepetitionKey::new(&position));
+    }
+
+    #[test]
+    fn test_create_repetition_keys_no_moves() {
+        let position = Position::new_game();
+        let moves = "".to_string();
+        let result = create_repetition_keys(&position, moves);
+        assert!(result.is_some());
+        let repetition_keys = result.unwrap();
+        assert_eq!(repetition_keys.len(), 1);
     }
 
     #[test]

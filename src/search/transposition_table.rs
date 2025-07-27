@@ -167,14 +167,14 @@ impl TranspositionTable {
 
         match move_type {
             0 => Basic {
-                base_move: BaseMove { from, to, capture: is_capture },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
             },
             1 => EnPassant {
-                base_move: BaseMove { from, to, capture: is_capture },
-                capture_square: (move_packed & 0x3F) as usize,
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
+                capture_square: (move_packed & 0x3F) as u8,
             },
             2 => Promotion {
-                base_move: BaseMove { from, to, capture: is_capture },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 promote_to: match move_packed & 0x3F {
                     1 => Knight,
                     2 => Bishop,
@@ -184,7 +184,7 @@ impl TranspositionTable {
                 }
             },
             3 => Castling {
-                base_move: BaseMove { from, to, capture: false },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 board_side: match move_packed & 0x3F {
                     0 => KingSide,
                     1 => QueenSide,

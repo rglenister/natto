@@ -334,7 +334,7 @@ fn generate_moves_for_destinations<T>(from: usize, destinations: u64, occupied_s
     let mut square_iterator = BitboardIterator::new(destinations);
     while let Some(to) = square_iterator.next() {
         if friendly_squares & (1 << to) == 0 {
-            move_processor.process_move(Basic { base_move: BaseMove::new(from, to, occupied_squares & (1 << to) != 0) });
+            move_processor.process_move(Basic { base_move: BaseMove::new(from as u8, to as u8, occupied_squares & (1 << to) != 0) });
         }
     }
 }
@@ -391,7 +391,7 @@ fn generate_king_moves<T, U>(position: &Position, square_indexes: u64, occupied_
     BoardSide::iter()
             .filter(|board_side| position.can_castle(position.side_to_move(), board_side))
             .map(|board_side| { &board::CASTLING_METADATA[position.side_to_move() as usize][board_side as usize] })
-            .map(|cmd| Castling { base_move: BaseMove::new(cmd.king_from_square, cmd.king_to_square, false), board_side: cmd.board_side })
+            .map(|cmd| Castling { base_move: BaseMove::new(cmd.king_from_square as u8, cmd.king_to_square as u8, false), board_side: cmd.board_side })
             .for_each(|mv| move_processor.process_move(mv));
 }
 
@@ -401,10 +401,10 @@ where
 {
     let create_moves = |from: usize, to: usize, capture: bool, move_processor: &mut P| {
         if Board::rank(to, position.side_to_move()) != 7 {
-            move_processor.process_move(Basic { base_move: BaseMove::new(from, to, capture) });
+            move_processor.process_move(Basic { base_move: BaseMove::new(from as u8, to as u8, capture) });
         } else {
             for piece_type in [PieceType::Queen, PieceType::Knight, PieceType::Rook, PieceType::Bishop] {
-                move_processor.process_move(Promotion { base_move: { BaseMove::new(from, to, capture) }, promote_to: piece_type });
+                move_processor.process_move(Promotion { base_move: { BaseMove::new(from as u8, to as u8, capture) }, promote_to: piece_type });
             }
         }
     };
@@ -439,7 +439,7 @@ where
         // generate en passant capture
         if let Some(ep_square) = position.en_passant_capture_square() {
             if ((1 << ep_square) & attacked_squares) != 0 {
-                let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize, ep_square, true), capture_square: (ep_square as isize - pawn_increment) as usize };
+                let ep_move = EnPassant { base_move: BaseMove::new(square_index as usize as u8, ep_square as u8, true), capture_square: (ep_square as isize - pawn_increment) as usize as u8 };
                 move_processor.process_move(ep_move);
             }
         }

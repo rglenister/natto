@@ -143,7 +143,6 @@ impl Engine {
                     debug!("go options = {:?}", uci_go_options);
 
                     let search_params = uci::create_search_params(&uci_go_options, &uci_pos);
-                    let repeat_position_counts = Some(util::create_repeat_position_counts(uci_pos.all_game_positions()));
 
                     debug!("search params = {}", search_params);
                     debug!("Starting search...");
@@ -152,9 +151,9 @@ impl Engine {
                     let stop_flag = Arc::clone(&search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
                     *search_handle = Some(thread::spawn(move || {
-                        let search_results = iterative_deepening(&uci_pos_clone.end_position, &search_params, stop_flag, repeat_position_counts);
+                        let search_results = iterative_deepening(&mut uci_pos_clone.end_position.clone(), &search_params, stop_flag, &uci_pos_clone.repetition_keys);
                         debug!("score: {} depth {}", search_results.score, search_results.depth);
-                        let best_move = search_results.pv.first().map(|cm| convert_chess_move_to_raw(&cm.1));
+                        let best_move = search_results.pv.first().map(|cm| convert_chess_move_to_raw(&cm));
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {}", best_move).as_str());
                         } else {

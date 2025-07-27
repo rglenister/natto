@@ -7,16 +7,16 @@ use std::fmt;
 
 include!("../util/generated_macro.rs");
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 #[derive(Clone, Copy, Ord, PartialOrd)]
 pub struct BaseMove {
-    pub from: usize,
-    pub to: usize,
+    pub from: u8,
+    pub to: u8,
     pub capture: bool,
 }
 
 impl BaseMove {
-    pub(crate) fn new(from: usize, to: usize, capture: bool) -> BaseMove {
+    pub(crate) fn new(from: u8, to: u8, capture: bool) -> BaseMove {
         BaseMove { from, to, capture }
     }
 }
@@ -29,7 +29,7 @@ pub enum Move {
     },
     EnPassant {
         base_move: BaseMove,
-        capture_square: usize
+        capture_square: u8
     },
     Promotion {
         base_move: BaseMove,
@@ -41,13 +41,17 @@ pub enum Move {
     }
 }
 
-impl Move {
-    pub(crate) fn default() -> Move {
-        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }   
+impl Default for Move {
+    fn default() -> Self {
+        Move::Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
     }
 }
 
 impl Move {
+    pub(crate) fn default() -> Move {
+        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
+    }
+
     pub fn get_base_move(&self) -> &BaseMove {
         match self {
             Basic { base_move }
@@ -69,31 +73,31 @@ impl fmt::Display for Move {
 
     }
 }
-fn write_default(from: usize, to: usize, capture: bool) -> String {
-    format!("{}{}{}", format_square(from), if capture { 'x' } else { '-' }, format_square(to))
+fn write_default(from: u8, to: u8, capture: bool) -> String {
+    format!("{}{}{}", format_square(from as usize), if capture { 'x' } else { '-' }, format_square(to as usize))
 }
 
 #[derive(Debug, PartialEq, Eq)]
 #[derive(Clone, Copy)]
 pub struct RawMove {
-    pub from: usize,
-    pub to: usize,
+    pub from: u8,
+    pub to: u8,
     pub promote_to: Option<PieceType>,
 }
 
 impl RawMove {
-    pub(crate) fn new(from: usize, to: usize, promote_to: Option<PieceType>) -> RawMove {
+    pub(crate) fn new(from: u8, to: u8, promote_to: Option<PieceType>) -> RawMove {
         RawMove {from, to, promote_to}
     }
 }
 impl fmt::Display for RawMove {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let promote_to: String = self.promote_to.map_or(String::new(), |piece_type| piece_type.first_letter().to_lowercase().to_string());
-        write!(f, "{}{}{}", format_square(self.from), format_square(self.to), promote_to)
+        write!(f, "{}{}{}", format_square(self.from as usize), format_square(self.to as usize), promote_to)
     }
 }
 
-pub fn convert_chess_moves_to_raw(moves: Vec<Move>) -> Vec<RawMove> {
+pub fn convert_chess_moves_to_raw(moves: &Vec<Move>) -> Vec<RawMove> {
     moves.into_iter().map(|m| {
         convert_chess_move_to_raw(&m)
     }).collect()
@@ -197,7 +201,7 @@ mod tests {
             Promotion { base_move: BaseMove { from: 5, to: 6, capture: false}, promote_to: PieceType::Rook },
             Castling { base_move: BaseMove { from: 7, to: 8, capture: false}, board_side: BoardSide::KingSide },
         ];
-        let raw_moves = convert_chess_moves_to_raw(moves);
+        let raw_moves = convert_chess_moves_to_raw(&moves);
         assert_eq!(raw_moves.len(), 4);
         assert_eq!(raw_moves[0], RawMove::new(1, 2, None));
         assert_eq!(raw_moves[1], RawMove::new(3, 4, None));

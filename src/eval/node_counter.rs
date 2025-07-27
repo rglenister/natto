@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use crate::core::move_gen::generate_moves;
 use rayon::prelude::*;
 use crate::core::position::Position;
+use crate::core::r#move::Move;
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
@@ -81,25 +82,36 @@ pub fn perf_t() {
 pub fn count_nodes(position: &Position, max_depth: usize) -> NodeCountStats {
     let mut node_counter = NodeCounter::new();
     node_counter.reset();
-    let count = do_count_nodes::<false>(position, 0, max_depth);
+    let count = do_count_nodes::<false>(&mut position.clone(), 0, max_depth);
     node_counter.add(count);
     node_counter.stats()
 }
 
-fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &Position, depth: usize, max_depth: usize) -> usize {
+fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &mut Position, depth: usize, max_depth: usize) -> usize {
+    fn process_move<F>(position: &mut Position, mov: Move, depth: usize, max_depth: usize, do_count_nodes_fn: F) -> usize
+    where
+        F: Fn(&mut Position, usize, usize) -> usize,
+    {
+        if let Some(undo_move_info) = position.make_move(&mov) {
+            let count = do_count_nodes_fn(position, depth + 1, max_depth);
+            position.unmake_move(&undo_move_info);
+            count
+        } else {
+            0
+        }
+    }
+
     if depth < max_depth {
         let moves = generate_moves(position);
         if USE_PARALLEL_ITERATOR {
             moves
-                .par_iter()
-                .filter_map(|cm| position.make_move(cm))
-                .map(|(pos, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
+                .into_par_iter()
+                .map(|mov| process_move(&mut position.clone(), mov, depth, max_depth, do_count_nodes::<false>))
                 .sum()
         } else {
             moves
-                .iter()
-                .filter_map(|cm| position.make_move(cm))
-                .map(|(pos, _)| do_count_nodes::<false>( &pos, depth + 1, max_depth))
+                .into_iter()
+                .map(|mov| process_move(&mut position.clone(), mov, depth, max_depth, do_count_nodes::<false>))
                 .sum()
         }
     } else {

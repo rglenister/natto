@@ -14,14 +14,18 @@ include!("../util/generated_macro.rs");
 
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
-pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: isize) -> isize {
+pub fn quiescence_search(position: &mut Position, ply: isize, alpha: isize, beta: isize) -> isize {
+    if ply > 100 {
+        return 0;
+    }
     increment_node_counter();
     if move_gen::is_check(position) {
         // If in check: must respond with evasions
         let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply;
         for mov in move_gen::generate_moves(position) {
-            if let Some(new_position) = position.make_move(&mov) {
-                let score = -quiescence_search(&new_position.0, ply + 1, -beta, -alpha);
+            if let Some(undo_move_info) = position.make_move(&mov) {
+                let score = -quiescence_search(position, ply + 1, -beta, -alpha);
+                position.unmake_move(&undo_move_info);
                 best_score = best_score.max(score);
                 if best_score >= beta {
                     break;
@@ -47,8 +51,9 @@ pub fn quiescence_search(position: &Position, ply: isize, alpha: isize, beta: is
                 continue; // Skip bad captures by SEE
             }
         }
-        if let Some(next_position) = position.make_move(&mov) {
-            let score = -quiescence_search(&next_position.0, ply + 1, -beta, -alpha);
+        if let Some(undo_move_info) = position.make_move(&mov) {
+            let score = -quiescence_search(position, ply + 1, -beta, -alpha);
+            position.unmake_move(&undo_move_info);
             if score >= beta {
                 return score;
             }
@@ -82,8 +87,8 @@ fn good_capture(position: &Position, mov: &Move) -> bool {
 
 // with delta pruning
 fn static_exchange_evaluation(position: &Position, mv: &Move) -> isize {
-    let attacked_square = mv.get_base_move().to;
-    let attacking_square = mv.get_base_move().from;
+    let attacked_square = mv.get_base_move().to as usize;
+    let attacking_square = mv.get_base_move().from as usize;
     let attacking_piece = piece_on(position, attacking_square);
 
     let mut gain: ArrayVec<isize, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
@@ -350,48 +355,48 @@ mod tests {
         #[test]
         fn test_only_kings() {
             let fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
-            let position: Position = Position::from(fen);
-            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let mut position: Position = Position::from(fen);
+            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 0);
         }
 
         #[test]
         fn test_queening_by_capturing() {
             let fen = "4q3/3P4/8/8/8/7k/8/4K3 w - - 0 1";
-            let position: Position = Position::from(fen);
-            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let mut position: Position = Position::from(fen);
+            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 903);
         }
 
         #[test]
         fn test_multiple_capture_options() {
             let fen = "5rk1/2q2pbp/1p2pnp1/pP1pP3/P2P1P2/2N2BN1/6PP/R2Q1RK1 w - - 0 1";
-            let position: Position = Position::from(fen);
-            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let mut position: Position = Position::from(fen);
+            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 961);
         }
 
         #[test]
         fn test_white_king_under_attack() {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
-            let position: Position = Position::from(fen);
-            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let mut position: Position = Position::from(fen);
+            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, -550);
         }
 
         #[test]
         fn test_no_good_capture() {
             let fen = "r4rk1/pp3ppp/2n1b3/3p4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
-            let position: Position = Position::from(fen);
-            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let mut position: Position = Position::from(fen);
+            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, -14);
         }
 
         #[test]
         fn test_good_capture() {
             let fen = "r4rk1/pp3ppp/2n1b3/3q4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
-            let position: Position = Position::from(fen);
-            let score = quiescence_search(&position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let mut position: Position = Position::from(fen);
+            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 788);
         }
 
