@@ -17,6 +17,86 @@ use crate::core::position::Position;
 
 include!("../util/generated_macro.rs");
 
+
+
+pub fn generate_moves(position: &Position) -> Vec<Move> {
+    let mut move_generator = MoveGeneratorImpl::new(position.clone(), MoveListMoveProcessor::new());
+    move_generator.generate();
+    move_generator.move_processor.get_result().clone()
+}
+
+pub fn generate_moves_for_quiescence(position: &Position) -> Vec<Move> {
+    let mut move_processor = MoveListMoveProcessor::new();
+    move_processor.set_filter(|mov| mov.get_base_move().capture || matches!(mov, Move::Promotion { .. }));
+    let mut move_generator = MoveGeneratorImpl::new(position.clone(), move_processor);
+    move_generator.generate();
+    move_generator.move_processor.get_result()
+}
+
+pub fn has_legal_move(position: &Position) -> bool {
+    let mut move_generator = MoveGeneratorImpl {
+        position: position.clone(),
+        move_processor: HasLegalMoveProcessor::new(position.clone()),
+        occupied_squares: position.board().bitboard_all_pieces(),
+        friendly_squares: position.board().bitboard_by_color(position.side_to_move()),
+    };
+    move_generator.generate();
+    move_generator.move_processor.get_result()
+}
+
+pub fn square_attacks_finder_empty_board(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
+    square_attacks_finder_internal(position, attacking_color, square_index, 0)
+}
+
+pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
+    square_attacks_finder_internal(position, attacking_color, square_index, position.board().bitboard_all_pieces())
+}
+
+pub fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
+    let table_entry = &SLIDING_PIECE_MOVE_TABLE[*piece_type as usize][square_index];
+    let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
+    let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
+    let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
+    valid_moves
+}
+
+
+pub fn is_en_passant_capture_possible(position: &Position) -> bool {
+    if let Some(en_passant_capture_square) = position.en_passant_capture_square() {
+        position.board().bitboard_by_color_and_piece_type(position.side_to_move(), PieceType::Pawn) &
+            PAWN_ATTACKS_TABLE[position.opposing_side() as usize][en_passant_capture_square] != 0
+    } else {
+        false
+    }
+}
+pub fn non_sliding_piece_attacks_empty_board(piece_type: PieceType, square_index: usize) -> u64 {
+    NON_SLIDING_PIECE_MOVE_TABLE[piece_type as usize][square_index]
+}
+
+pub fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: usize) -> u64 {
+    let moves = NON_SLIDING_PIECE_MOVE_TABLE[attacking_piece_type as usize][square_index as usize];
+    let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
+    moves & enemy_squares
+}
+
+pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
+    square_attacks_finder(
+        position, king_color.opposite(), position.board().king_square(king_color))
+}
+
+pub fn king_attacks_finder_empty_board(position: &Position, king_color: PieceColor) -> u64 {
+    square_attacks_finder_empty_board(
+        position, king_color.opposite(), position.board().king_square(king_color))
+}
+
+pub fn check_count(position: &Position) -> usize {
+    king_attacks_finder(position, position.side_to_move()).count_ones() as usize
+}
+
+pub fn is_check(position: &Position) -> bool {
+    check_count(position) > 0
+}
+
 pub fn squares_attacked_by_pawn(piece_color: PieceColor, pawn_square_index: usize) -> u64 {
     PAWN_ATTACKS_TABLE[piece_color as usize][pawn_square_index]
 }
@@ -270,31 +350,6 @@ impl<P: MoveProcessor + std::any::Any> MoveGeneratorImpl<P> {
     }
 }
 
-pub fn generate_moves(position: &Position) -> Vec<Move> {
-    let mut move_generator = MoveGeneratorImpl::new(position.clone(), MoveListMoveProcessor::new()); 
-    move_generator.generate();
-    move_generator.move_processor.get_result().clone()
-}
-
-pub fn generate_moves_for_quiescence(position: &Position) -> Vec<Move> {
-    let mut move_processor = MoveListMoveProcessor::new();
-    move_processor.set_filter(|mov| mov.get_base_move().capture || matches!(mov, Move::Promotion { .. }));
-    let mut move_generator = MoveGeneratorImpl::new(position.clone(), move_processor);
-    move_generator.generate();
-    move_generator.move_processor.get_result()
-}
-
-pub fn has_legal_move(position: &Position) -> bool {
-    let mut move_generator = MoveGeneratorImpl {
-        position: position.clone(),
-        move_processor: HasLegalMoveProcessor::new(position.clone()),
-        occupied_squares: position.board().bitboard_all_pieces(),
-        friendly_squares: position.board().bitboard_by_color(position.side_to_move()),
-    };
-    move_generator.generate();
-    move_generator.move_processor.get_result()
-}
-
 fn get_non_sliding_moves_by_piece_type<T, U>(
     piece_type: PieceType,
     square_indexes: u64,
@@ -320,14 +375,6 @@ fn get_sliding_moves_by_piece_type<T>(
         let valid_moves = get_sliding_moves_by_piece_type_and_square_index(&piece_type, square_index, occupied_squares);
         generate_moves_for_destinations(square_index as usize, valid_moves, occupied_squares, friendly_squares, move_processor);
     }
-}
-
-pub fn get_sliding_moves_by_piece_type_and_square_index(piece_type: &PieceType, square_index: usize, occupied_squares: u64) -> u64 {
-    let table_entry = &SLIDING_PIECE_MOVE_TABLE[*piece_type as usize][square_index];
-    let occupied_blocking_squares_bitboard = occupied_squares & table_entry.blocking_squares_bitboard;
-    let table_entry_bitboard_index = occupied_blocking_squares_bitboard.pext(table_entry.blocking_squares_bitboard);
-    let valid_moves = *table_entry.moves_bitboard.get(table_entry_bitboard_index as usize).unwrap();
-    valid_moves
 }
 
 fn generate_moves_for_destinations<T>(from: usize, destinations: u64, occupied_squares: u64, friendly_squares: u64, move_processor: &mut (impl MoveProcessor<Output=T> + Sized)) {
@@ -445,14 +492,6 @@ where
         }
     }
 }
-pub fn square_attacks_finder_empty_board(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
-    square_attacks_finder_internal(position, attacking_color, square_index, 0)
-}
-
-pub fn square_attacks_finder(position: &Position, attacking_color: PieceColor, square_index: usize) -> u64 {
-    square_attacks_finder_internal(position, attacking_color, square_index, position.board().bitboard_all_pieces())
-}
-
 
 fn square_attacks_finder_internal(position: &Position, attacking_color: PieceColor, square_index: usize, occupied_squares: u64) -> u64 {
     let enemy_squares = position.board().bitboard_by_color(attacking_color);
@@ -477,42 +516,6 @@ fn square_attacks_finder_internal(position: &Position, attacking_color: PieceCol
     attacking_squares |= attacking_pawn;
 
     attacking_squares
-}
-
-pub fn is_en_passant_capture_possible(position: &Position) -> bool {
-    if let Some(en_passant_capture_square) = position.en_passant_capture_square() {
-        position.board().bitboard_by_color_and_piece_type(position.side_to_move(), PieceType::Pawn) &
-            PAWN_ATTACKS_TABLE[position.opposing_side() as usize][en_passant_capture_square] != 0
-    } else {
-        false
-    }
-}
-pub fn non_sliding_piece_attacks_empty_board(piece_type: PieceType, square_index: usize) -> u64 {
-    NON_SLIDING_PIECE_MOVE_TABLE[piece_type as usize][square_index]
-}
-
-pub fn non_sliding_piece_attacks(position: &Position, attacking_piece_type: PieceType, attacking_color: PieceColor, square_index: usize) -> u64 {
-    let moves = NON_SLIDING_PIECE_MOVE_TABLE[attacking_piece_type as usize][square_index as usize];
-    let enemy_squares = position.board().bitboard_by_color_and_piece_type(attacking_color, attacking_piece_type);
-    moves & enemy_squares
-}
-
-pub fn king_attacks_finder(position: &Position, king_color: PieceColor) -> u64 {
-    square_attacks_finder(
-        position, king_color.opposite(), position.board().king_square(king_color))
-}
-
-pub fn king_attacks_finder_empty_board(position: &Position, king_color: PieceColor) -> u64 {
-    square_attacks_finder_empty_board(
-        position, king_color.opposite(), position.board().king_square(king_color))
-}
-
-pub fn check_count(position: &Position) -> usize {
-    king_attacks_finder(position, position.side_to_move()).count_ones() as usize
-}
-
-pub fn is_check(position: &Position) -> bool {
-    check_count(position) > 0
 }
 
 #[cfg(test)]
