@@ -39,14 +39,14 @@ The same procedure was then used to test the new make move / unmake move version
 
 [![Flamegraph](flamegraphs/make-unmake-move.svg)](flamegraphs/flamegraph.html)
 
-Running perft test
-Depth 0 nodes 1 nps 0
-Depth 1 nodes 20 nps 3212
-Depth 2 nodes 400 nps 5970149
-Depth 3 nodes 8902 nps 5139722
-Depth 4 nodes 197281 nps 7351356
-Depth 5 nodes 4865609 nps 10365790
-Depth 6 nodes 119060324 nps 10257354
+Running perft test  
+Depth 0 nodes 1 nps 0  
+Depth 1 nodes 20 nps 3212  
+Depth 2 nodes 400 nps 5970149  
+Depth 3 nodes 8902 nps 5139722  
+Depth 4 nodes 197281 nps 7351356  
+Depth 5 nodes 4865609 nps 10365790  
+Depth 6 nodes 119060324 nps 10257354  
 
 ---
 ## Conclusion
