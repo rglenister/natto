@@ -1,8 +1,6 @@
 use arrayvec::ArrayVec;
-use std::cmp::Ordering;
 use crate::core::r#move::Move;
 use crate::core::position::Position;
-use crate::core::piece::PieceColor;
 use crate::core::piece::PieceType;
 use crate::eval::evaluation::PIECE_SCORES;
 use crate::search::negamax::MAXIMUM_SEARCH_DEPTH;
@@ -41,12 +39,6 @@ impl MoveOrderer {
             history_table: [[[0; 64]; 64]; 2],
             counter_moves: [[None; 64]; 12],
         }
-    }
-
-    pub fn clear(&mut self) {
-        self.killer_moves = [[None; MAX_KILLER_MOVES]; MAXIMUM_SEARCH_DEPTH];
-        self.history_table = [[[0; 64]; 64]; 2];
-        self.counter_moves = [[None; 64]; 12];
     }
 
     pub fn add_killer_move(&mut self, mov: Move, ply: usize) {
@@ -102,13 +94,13 @@ impl MoveOrderer {
         }
     }
 
-    pub fn update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
-        if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
-            let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
-            let to_square = last_move.get_base_move().to as usize;
-            self.counter_moves[piece_idx][to_square] = Some(countermove);
-        }
-    }
+    // pub fn update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
+    //     if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
+    //         let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
+    //         let to_square = last_move.get_base_move().to as usize;
+    //         self.counter_moves[piece_idx][to_square] = Some(countermove);
+    //     }
+    // }
 
     pub fn get_countermove(&self, position: &Position, last_move: &Option<&Move>) -> Option<Move> {
         if let Some(last_move) = last_move {
@@ -277,17 +269,14 @@ pub fn order_quiescence_moves(position: &Position, moves: &mut Vec<Move>) {
 mod tests {
     use super::*;
     use crate::core::r#move::BaseMove;
-    use crate::core::piece::PieceType::*;
-    use crate::core::r#move::Move::Basic;
-    use crate::core::r#move::Move::Promotion;
 
     #[test]
     fn test_killer_move_handling() {
         let mut move_orderer = MoveOrderer::new();
         let ply = 2;
 
-        let killer_move1 = Basic { base_move: BaseMove { from: 12, to: 28, capture: false } };
-        let killer_move2 = Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
+        let killer_move1 = Move::Basic { base_move: BaseMove { from: 12, to: 28, capture: false } };
+        let killer_move2 = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
 
         move_orderer.add_killer_move(killer_move1, ply);
         assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move1));
@@ -303,7 +292,7 @@ mod tests {
         assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
 
         // Capturing moves should not be added as killers
-        let capture_move = Basic { base_move: BaseMove { from: 10, to: 26, capture: true } };
+        let capture_move = Move::Basic { base_move: BaseMove { from: 10, to: 26, capture: true } };
         move_orderer.add_killer_move(capture_move, ply);
         assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move2));
         assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
@@ -314,9 +303,9 @@ mod tests {
         let mut move_orderer = MoveOrderer::new();
         let ply = 3;
 
-        let killer_move1 = Basic { base_move: BaseMove { from: 12, to: 28, capture: false } };
-        let killer_move2 = Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
-        let other_move = Basic { base_move: BaseMove { from: 10, to: 26, capture: false } };
+        let killer_move1 = Move::Basic { base_move: BaseMove { from: 12, to: 28, capture: false } };
+        let killer_move2 = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
+        let other_move = Move::Basic { base_move: BaseMove { from: 10, to: 26, capture: false } };
 
         move_orderer.add_killer_move(killer_move1, ply);
         move_orderer.add_killer_move(killer_move2, ply);
@@ -337,10 +326,10 @@ mod tests {
         let ply = 0;
 
         // Create sample moves
-        let hash_move = Basic { base_move: BaseMove { from: 60, to: 62, capture: false } }; // E1-G1 (castling)
-        let capture = Basic { base_move: BaseMove { from: 28, to: 21, capture: true } }; // E5-F6 (capture)
-        let killer_move = Basic { base_move: BaseMove { from: 12, to: 28, capture: false } }; // E2-E4
-        let quiet_move = Basic { base_move: BaseMove { from: 11, to: 27, capture: false } }; // D2-D4
+        let hash_move = Move::Basic { base_move: BaseMove { from: 60, to: 62, capture: false } }; // E1-G1 (castling)
+        let capture = Move::Basic { base_move: BaseMove { from: 28, to: 21, capture: true } }; // E5-F6 (capture)
+        let killer_move = Move::Basic { base_move: BaseMove { from: 12, to: 28, capture: false } }; // E2-E4
+        let quiet_move = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } }; // D2-D4
 
         // Add killer move
         move_orderer.add_killer_move(killer_move, ply);

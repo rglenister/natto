@@ -1,13 +1,12 @@
 use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 use crate::core::piece::{PieceColor, PieceType};
-use crate::core::piece::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{increment_node_counter, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::core::move_gen;
 use crate::util::util;
 use crate::core::position::Position;
-use crate::core::r#move::{Move};
+use crate::core::r#move::Move;
 use crate::search::move_ordering::order_quiescence_moves;
 
 include!("../util/generated_macro.rs");
@@ -36,7 +35,7 @@ pub fn quiescence_search(position: &mut Position, ply: isize, alpha: isize, beta
     }
 
     // Static evaluation when not in check
-    let mut stand_pat = score_position(position);
+    let stand_pat = score_position(position);
     if stand_pat >= beta {
         return stand_pat;
     }
@@ -184,12 +183,12 @@ fn generate_sorted_quiescence_moves(position: &Position) -> Vec<Move> {
 
 fn find_discovered_attacker(position: &Position, target_square: isize, previous_attacker_square: isize, side_to_move: PieceColor, occupied: u64) -> Option<isize> {
     if let Some(square_increment) = find_square_increment(target_square, previous_attacker_square) {
-        let piece_type = if square_increment.abs() == 8 || square_increment == 0 { Rook } else { Bishop };
+        let piece_type = if square_increment.abs() == 8 || square_increment == 0 { PieceType::Rook } else { PieceType::Bishop };
         let mut square_index = previous_attacker_square + square_increment;
         while util::on_board(previous_attacker_square, square_index) {
             if (1 << square_index) & occupied != 0 {
                 let bitboards_for_color = position.board().bitboards_for_color(side_to_move);
-                let bitboard = bitboards_for_color[piece_type as usize] | bitboards_for_color[Queen as usize];
+                let bitboard = bitboards_for_color[piece_type as usize] | bitboards_for_color[PieceType::Queen as usize];
                 if (bitboard & (1 << square_index)) != 0 {
                     return Some(square_index);
                 }
@@ -409,39 +408,39 @@ mod tests {
 
             println!("{:?}", quiescence_moves);
 
-            let move_0 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Queen };
+            let move_0 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: PieceType::Queen };
             assert_eq!(quiescence_moves[0], move_0);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_0), 17);
 
-            let move_1 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Rook };
+            let move_1 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: PieceType::Rook };
             assert_eq!(quiescence_moves[1], move_1);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_1), 13);
 
-            let move_2 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Queen };
+            let move_2 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: PieceType::Queen };
             assert_eq!(quiescence_moves[2], move_2);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_2), 13);
 
-            let move_3 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Knight };
+            let move_3 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: PieceType::Knight };
             assert_eq!(quiescence_moves[3], move_3);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_3), 11);
 
-            let move_4 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: Bishop };
+            let move_4 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("f1"), capture: true }, promote_to: PieceType::Bishop };
             assert_eq!(quiescence_moves[4], move_4);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_4), 11);
 
-            let move_5 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Rook };
+            let move_5 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: PieceType::Rook };
             assert_eq!(quiescence_moves[5], move_5);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_5), 9);
 
-            let move_6 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Queen };
+            let move_6 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: PieceType::Queen };
             assert_eq!(quiescence_moves[6], move_6);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_6), 8);
 
-            let move_7 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Knight };
+            let move_7 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: PieceType::Knight };
             assert_eq!(quiescence_moves[7], move_7);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_7), 7);
 
-            let move_8 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: Bishop };
+            let move_8 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("h1"), capture: true }, promote_to: PieceType::Bishop };
             assert_eq!(quiescence_moves[8], move_8);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_8), 7);
 
@@ -449,15 +448,15 @@ mod tests {
             assert_eq!(quiescence_moves[9], move_9);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_9), 4);
 
-            let move_10 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Rook };
+            let move_10 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: PieceType::Rook };
             assert_eq!(quiescence_moves[10], move_10);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_10), 4);
 
-            let move_11 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Knight };
+            let move_11 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: PieceType::Knight };
             assert_eq!(quiescence_moves[11], move_11);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_11), 2);
 
-            let move_12 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: Bishop };
+            let move_12 = Promotion { base_move: BaseMove { from: sq!("g2"), to: sq!("g1"), capture: false }, promote_to: PieceType::Bishop };
             assert_eq!(quiescence_moves[12], move_12);
             assert_eq!(MoveOrderer::mvv_lva_score(&position, &move_12), 2);
 

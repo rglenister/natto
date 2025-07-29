@@ -1,20 +1,18 @@
-use crate::eval::evaluation::GameStatus::{Checkmate, InProgress, Stalemate};
-use crate::util::move_formatter::{FormatMove, LONG_FORMATTER, SHORT_FORMATTER};
-use crate::core::{move_gen, r#move};
 use log::{debug, info, error};
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
+use crate::util::move_formatter::FormatMove;
+use crate::util::move_formatter::LONG_FORMATTER;
+use crate::core::{move_gen, r#move};
+use crate::core::r#move::Move;
 use crate::util::{fen, util};
-use crate::core::position::{Position, UndoMoveInfo};
+use crate::core::position::Position;
 use crate::eval::evaluation;
-use crate::core::r#move::{convert_chess_moves_to_raw, Move, RawMove};
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::core::move_gen::generate_moves;
 use crate::eval::evaluation::GameStatus;
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};
@@ -47,7 +45,7 @@ impl Display for SearchResults {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.score,
                self.depth,
-               SHORT_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
+               LONG_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
                self.game_status)
     }
 }
@@ -212,7 +210,7 @@ fn negamax_search(
         }
     }
     if depth > 0 {
-        let mut moves = generate_moves(position);
+        let mut moves = move_gen::generate_moves(position);
         let hash_move = ttable_entry.and_then(|entry| entry.best_move.clone());
         let last_move = &current_line.last().cloned();
         move_ordering::order_moves(position, &mut moves, &search_context.move_orderer, ply, hash_move, last_move);
@@ -270,9 +268,9 @@ fn negamax_search(
 }
 
 fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: &Vec<Move>, search_context: &SearchContext) -> SearchResults {
-    let raw_moves = convert_chess_moves_to_raw(pv);
-    let pv_with_positions: Vec<((Position, Move))> = util::replay_moves(&position, raw_moves).unwrap();
-    let last_position = pv_with_positions.last().map_or(position, |(p, m)| p);
+    let raw_moves = r#move::convert_chess_moves_to_raw(pv);
+    let pv_with_positions: Vec<(Position, r#move::Move)> = util::replay_moves(&position, raw_moves).unwrap();
+    let last_position = pv_with_positions.last().map_or(position, |(p, _)| p);
     let game_status = get_game_status(last_position, search_context.repetition_key_stack.as_ref());
     let expanded_pv: Vec<Move> = if pv.len() >= max_depth {
         pv.clone()
@@ -291,9 +289,9 @@ fn create_search_results(position: &Position, score: isize, max_depth: usize, pv
 
 fn retrieve_principal_variation(position: &Position, current_pv: &Vec<Move>, max_depth: usize) -> Vec<Move> {
     let mut pv = current_pv.clone();
-    let raw_moves = convert_chess_moves_to_raw(&pv);
-    let pv_with_positions: Vec<((Position, Move))> = util::replay_moves(&position, raw_moves).unwrap();
-    let last_position = pv_with_positions.last().map_or(position, |(p, m)| p);
+    let raw_moves = r#move::convert_chess_moves_to_raw(&pv);
+    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, raw_moves).unwrap();
+    let last_position = pv_with_positions.last().map_or(position, |(p, _)| p);
     let mut current_position = last_position.clone();
 
     let mut visited_positions = HashSet::new();
@@ -400,10 +398,6 @@ fn reset_node_counter() {
     NODE_COUNTER.write().unwrap().reset();
 }
 
-fn node_count() -> usize {
-    NODE_COUNTER.read().unwrap().node_count()
-}
-
 fn node_counter_stats() -> NodeCountStats {
     NODE_COUNTER.read().unwrap().stats()
 }
@@ -429,7 +423,7 @@ mod tests {
     }
 
     fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
-        LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
+        move_formatter::LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
     }
     
     #[test]
@@ -456,7 +450,7 @@ mod tests {
                 score: -100_000,
                 depth: 1,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -493,7 +487,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 1,
                 depth: 1,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -512,7 +506,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 1,
                 depth: 1,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -531,7 +525,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 3,
                 depth: 3,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -550,7 +544,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 5,
                 depth: 5,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -605,7 +599,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 7,
                 depth: 7,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -624,7 +618,7 @@ mod tests {
                 score: MAXIMUM_SCORE - 5,
                 depth: 5,
                 pv: vec![],
-                game_status: Checkmate,
+                game_status: GameStatus::Checkmate,
             }
         );
     }
@@ -644,7 +638,6 @@ mod tests {
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), &vec!());
-        let pv = search_results.pv_moves_as_string();
         assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
     }
 
@@ -654,7 +647,6 @@ mod tests {
         let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
-        let pv = search_results.pv_moves_as_string();
         assert_eq!(format_move_list(&position, &search_results), "♛c8-c2");
     }
 
@@ -674,13 +666,13 @@ mod tests {
                 score: 316,
                 depth: 1,
                 pv: vec![],
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
 
         let mut drawn_position: Position = original_position.clone();
-        let mut undo_move_info = drawn_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
-        let mut drawn_position_search_results = iterative_deepening(&mut drawn_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
+        drawn_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
+        let drawn_position_search_results = iterative_deepening(&mut drawn_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
         assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
             &drawn_position_search_results,
@@ -709,7 +701,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
 
@@ -722,7 +714,7 @@ mod tests {
                 score: 976,
                 depth: 1,
                 pv: vec![],
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
     }
@@ -741,7 +733,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
 
@@ -757,7 +749,7 @@ mod tests {
                 score: -826,
                 depth: 1,
                 pv: vec![],
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
         config::set_contempt(0);
@@ -776,7 +768,7 @@ mod tests {
                 score: -581,
                 depth: 2,
                 pv: vec![],
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
     }
@@ -795,7 +787,7 @@ mod tests {
                 depth: 4,
                 pv: vec![],
                 // todo it'd be good to actually get the three fold repetition status
-                game_status: InProgress,
+                game_status: GameStatus::InProgress,
             }
         );
     }

@@ -1,4 +1,5 @@
 
+#[allow(unused_macros)]
 macro_rules! sq {
     ("a1") => { 0 };
     ("b1") => { 1 };

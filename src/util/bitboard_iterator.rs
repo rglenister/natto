@@ -1,5 +1,3 @@
-#[cfg(test)]
-use super::*;
 
 pub struct BitboardIterator {
     bitboard: u64,

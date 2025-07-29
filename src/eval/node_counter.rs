@@ -1,16 +1,10 @@
-use std::os::macos::raw::stat;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
-use crate::core::move_gen::generate_moves;
 use rayon::prelude::*;
+use crate::core::move_gen;
 use crate::core::position::Position;
 use crate::core::r#move::Move;
 
-static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
-    let node_counter = NodeCounter::new();
-    RwLock::new(node_counter)
-});
 
 const NODE_COUNTS_AT_DEPTH: [usize; 11] = [
     1,
@@ -102,7 +96,7 @@ fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &mut Position, de
     }
 
     if depth < max_depth {
-        let moves = generate_moves(position);
+        let moves = move_gen::generate_moves(position);
         if USE_PARALLEL_ITERATOR {
             moves
                 .into_par_iter()

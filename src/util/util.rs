@@ -1,12 +1,11 @@
 use crate::core::{board, piece};
-use crate::core::piece::{PieceColor, PieceType};
+use crate::core::piece::{PieceColor};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::r#move::{Move, RawMove};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::ops::Add;
-use crate::core::board::Board;
-use crate::core::piece::PieceType::{Bishop, Queen, Rook};
+use crate::core::piece::PieceType;
 use crate::core::position::Position;
 use crate::search::negamax::RepetitionKey;
 
@@ -231,9 +230,9 @@ pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: is
     let dy = target_piece_square / 8 - blocking_piece_square / 8;
     if let Some(piece_type) =
         if dx == 0 || dy == 0 {
-            Some(Rook)
+            Some(PieceType::Rook)
         } else if dx.abs() == dy.abs()  {
-            Some(Bishop)
+            Some(PieceType::Bishop)
         } else {
             None
         } {
@@ -252,7 +251,7 @@ pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: is
             } else {
                 if (1 << square_to) & occupied_squares != 0 {
                     let piece = board.get_piece(square_to as usize).unwrap();
-                    return piece.piece_color == attacking_color && [piece_type, Queen].contains(&piece.piece_type)
+                    return piece.piece_color == attacking_color && [piece_type, PieceType::Queen].contains(&piece.piece_type)
                 }
             }
             square_from = square_to;
@@ -264,13 +263,11 @@ pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: is
 
 #[cfg(test)]
 mod tests {
-    use itertools::assert_equal;
     use crate::util::fen;
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
-    use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
     use crate::core::r#move::BaseMove;
-    use crate::core::r#move::Move::{Basic, Promotion};
+    use crate::core::r#move::Move;
     use super::*;
 
     #[test]
@@ -332,7 +329,6 @@ mod tests {
         let mut board = Board::new();
         board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
         board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
-        let string = board.to_string();
     }
 
     #[test]
@@ -356,22 +352,22 @@ mod tests {
     #[test]
     fn test_find_generated_basic_move() {
         let mut moves: Vec<Move> = vec![];
-        moves.push(Basic {base_move: { BaseMove { from: 1, to: 2, capture: false } }});
-        moves.push(Basic {base_move: { BaseMove {from: 3, to: 4, capture: false }}});
+        moves.push(Move::Basic {base_move: { BaseMove { from: 1, to: 2, capture: false } }});
+        moves.push(Move::Basic {base_move: { BaseMove {from: 3, to: 4, capture: false }}});
         let matched_move = find_generated_move(moves, &RawMove::new(1, 2, None));
-        assert_eq!(matched_move.unwrap(), Basic {base_move: BaseMove {from: 1, to: 2, capture: false}});
+        assert_eq!(matched_move.unwrap(), Move::Basic {base_move: BaseMove {from: 1, to: 2, capture: false}});
     }
 
     #[test]
     fn test_find_generated_promotion_move() {
         let mut moves: Vec<Move> = vec![];
-        moves.push(Basic {base_move: { BaseMove { from: 1, to: 2, capture: false }}});
-        moves.push(Basic {base_move: { BaseMove { from: 3, to: 4, capture: false }}});
-        moves.push(Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: Queen });
-        moves.push(Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: Rook });
-        moves.push(Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: Knight });
-        let matched_move = find_generated_move(moves, &RawMove::new(3, 9, Some(Rook)));
-        assert_eq!(matched_move.unwrap(), Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: Rook });
+        moves.push(Move::Basic {base_move: { BaseMove { from: 1, to: 2, capture: false }}});
+        moves.push(Move::Basic {base_move: { BaseMove { from: 3, to: 4, capture: false }}});
+        moves.push(Move::Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: PieceType::Queen });
+        moves.push(Move::Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: PieceType::Rook });
+        moves.push(Move::Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: PieceType::Knight });
+        let matched_move = find_generated_move(moves, &RawMove::new(3, 9, Some(PieceType::Rook)));
+        assert_eq!(matched_move.unwrap(), Move::Promotion {base_move: { BaseMove{ from: 3, to: 9, capture: false }}, promote_to: PieceType::Rook });
     }
 
     #[test]
@@ -391,10 +387,10 @@ mod tests {
     #[test]
     fn test_parse_move() {
         assert_eq!(parse_move("a1b1".to_string()).unwrap(), RawMove {from: sq!("a1"), to: sq!("b1"), promote_to: None});
-        assert_eq!(parse_move("h8a1n".to_string()).unwrap(), RawMove {from: sq!("h8"), to: sq!("a1"), promote_to: Some(Knight)});
-        assert_eq!(parse_move("h8a1b".to_string()).unwrap(), RawMove {from: sq!("h8"), to: sq!("a1"), promote_to: Some(Bishop)});
-        assert_eq!(parse_move("a1b1r".to_string()).unwrap(), RawMove {from: sq!("a1"), to: sq!("b1"), promote_to: Some(Rook)});
-        assert_eq!(parse_move("a1b1q".to_string()).unwrap(), RawMove {from: sq!("a1"), to: sq!("b1"), promote_to: Some(Queen)});
+        assert_eq!(parse_move("h8a1n".to_string()).unwrap(), RawMove {from: sq!("h8"), to: sq!("a1"), promote_to: Some(PieceType::Knight)});
+        assert_eq!(parse_move("h8a1b".to_string()).unwrap(), RawMove {from: sq!("h8"), to: sq!("a1"), promote_to: Some(PieceType::Bishop)});
+        assert_eq!(parse_move("a1b1r".to_string()).unwrap(), RawMove {from: sq!("a1"), to: sq!("b1"), promote_to: Some(PieceType::Rook)});
+        assert_eq!(parse_move("a1b1q".to_string()).unwrap(), RawMove {from: sq!("a1"), to: sq!("b1"), promote_to: Some(PieceType::Queen)});
 
         assert_eq!(parse_move("a1b1k".to_string()), None);
         assert_eq!(parse_move("".to_string()), None);

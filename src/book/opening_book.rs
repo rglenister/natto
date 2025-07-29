@@ -14,8 +14,6 @@ pub enum ErrorKind {
     InvalidMoveString { move_string: String },
     #[error("Illegal move: {raw_chess_move}")]
     IllegalMove { raw_chess_move: RawMove },
-    #[error("Out of book")]
-    OutOfBook,
 }
 pub trait OpeningBook {
     fn get_opening_move(&self, position: &Position) -> Result<RawMove, ErrorKind>;

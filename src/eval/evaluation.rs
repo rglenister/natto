@@ -149,7 +149,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<Repetitio
         _ => {
             if position.half_move_clock() >= 100 {
                 GameStatus::DrawnByFiftyMoveRule
-            } else if has_three_fold_repetition(position, repetition_key_stack) {
+            } else if has_three_fold_repetition(repetition_key_stack) {
                 GameStatus::DrawnByThreefoldRepetition
             } else if has_insufficient_material(&position) {
                 GameStatus::DrawnByInsufficientMaterial
@@ -159,7 +159,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<Repetitio
         }
     }
 }
-pub fn has_three_fold_repetition(position: &Position, repetition_key_stack: &Vec<RepetitionKey>) -> bool {
+pub fn has_three_fold_repetition(repetition_key_stack: &Vec<RepetitionKey>) -> bool {
     search::negamax::get_repeat_position_count(repetition_key_stack) >= 2
 }
 pub fn is_check(position: &Position) -> bool {

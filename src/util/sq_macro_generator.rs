@@ -1,5 +1,6 @@
 
 fn generate_macros() {
+    println!("#[allow(unused_macros)]");
     println!("{}", "macro_rules! sq {");
 
     for row in 0..8 {
@@ -17,7 +18,7 @@ fn generate_macros() {
 
 #[cfg(test)]
 mod tests {
-    use crate::chess_util::sq_macro_generator::generate_macros;
+    use crate::util::sq_macro_generator::generate_macros;
 
     #[test]
     fn test_generate_macros() {

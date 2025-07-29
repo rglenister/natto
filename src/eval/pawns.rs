@@ -1,12 +1,12 @@
 use crate::core::board::{Board, BoardSide};
 use crate::core::board::BoardSide::{KingSide, QueenSide};
 use crate::core::move_gen;
-use crate::core::piece::{Piece, PieceColor, PieceType};
+use crate::core::piece::{PieceColor, PieceType};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::Pawn;
 use crate::core::position::Position;
 use crate::util::bitboard_iterator::BitboardIterator;
-use crate::util::util::{column_bitboard, print_bitboard};
+use crate::util::util::column_bitboard;
 
 const BITBOARD_REGIONS: [u64; 2] = [
     column_bitboard(5) | column_bitboard(6) | column_bitboard(7), // kingside
@@ -87,7 +87,7 @@ fn score_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> isiz
     let their_pawns = board.bitboard_by_color_and_piece_type(!piece_color, Pawn);
 
     let mut score = 0isize;
-    score += score_passed_pawns(position, piece_color, our_pawns, their_pawns);
+    score += score_passed_pawns(piece_color, our_pawns, their_pawns);
 
     if has_pawn_majority(board, piece_color, KingSide) {
         score += 15;
@@ -99,7 +99,7 @@ fn score_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> isiz
     score
 }
 
-fn score_passed_pawns(position: &Position, piece_color: PieceColor, our_pawns: u64, their_pawns: u64) -> isize {
+fn score_passed_pawns(piece_color: PieceColor, our_pawns: u64, their_pawns: u64) -> isize {
     let mut score = 0isize;
     for pawn_square in BitboardIterator::new(our_pawns) {
         if is_passed_pawn(pawn_square, piece_color, their_pawns) {

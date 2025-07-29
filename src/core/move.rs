@@ -48,10 +48,6 @@ impl Default for Move {
 }
 
 impl Move {
-    pub(crate) fn default() -> Move {
-        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
-    }
-
     pub fn get_base_move(&self) -> &BaseMove {
         match self {
             Basic { base_move }

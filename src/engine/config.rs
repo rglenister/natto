@@ -56,8 +56,10 @@ pub fn set_hash_size(hash_size: usize) {
 }
 
 pub fn get_config_as_string() -> String {
+
+    #[allow(dead_code)]
     #[derive(Debug)]
-    struct Configuration {
+    struct DynamicConfig {
         log_file: String,
         log_level: LevelFilter,
         use_book: bool,
@@ -65,7 +67,7 @@ pub fn get_config_as_string() -> String {
         hash_size: usize,
         contempt: isize,
     }
-    let configuration = Configuration {
+    let configuration = DynamicConfig {
         log_file: get_log_file(),
         log_level: get_log_level(),
         use_book: get_use_book(),

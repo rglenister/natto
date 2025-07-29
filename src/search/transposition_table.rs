@@ -1,13 +1,11 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use dotenv::var;
-use log::{error, info};
+use log::{info};
 use once_cell::sync::Lazy;
-use crate::core::board::BoardSide::{KingSide, QueenSide};
-use crate::core::piece::PieceType::{Bishop, Knight, Queen, Rook};
+use crate::core::board::BoardSide;
+use crate::core::piece::PieceType;
 use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
-use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 use crate::engine::config;
 pub use crate::search::negamax::MAXIMUM_SCORE;
 
@@ -36,8 +34,6 @@ pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
     info!("Transposition table created. Total memory used is {} MiB ({:.2} GiB)", memory_footprint, bytes_to_gib(memory_footprint));
     transposition_table
 });
-
-const DEFAULT_HASH_SIZE: usize = 1 << 25;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundType {
@@ -144,16 +140,16 @@ impl TranspositionTable {
         }
 
         match best_move {
-            Basic { base_move } => {
+            Move::Basic { base_move } => {
                 pack_base_move_and_type(base_move, 0)
             }
-            EnPassant { base_move, capture_square } => {
+            Move::EnPassant { base_move, capture_square } => {
                 pack_base_move_and_type(base_move, 1) | (capture_square as u64 & 0x3f)
             }
-            Promotion { base_move, promote_to } => {
+            Move::Promotion { base_move, promote_to } => {
                 pack_base_move_and_type(base_move, 2) | (promote_to as u64 & 0x3f)
             }
-            Castling { base_move, board_side } => {
+            Move::Castling { base_move, board_side } => {
                 pack_base_move_and_type(base_move, 3) | (board_side as u64 & 0x3f)
             }
         }
@@ -166,28 +162,28 @@ impl TranspositionTable {
         let move_type = (move_packed >> 6) & 3;
 
         match move_type {
-            0 => Basic {
+            0 => Move::Basic {
                 base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
             },
-            1 => EnPassant {
+            1 => Move::EnPassant {
                 base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 capture_square: (move_packed & 0x3F) as u8,
             },
-            2 => Promotion {
+            2 => Move::Promotion {
                 base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 promote_to: match move_packed & 0x3F {
-                    1 => Knight,
-                    2 => Bishop,
-                    3 => Rook,
-                    4 => Queen,
+                    1 => PieceType::Knight,
+                    2 => PieceType::Bishop,
+                    3 => PieceType::Rook,
+                    4 => PieceType::Queen,
                     _ => panic!("Invalid promotion type"),
                 }
             },
-            3 => Castling {
+            3 => Move::Castling {
                 base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 board_side: match move_packed & 0x3F {
-                    0 => KingSide,
-                    1 => QueenSide,
+                    0 => BoardSide::KingSide,
+                    1 => BoardSide::QueenSide,
                     _ => panic!("Invalid castling side"),
                 }
             },
@@ -231,7 +227,7 @@ pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::transposition_table::BoundType::{LowerBound, UpperBound};
+    use crate::search::transposition_table::BoundType::{LowerBound};
     
     #[test]
     fn test_small_table_creation() {
@@ -256,10 +252,10 @@ mod tests {
         assert_eq!(table.size, 2);
 
         let position = Position::new_game();
-        table.store(position.hash_code(), Option::from(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
+        table.store(position.hash_code(), Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
         let entry = table.probe(position.hash_code()).unwrap();
         assert_eq!(entry.zobrist, position.hash_code());
-        assert_eq!(entry.best_move, Some(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }));
+        assert_eq!(entry.best_move, Some(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }));
         assert_eq!(entry.depth, 8);
         assert_eq!(entry.score, -100);
         assert_eq!(entry.bound_type, LowerBound);
@@ -271,7 +267,7 @@ mod tests {
         assert_eq!(table.size, 4);
         assert_eq!(table.item_count(), 0);
         let position = Position::new_game();
-        table.store(position.hash_code(), Option::from(Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
+        table.store(position.hash_code(), Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }), 8, -100, LowerBound);
         assert_eq!(table.item_count(), 1);
         table.clear();
         assert_eq!(table.item_count(), 0);
@@ -286,10 +282,10 @@ mod tests {
             let position = Position::new_game();
             let packed1 = position.hash_code();
             let packed = TranspositionTable::pack_entry(
-                packed1, Option::from(Basic { base_move: BaseMove { from: 12, to: 16, capture: true } }), 2, 21, Exact);
+                packed1, Option::from(Move::Basic { base_move: BaseMove { from: 12, to: 16, capture: true } }), 2, 21, Exact);
             let unpacked = TranspositionTable::unpack_entry(packed.0, packed.1).unwrap();
             assert_eq!(unpacked.zobrist, packed1);
-            assert_eq!(unpacked.best_move, Some(Basic { base_move: BaseMove { from: 12, to: 16, capture: true } }));
+            assert_eq!(unpacked.best_move, Some(Move::Basic { base_move: BaseMove { from: 12, to: 16, capture: true } }));
             assert_eq!(unpacked.depth, 2);
             assert_eq!(unpacked.score, 21);
             assert_eq!(unpacked.bound_type, Exact);
@@ -315,7 +311,7 @@ mod tests {
             use crate::core::r#move::Move::{Castling, EnPassant, Promotion};
             #[test]
             fn test_basic_move() {
-                let basic_move = Basic { base_move: BaseMove{from: 63, to: 0, capture: false }};
+                let basic_move = Move::Basic { base_move: BaseMove{from: 63, to: 0, capture: false }};
                 let packed = TranspositionTable::pack_move(basic_move);
                 let unpacked = TranspositionTable::unpack_mv(packed);
                 assert_eq!(basic_move, unpacked);

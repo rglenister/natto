@@ -1,14 +1,10 @@
-#[macro_use]
-use crate::util::util::process_bits;
+use crate::util::util;
 use std::fmt;
 use std::fmt::Write;
 use std::iter::Iterator;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use crate::core::board;
 use crate::core::piece::{Piece, PieceColor, PieceType};
-use crate::core::piece::PieceColor::{Black, White};
-use crate::core::piece::PieceType::{Bishop, King, Pawn};
 
 include!("../util/generated_macro.rs");
 
@@ -163,18 +159,18 @@ impl Board {
     }
 
     pub fn king_square(&self, piece_color: PieceColor) -> usize {
-        self.bitboard_by_color_and_piece_type(piece_color, King).trailing_zeros() as usize
+        self.bitboard_by_color_and_piece_type(piece_color, PieceType::King).trailing_zeros() as usize
     }
 
     pub fn white_pawn_attacks(&self) -> u64 {
-        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::White, Pawn);
+        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
         let left_attacks = (bitboard & !0x0101010101010101) << 7;
         let right_attacks = (bitboard & !0x8080808080808080) << 9;
         left_attacks | right_attacks
     }
 
     pub fn black_pawn_attacks(&self) -> u64 {
-        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::Black, Pawn);
+        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
         let left_attacks = (bitboard & !0x0101010101010101) >> 9;
         let right_attacks = (bitboard & !0x8080808080808080) >> 7;
         left_attacks | right_attacks
@@ -182,7 +178,7 @@ impl Board {
 
     pub fn can_castle(&self, side_to_move: PieceColor, board_side: &BoardSide) -> bool {
         let king_home_square_mask = KING_HOME_SQUARE_MASKS[side_to_move as usize];
-        let king_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, King);
+        let king_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::King);
         if (king_bitboard & king_home_square_mask) != 0 {
             let rook_home_square_mask = ROOK_HOME_SQUARE_MASKS[side_to_move as usize][*board_side as usize];
             let rook_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::Rook);
@@ -200,7 +196,7 @@ impl Board {
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
                 let bitboard = self.bitboard_by_color_and_piece_type(piece_color, piece_type);
-                process_bits(bitboard, |square_index| {
+                util::process_bits(bitboard, |square_index| {
                     func(piece_color, piece_type, square_index.try_into().unwrap());
                 });
             }
@@ -221,7 +217,7 @@ impl Board {
         fn sum_array(array: &[u64; 6]) -> usize {
             array.iter().fold(0, |acc, x| acc + x.count_ones() as usize)
         }
-        sum_array(&self.bitboards_for_color(White)) + sum_array(&self.bitboards_for_color(Black))
+        sum_array(&self.bitboards_for_color(PieceColor::White)) + sum_array(&self.bitboards_for_color(PieceColor::Black))
     }
 
     pub fn get_piece_count(&self, piece_color: PieceColor, piece_type: PieceType) -> usize {
@@ -257,14 +253,14 @@ impl Board {
     }
 
     pub fn has_bishop_pair(&self, piece_color: PieceColor) -> bool {
-        let bishops = self.bit_boards[piece_color as usize][Bishop as usize];
+        let bishops = self.bit_boards[piece_color as usize][PieceType::Bishop as usize];
         bishops & BLACK_SQUARES_MASK != 0 && bishops & WHITE_SQUARES_MASK != 0
     }
     
     pub fn has_bishops_on_same_color_squares(&self, piece_color: PieceColor) -> bool {
         let mut counts = [0; 2];
-        let bishops = self.bit_boards[piece_color as usize][Bishop as usize];
-        process_bits(bishops, |square_index| {
+        let bishops = self.bit_boards[piece_color as usize][PieceType::Bishop as usize];
+        util::process_bits(bishops, |square_index| {
             let color_index = Self::is_white_square(square_index as usize) as usize;
             counts[color_index] += 1;
         });
@@ -295,7 +291,6 @@ impl fmt::Display for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::board::PieceType::{Bishop, Knight, Queen, Rook};
     use crate::core::position::Position;
 
     #[test]
@@ -406,22 +401,22 @@ mod tests {
     fn test_queen_side_black_castling() {
         let mut board: Board = Board::new();
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
-        board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: King});
+        board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: PieceType::King});
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
-        board.put_piece(56, Piece { piece_color: PieceColor::Black, piece_type: Rook});
+        board.put_piece(56, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Rook});
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        board.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
+        board.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight});
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         board.remove_piece(57);
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        board.put_piece(58, Piece { piece_color: PieceColor::Black, piece_type: Bishop});
+        board.put_piece(58, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         board.remove_piece(58);
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        board.put_piece(59, Piece { piece_color: PieceColor::Black, piece_type: Queen});
+        board.put_piece(59, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen});
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         board.remove_piece(59);
         assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
@@ -433,10 +428,10 @@ mod tests {
         let mut board2: Board = Board::new();
         assert_eq!(board1, board2);
 
-        board1.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
+        board1.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight});
         assert_ne!(board1, board2);
 
-        board2.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: Knight});
+        board2.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight});
         assert_eq!(board1, board2);
     }
 
@@ -466,13 +461,13 @@ mod tests {
     #[test]
     fn test_get_piece_count() {
         let mut board = Board::new();
-        assert_eq!(board.get_piece_count(PieceColor::White, Knight), 0);
+        assert_eq!(board.get_piece_count(PieceColor::White, PieceType::Knight), 0);
 
-        board.put_piece(sq!("a3"), Piece { piece_color: PieceColor::White, piece_type: Knight});
-        board.put_piece(sq!("h8"), Piece { piece_color: PieceColor::White, piece_type: Knight});
+        board.put_piece(sq!("a3"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight});
+        board.put_piece(sq!("h8"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight});
         assert_eq!(board.get_piece_count(PieceColor::White, PieceType::Knight), 2);
 
-        board.put_piece(sq!("a3"), Piece { piece_color: PieceColor::Black, piece_type: Queen});
+        board.put_piece(sq!("a3"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen});
         assert_eq!(board.get_piece_count(PieceColor::White, PieceType::Knight), 1);
     }
 
@@ -482,20 +477,20 @@ mod tests {
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
         assert_eq!(board.has_bishop_pair(PieceColor::Black), false);
 
-        board.put_piece(sq!("c1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
+        board.put_piece(sq!("c1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
-        board.put_piece(sq!("f1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
+        board.put_piece(sq!("f1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishop_pair(PieceColor::White), true);
 
-        board.put_piece(sq!("c8"), Piece { piece_color: PieceColor::Black, piece_type: Bishop});
+        board.put_piece(sq!("c8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishop_pair(PieceColor::Black), false);
-        board.put_piece(sq!("f8"), Piece { piece_color: PieceColor::Black, piece_type: Bishop});
+        board.put_piece(sq!("f8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishop_pair(PieceColor::Black), true);
 
         board.remove_piece(sq!("c1"));
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
 
-        board.put_piece(sq!("d1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
+        board.put_piece(sq!("d1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
 
     }
@@ -506,18 +501,18 @@ mod tests {
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), false);
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
 
-        board.put_piece(sq!("c1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
+        board.put_piece(sq!("c1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), false);
-        board.put_piece(sq!("f1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
+        board.put_piece(sq!("f1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), false);
-        board.put_piece(sq!("g1"), Piece { piece_color: PieceColor::White, piece_type: Bishop});
+        board.put_piece(sq!("g1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), true);
 
-        board.put_piece(sq!("c8"), Piece { piece_color: PieceColor::Black, piece_type: Bishop});
+        board.put_piece(sq!("c8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
-        board.put_piece(sq!("f8"), Piece { piece_color: PieceColor::Black, piece_type: Bishop});
+        board.put_piece(sq!("f8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
-        board.put_piece(sq!("g8"), Piece { piece_color: PieceColor::Black, piece_type: Bishop});
+        board.put_piece(sq!("g8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop});
         assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), true);
     }
 

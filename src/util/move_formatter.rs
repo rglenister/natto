@@ -53,7 +53,6 @@ impl FormatMove for MoveFormatter {
     fn format_move_list(&self, position: &Position, chess_moves: &[Move]) -> Option<Vec<String>> {
         let mut result = Vec::new();
         let mut current_position: Position = position.clone();
-        let mut next_position: &mut Position;// = position.clone();
         for mv in chess_moves.iter() {
             let mut next_position = current_position.clone();
             next_position.make_move(mv).unwrap();
@@ -61,13 +60,6 @@ impl FormatMove for MoveFormatter {
             current_position.make_move(mv).unwrap();
         }
         Some(result)
-    }
-}
-
-fn get_promote_to(chess_move: Move) -> Option<PieceType> {
-    match chess_move {
-        Move::Promotion { base_move: _, promote_to } => Some(promote_to),
-        _ => None
     }
 }
 
@@ -89,11 +81,11 @@ impl MoveFormatter {
         format!("{}{}{}{}{}{}{}",
                 self.get_piece(position, mov),
                 self.get_from_square(position, mov),
-                self.get_from_to_separator(position, mov),
-                self.get_to_square(position, mov),
+                self.get_from_to_separator(mov),
+                self.get_to_square(mov),
                 self.get_promotion_piece(position, mov),
-                self.get_en_passant_indicator(position, mov),
-                self.get_result(position, mov, next_position)
+                self.get_en_passant_indicator(mov),
+                self.get_result(next_position)
         )
     }
     fn get_piece(&self, position: &Position, mov: &Move) -> String {
@@ -120,7 +112,7 @@ impl MoveFormatter {
             util::format_square(mov.get_base_move().from as usize)
         }
     }
-    fn get_from_to_separator(&self, position: &Position, mov: &Move) -> String {
+    fn get_from_to_separator(&self, mov: &Move) -> String {
         if mov.get_base_move().capture {
             'x'.to_string()
         } else if self.move_format == ShortAlgebraic {
@@ -130,7 +122,7 @@ impl MoveFormatter {
         }
     }
 
-    fn get_to_square(&self, position: &Position, mov: &Move) -> String {
+    fn get_to_square(&self, mov: &Move) -> String {
         util::format_square(mov.get_base_move().to as usize)
     }
 
@@ -143,7 +135,7 @@ impl MoveFormatter {
         }
     }
 
-    fn get_en_passant_indicator(&self, position: &Position, mov: &Move) -> String {
+    fn get_en_passant_indicator(&self, mov: &Move) -> String {
         match mov {
             Move::EnPassant { base_move: _, capture_square: _ } => {
                 "ep".to_string()
@@ -152,7 +144,7 @@ impl MoveFormatter {
         }
     }
 
-    fn get_result(&self, position: &Position, mov: &Move, next_position: &Position) -> String {
+    fn get_result(&self, next_position: &Position) -> String {
         match evaluation::get_game_status(next_position, &vec!()) {
             GameStatus::Checkmate => { "#".to_string() }
             _ => "+".repeat(evaluation::check_count(next_position)).to_string()
