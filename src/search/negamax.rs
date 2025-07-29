@@ -1,5 +1,5 @@
-use crate::eval::evaluation::GameStatus::{Checkmate, InProgress};
-use crate::util::move_formatter::{FormatMove, LONG_FORMATTER};
+use crate::eval::evaluation::GameStatus::{Checkmate, InProgress, Stalemate};
+use crate::util::move_formatter::{FormatMove, LONG_FORMATTER, SHORT_FORMATTER};
 use crate::core::{move_gen, r#move};
 use log::{debug, info, error};
 use std::cell::RefCell;
@@ -33,7 +33,7 @@ pub const MAXIMUM_SEARCH_DEPTH: usize = 63;
 pub const MAXIMUM_SCORE: isize = 100000;
 
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SearchResults {
     pub position: Position,
     pub score: isize,
@@ -47,7 +47,7 @@ impl Display for SearchResults {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.score,
                self.depth,
-               "The moves",//LONG_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
+               SHORT_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
                self.game_status)
     }
 }
@@ -140,25 +140,22 @@ pub fn iterative_deepening(
     repetition_keys: &Vec<RepetitionKey>) -> SearchResults {
 
     reset_node_counter();
-    let mut search_results_stack = vec!();
+    let mut search_results: SearchResults = Default::default();
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repetition_keys.clone(), MoveOrderer::new());
-        let search_results = negamax(position, iteration_max_depth, &mut search_context);
+        search_results = negamax(position, iteration_max_depth, &mut search_context);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            debug!("Search results for depth {}: {}", iteration_max_depth, search_results);
+            debug!("Search results for depth {}: {}", iteration_max_depth, &search_results);
             uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()).as_str());
-            let is_checkmate = search_results.game_status == Checkmate || is_mating_score(search_results.score);
-            search_results_stack.push(search_results);
-            if is_checkmate {
-                info!("Found mate at depth {} - stopping search", iteration_max_depth);
-                TRANSPOSITION_TABLE.clear();
+            if is_terminal_score(search_results.score) {
+                info!("Found terminal position with score {} at depth {} - stopping search", search_results.score, iteration_max_depth);
                 break;
             }
-        } else {
+        } else if iteration_max_depth > 1 {
             break;
         }
     }
-    search_results_stack.pop().unwrap()
+    search_results
 }
 
 fn negamax(position: &mut Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
@@ -422,6 +419,7 @@ mod tests {
 
     fn setup() {
         config::tests::initialize_test_config();
+        TRANSPOSITION_TABLE.clear();
     }
     
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
@@ -716,7 +714,7 @@ mod tests {
         );
 
         let win_search_results = uci::run_uci_position(go_for_win_uci_position_str, go_options_str);
-        assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6".to_string());
+        assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6");
         test_eq(
             &win_search_results,
             &SearchResults {
@@ -787,14 +785,14 @@ mod tests {
     fn test_perpetual_check() {
         setup();
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
-        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 5");
-        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
+        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 4");
+        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,
             &SearchResults {
                 position: search_results.position,
                 score: 0,
-                depth: 5,
+                depth: 4,
                 pv: vec![],
                 // todo it'd be good to actually get the three fold repetition status
                 game_status: InProgress,

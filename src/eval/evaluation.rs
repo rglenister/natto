@@ -17,10 +17,11 @@ use strum::IntoEnumIterator;
 
 include!("../util/generated_macro.rs");
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[derive(Eq, Hash, PartialEq)]
 #[repr(u8)]
 pub enum GameStatus {
+    #[default]
     InProgress,
     DrawnByFiftyMoveRule,
     DrawnByThreefoldRepetition,

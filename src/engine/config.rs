@@ -77,7 +77,7 @@ pub fn get_config_as_string() -> String {
 }
 
 #[derive(Parser, Debug, Clone)]
-struct Config {
+pub struct Config {
     pub log_file: String,
     pub log_level: LevelFilter,
     pub use_book: bool,
