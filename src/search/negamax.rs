@@ -148,7 +148,7 @@ pub fn iterative_deepening(
             debug!("Search results for depth {}: {}", iteration_max_depth, &search_results);
             uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()).as_str());
             if is_terminal_score(search_results.score) {
-                info!("Found terminal position with score {} at depth {} - stopping search", search_results.score, iteration_max_depth);
+                info!("Found terminal position with score {} and game status {:?} at depth {} - stopping search", search_results.score, search_results.game_status, iteration_max_depth);
                 break;
             }
         } else if iteration_max_depth > 1 {
