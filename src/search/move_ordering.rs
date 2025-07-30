@@ -41,6 +41,12 @@ impl MoveOrderer {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.killer_moves = [[None; MAX_KILLER_MOVES]; MAXIMUM_SEARCH_DEPTH];
+        self.history_table = [[[0; 64]; 64]; 2];
+        self.counter_moves = [[None; 64]; 12];
+    }
+
     pub fn add_killer_move(&mut self, mov: Move, ply: usize) {
         // Don't add capturing moves or promotions as killers
         if mov.get_base_move().capture || matches!(mov, Move::Promotion { .. }) {
@@ -93,14 +99,13 @@ impl MoveOrderer {
             }
         }
     }
-
-    // pub fn update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
-    //     if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
-    //         let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
-    //         let to_square = last_move.get_base_move().to as usize;
-    //         self.counter_moves[piece_idx][to_square] = Some(countermove);
-    //     }
-    // }
+    pub fn update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
+        if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
+            let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
+            let to_square = last_move.get_base_move().to as usize;
+            self.counter_moves[piece_idx][to_square] = Some(countermove);
+        }
+    }
 
     pub fn get_countermove(&self, position: &Position, last_move: &Option<&Move>) -> Option<Move> {
         if let Some(last_move) = last_move {

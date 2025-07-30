@@ -101,11 +101,10 @@ impl SearchContext<'_> {
 }
 
 impl SearchResults {
-    fn pv_moves(&self) -> Vec<Move> {
-        self.pv.clone()//.into_iter().map(|pm| pm.1).collect()
-    }
+
+    #[allow(dead_code)]
     fn pv_moves_as_string(&self) -> String {
-        self.pv_moves().iter().join(",")
+        self.pv.clone().iter().join(",")
     }
 }
 

@@ -1,4 +1,4 @@
-
+#[allow(dead_code)]
 fn generate_macros() {
     println!("#[allow(unused_macros)]");
     println!("{}", "macro_rules! sq {");

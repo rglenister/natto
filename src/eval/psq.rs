@@ -1,8 +1,8 @@
 use strum::IntoEnumIterator;
 use crate::core::board::Board;
+#[allow(unused_imports)]
 use crate::core::piece::{Piece, PieceColor, PieceType};
-use crate::core::piece::PieceColor::{Black, White};
-use crate::core::piece::PieceType::{Pawn, Queen};
+#[allow(unused_imports)]
 use crate::core::position::Position;
 use crate::util::bitboard_iterator::BitboardIterator;
 
@@ -136,15 +136,15 @@ pub const EG_PST: [[isize; 64]; 6] = [
 
 
 pub fn score_board_psq_values(board: &Board) -> (isize, isize) {
-    let (white_mg, white_eg) = score_board_psq_values_for_color(board, White);
-    let (black_mg, black_eg) = score_board_psq_values_for_color(board, Black);
+    let (white_mg, white_eg) = score_board_psq_values_for_color(board, PieceColor::White);
+    let (black_mg, black_eg) = score_board_psq_values_for_color(board, PieceColor::Black);
     (white_mg - black_mg, white_eg - black_eg)
 }
 fn score_board_psq_values_for_color(board: &Board, color: PieceColor) -> (isize, isize) {
     let mut mg_score = 0;
     let mut eg_score = 0;
     let bitboards = board.bitboards_for_color(color);
-    let square_index_xor = if color == White { 56 } else { 0 };
+    let square_index_xor = if color == PieceColor::White { 56 } else { 0 };
     for piece_type in PieceType::iter() {
         for square_index in  BitboardIterator::new(bitboards[piece_type as usize]) {
             mg_score += MG_PST[piece_type as usize][square_index ^ square_index_xor];
@@ -154,27 +154,32 @@ fn score_board_psq_values_for_color(board: &Board, color: PieceColor) -> (isize,
     (mg_score, eg_score)
 }
 
-#[test]
-fn test_score_board_material_balance() {
-    let position = Position::new_game();
-    let board = position.board();
-    assert_eq!(score_board_psq_values_for_color(&board, White), (-147, -193));
-    assert_eq!(score_board_psq_values_for_color(&board, Black), (-147, -193));
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
 
-    let mut board = Board::new();
-    assert_eq!(score_board_psq_values_for_color(&board, White), (0, 0));
-    assert_eq!(score_board_psq_values_for_color(&board, Black), (0, 0));
+    #[test]
+    fn test_score_board_material_balance() {
+        let position = Position::new_game();
+        let board = position.board();
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-147, -193));
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::Black), (-147, -193));
 
-    board.put_piece(sq!("a2"), Piece { piece_color: White, piece_type: Pawn});
-    assert_eq!(score_board_psq_values_for_color(&board, White), (-35, 13));
+        let mut board = Board::new();
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (0, 0));
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::Black), (0, 0));
 
-    board.put_piece(sq!("b2"), Piece { piece_color: White, piece_type: Queen});
-    board.put_piece(sq!("b3"), Piece { piece_color: White, piece_type: Queen});
-    board.put_piece(sq!("b4"), Piece { piece_color: White, piece_type: Queen});
-    board.put_piece(sq!("b5"), Piece { piece_color: Black, piece_type: Queen});
-    board.put_piece(sq!("b6"), Piece { piece_color: Black, piece_type: Queen});
-    board.put_piece(sq!("b7"), Piece { piece_color: Black, piece_type: Queen});
-    assert_eq!(score_board_psq_values_for_color(&board, White), (-67, -9));
-    board.remove_piece(sq!("b2"));
-    assert_eq!(score_board_psq_values_for_color(&board, White), (-59, 14));
+        board.put_piece(sq!("a2"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Pawn });
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-35, 13));
+
+        board.put_piece(sq!("b2"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b3"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b4"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b5"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b6"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b7"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-67, -9));
+        board.remove_piece(sq!("b2"));
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-59, 14));
+    }
 }

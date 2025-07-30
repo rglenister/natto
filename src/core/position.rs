@@ -289,6 +289,7 @@ impl Position {
                 position.half_move_clock += 1;
             }
         }
+        #[allow(unused_variables)]
         let original_position: Position;
         #[cfg(debug_assertions)] {
             original_position = self.clone();

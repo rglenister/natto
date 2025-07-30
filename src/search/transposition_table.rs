@@ -116,6 +116,7 @@ impl TranspositionTable {
         }       
     }
 
+    #[allow(dead_code)]
     pub fn item_count(&self) -> usize {
         let mut count = 0;
         for i in 0..self.size {
