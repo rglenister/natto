@@ -140,7 +140,9 @@ pub fn iterative_deepening(
     let mut search_results: SearchResults = Default::default();
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repetition_keys.clone(), MoveOrderer::new());
-        search_results = negamax(position, iteration_max_depth, &mut search_context);
+        let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+        let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        search_results = create_search_results(position, score, iteration_max_depth, &pv.to_vec(), &search_context);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
             debug!("Search results for depth {}: {}", iteration_max_depth, &search_results);
             uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()).as_str());
@@ -153,12 +155,6 @@ pub fn iterative_deepening(
         }
     }
     search_results
-}
-
-fn negamax(position: &mut Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
-    let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-    let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-    create_search_results(position, score, max_depth, &pv.to_vec(), search_context)
 }
 
 fn negamax_search(
@@ -199,7 +195,7 @@ fn negamax_search(
                 // BoundType::UpperBound => if entry.score < beta {
                 //     beta = entry.score
                 // },
-                BoundType::UpperBound => {  
+                BoundType::UpperBound => {
                     // do nothing
                 }
             }
@@ -238,8 +234,12 @@ fn negamax_search(
                 }
                 alpha = alpha.max(next_score);
                 position.unmake_move(&undo_move_info);
-                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
-                    break;
+                if alpha >= beta {
+                    &search_context.move_orderer.add_killer_move(mv, ply);
+                    return beta;
+                }
+                if depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed) {
+                    return 0;
                 }
             }
         };
@@ -360,7 +360,7 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
         .map(|pos| r#move::convert_chess_move_to_raw(&pos).to_string())
         .collect::<Vec<String>>()
         .join(" ");
-    
+
     let moves = util::replay_move_string(position, moves_string.clone());
     if moves.is_none() {
         error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
@@ -414,7 +414,7 @@ mod tests {
         config::tests::initialize_test_config();
         TRANSPOSITION_TABLE.clear();
     }
-    
+
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
         assert_eq!(search_results.depth, expected.depth);
@@ -424,7 +424,7 @@ mod tests {
     fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
         move_formatter::LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
     }
-    
+
     #[test]
     fn test_piece_captured() {
         setup();
@@ -630,7 +630,7 @@ mod tests {
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), &vec!());
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
-    
+
     #[test]
     fn test_hiarcs_blunder() {
         setup();
@@ -796,10 +796,10 @@ mod tests {
         setup();
         let score = MAXIMUM_SCORE;
         assert!(is_mating_score(score));
-        
+
         let score = -MAXIMUM_SCORE;
         assert!(is_mating_score(score));
-        
+
         let score = MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize;
         assert!(is_mating_score(score));
 
