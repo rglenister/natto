@@ -206,25 +206,21 @@ impl Engine {
                 "hash" => {
                     if let Ok(v) = value.parse::<usize>() {
                         set_hash_size(v);
-                        send_to_gui(&format!("info string Hash set to {}", v));
                     }
                 }
                 "contempt" => {
                     if let Ok(v) = value.parse::<isize>() {
                         set_contempt(v);
-                        send_to_gui(&format!("info string Contempt set to {}", v));
                     }
                 }
                 "usebook" => {
                     if let Ok(v) = value.parse::<bool>() {
                         set_use_book(v);
-                        send_to_gui(&format!("info string UseBook set to {}", v));
                     }
                 }
                 "maxbookdepth" => {
                     if let Ok(v) = value.parse::<usize>() {
                         set_max_book_depth(v);
-                        send_to_gui(&format!("info string MaxBookDepth set to {}", v));
                     }
                 }
                 _ => {

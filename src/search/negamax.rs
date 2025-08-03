@@ -5,8 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
+use crate::engine::config;
+use crate::util::move_formatter;
 use crate::util::move_formatter::FormatMove;
-use crate::util::move_formatter::LONG_FORMATTER;
 use crate::core::{move_gen, r#move};
 use crate::core::r#move::Move;
 use crate::util::{fen, util};
@@ -31,7 +32,7 @@ pub const MAXIMUM_SEARCH_DEPTH: usize = 63;
 pub const MAXIMUM_SCORE: isize = 100000;
 
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchResults {
     pub position: Position,
     pub score: isize,
@@ -45,7 +46,7 @@ impl Display for SearchResults {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.score,
                self.depth,
-               LONG_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
+               move_formatter::SHORT_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
                self.game_status)
     }
 }
@@ -101,10 +102,11 @@ impl SearchContext<'_> {
 }
 
 impl SearchResults {
-
-    #[allow(dead_code)]
+    fn pv_moves(&self) -> Vec<Move> {
+        self.pv.clone()//.into_iter().map(|pm| pm.1).collect()
+    }
     fn pv_moves_as_string(&self) -> String {
-        self.pv.clone().iter().join(",")
+        self.pv_moves().iter().join(",")
     }
 }
 
@@ -137,25 +139,34 @@ pub fn iterative_deepening(
     repetition_keys: &Vec<RepetitionKey>) -> SearchResults {
 
     reset_node_counter();
-    let mut search_results: SearchResults = Default::default();
+    let mut search_results: Option<SearchResults> = None;
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repetition_keys.clone(), MoveOrderer::new());
         let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
         let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-        search_results = create_search_results(position, score, iteration_max_depth, &pv.to_vec(), &search_context);
         if !search_context.stop_flag.load(Ordering::Relaxed) {
-            debug!("Search results for depth {}: {}", iteration_max_depth, &search_results);
-            uci::send_to_gui(format_uci_info(position, &search_results, &node_counter_stats()).as_str());
-            if is_terminal_score(search_results.score) {
-                info!("Found terminal position with score {} and game status {:?} at depth {} - stopping search", search_results.score, search_results.game_status, iteration_max_depth);
+            let iteration_search_results = create_search_results(position, score, iteration_max_depth, &pv.to_vec(), &search_context);
+            search_results = Some(iteration_search_results.clone());
+            debug!("Search results for depth {}: {}", iteration_max_depth, iteration_search_results.clone());
+            uci::send_to_gui(format_uci_info(position, &iteration_search_results, &node_counter_stats()).as_str());
+            let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate || is_mating_score(iteration_search_results.score);
+            if is_checkmate {
+                info!("Found mate at depth {} - stopping search", iteration_max_depth);
+                TRANSPOSITION_TABLE.clear();
                 break;
             }
-        } else if iteration_max_depth > 1 {
+        } else if search_results.is_some() {
             break;
         }
     }
-    search_results
+    search_results.unwrap()
 }
+
+// fn negamax(position: &mut Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
+//     let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+//     let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+//     create_search_results(position, score, max_depth, &pv.to_vec(), search_context)
+// }
 
 fn negamax_search(
     position: &mut Position,
@@ -195,7 +206,7 @@ fn negamax_search(
                 // BoundType::UpperBound => if entry.score < beta {
                 //     beta = entry.score
                 // },
-                BoundType::UpperBound => {
+                BoundType::UpperBound => {  
                     // do nothing
                 }
             }
@@ -234,12 +245,8 @@ fn negamax_search(
                 }
                 alpha = alpha.max(next_score);
                 position.unmake_move(&undo_move_info);
-                if alpha >= beta {
-                    &search_context.move_orderer.add_killer_move(mv, ply);
-                    return beta;
-                }
-                if depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed) {
-                    return 0;
+                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
+                    break;
                 }
             }
         };
@@ -268,7 +275,7 @@ fn negamax_search(
 
 fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: &Vec<Move>, search_context: &SearchContext) -> SearchResults {
     let raw_moves = r#move::convert_chess_moves_to_raw(pv);
-    let pv_with_positions: Vec<(Position, r#move::Move)> = util::replay_moves(&position, raw_moves).unwrap();
+    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, raw_moves).unwrap();
     let last_position = pv_with_positions.last().map_or(position, |(p, _)| p);
     let game_status = get_game_status(last_position, search_context.repetition_key_stack.as_ref());
     let expanded_pv: Vec<Move> = if pv.len() >= max_depth {
@@ -360,7 +367,7 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
         .map(|pos| r#move::convert_chess_move_to_raw(&pos).to_string())
         .collect::<Vec<String>>()
         .join(" ");
-
+    
     let moves = util::replay_move_string(position, moves_string.clone());
     if moves.is_none() {
         error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
@@ -403,18 +410,12 @@ fn node_counter_stats() -> NodeCountStats {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::r#move::RawMove;
-    use crate::engine::config;
-    use crate::eval::evaluation::GameStatus::{DrawnByFiftyMoveRule, Stalemate};
-    use crate::util::move_formatter;
-    use crate::util::move_formatter::format_move_list;
     use super::*;
 
     fn setup() {
         config::tests::initialize_test_config();
-        TRANSPOSITION_TABLE.clear();
     }
-
+    
     fn test_eq(search_results: &SearchResults, expected: &SearchResults) {
         assert_eq!(search_results.score, expected.score);
         assert_eq!(search_results.depth, expected.depth);
@@ -424,7 +425,7 @@ mod tests {
     fn long_format_moves(position: &Position, search_results: &SearchResults) -> String {
         move_formatter::LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
     }
-
+    
     #[test]
     fn test_piece_captured() {
         setup();
@@ -467,7 +468,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: Stalemate,
+                game_status: GameStatus::Stalemate,
             }
         );
     }
@@ -478,7 +479,7 @@ mod tests {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♕f3xf7#");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -497,7 +498,7 @@ mod tests {
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♕f3xf7#");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -516,7 +517,7 @@ mod tests {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(3), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f5-g6+,h7xg6,♗c2xg6#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -535,7 +536,7 @@ mod tests {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♖f6-a6+,f7-f6,♗e5xf6+,♜g8-g7,♖a6xa8#");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♖f6-a6+,f7-f6,♗e5xf6+,♜g8-g7,♖a6xa8#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -609,7 +610,7 @@ mod tests {
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(5), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♗f1-c4,♚e4-e5,♕d1-d5+,♚e5-f6,♕d5-g5#");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♗f1-c4,♚e4-e5,♕d1-d5+,♚e5-f6,♕d5-g5#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -630,7 +631,7 @@ mod tests {
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(2), Arc::new(AtomicBool::new(false)), &vec!());
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
-
+    
     #[test]
     fn test_hiarcs_blunder() {
         setup();
@@ -646,7 +647,7 @@ mod tests {
         let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♛c8-c2");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛c8-c2");
     }
 
     #[test]
@@ -670,7 +671,7 @@ mod tests {
         );
 
         let mut drawn_position: Position = original_position.clone();
-        drawn_position.make_raw_move(&RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
+        drawn_position.make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
         let drawn_position_search_results = iterative_deepening(&mut drawn_position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
         assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
@@ -680,7 +681,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: DrawnByFiftyMoveRule,
+                game_status: GameStatus::DrawnByFiftyMoveRule,
             }
         );
     }
@@ -705,7 +706,7 @@ mod tests {
         );
 
         let win_search_results = uci::run_uci_position(go_for_win_uci_position_str, go_options_str);
-        assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6");
+        assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6".to_string());
         test_eq(
             &win_search_results,
             &SearchResults {
@@ -776,14 +777,14 @@ mod tests {
     fn test_perpetual_check() {
         setup();
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
-        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 4");
-        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
+        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 5");
+        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
         test_eq(
             &search_results,
             &SearchResults {
                 position: search_results.position,
                 score: 0,
-                depth: 4,
+                depth: 5,
                 pv: vec![],
                 // todo it'd be good to actually get the three fold repetition status
                 game_status: GameStatus::InProgress,
@@ -796,10 +797,10 @@ mod tests {
         setup();
         let score = MAXIMUM_SCORE;
         assert!(is_mating_score(score));
-
+        
         let score = -MAXIMUM_SCORE;
         assert!(is_mating_score(score));
-
+        
         let score = MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize;
         assert!(is_mating_score(score));
 
@@ -833,7 +834,7 @@ mod tests {
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(&mut position, &SearchParams::new_by_depth(1), Arc::new(AtomicBool::new(false)), &vec!());
-        assert_eq!(format_move_list(&position, &search_results), "♛g7xh6");
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛g7xh6");
     }
 
     #[test]

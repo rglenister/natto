@@ -27,6 +27,7 @@ pub enum GameStatus {
     DrawnByThreefoldRepetition,
     DrawnByInsufficientMaterial,
     Stalemate,
+    Draw, // Fallback for unknown draws
     Checkmate,
 }
 
