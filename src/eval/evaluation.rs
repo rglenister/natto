@@ -143,7 +143,7 @@ pub fn has_insufficient_material(position: &Position) -> bool {
 
 pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<RepetitionKey>) -> GameStatus {
     let has_legal_move = move_gen::has_legal_move(position);
-    let check_count = move_gen::king_attacks_finder(position, position.side_to_move()).count_ones() as usize;
+    let check_count = move_gen::check_count(position);
     match (!has_legal_move, check_count > 0) {
         (true, true) => GameStatus::Checkmate,
         (true, false) => GameStatus::Stalemate,
