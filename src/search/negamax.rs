@@ -99,6 +99,14 @@ impl SearchContext<'_> {
             move_orderer,
         }
     }
+
+    fn stop_search_requested(&self) -> bool {
+        self.stop_flag.load(Ordering::Relaxed)
+    }
+
+    fn request_stop_search(&self) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+    }
 }
 
 impl SearchResults {
@@ -144,7 +152,7 @@ pub fn iterative_deepening(
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repetition_keys.clone(), MoveOrderer::new());
         let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
         let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-        if !search_context.stop_flag.load(Ordering::Relaxed) {
+        if !search_context.stop_search_requested() {
             let iteration_search_results = create_search_results(position, score, iteration_max_depth, &pv.to_vec(), &search_context);
             search_results = Some(iteration_search_results.clone());
             debug!("Search results for depth {}: {}", iteration_max_depth, iteration_search_results.clone());
@@ -162,12 +170,6 @@ pub fn iterative_deepening(
     search_results.unwrap()
 }
 
-// fn negamax(position: &mut Position, max_depth: usize, search_context: &mut SearchContext) -> SearchResults {
-//     let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-//     let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, max_depth, max_depth, search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-//     create_search_results(position, score, max_depth, &pv.to_vec(), search_context)
-// }
-
 fn negamax_search(
     position: &mut Position,
     current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
@@ -183,7 +185,7 @@ fn negamax_search(
     let alpha_original = alpha;
     let beta_original = beta;
     if used_allocated_move_time(search_context.search_params) {
-        search_context.stop_flag.store(true, Ordering::Relaxed);
+        search_context.request_stop_search();
         return 0;
     }
     let ttable_entry = TRANSPOSITION_TABLE.probe(position.hash_code());
@@ -215,7 +217,7 @@ fn negamax_search(
                 // BoundType::UpperBound => if entry.score < beta {
                 //     beta = entry.score
                 // },
-                BoundType::UpperBound => {  
+                BoundType::UpperBound => {
                     // do nothing
                 }
             }
@@ -258,18 +260,18 @@ fn negamax_search(
                     search_context.move_orderer.add_killer_move(mv, ply);
                     break;
                 }
-                if  depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed) {
+                if  depth >= 2 && search_context.stop_search_requested() {
                     break;
                 }
             }
         };
         if best_move.is_some() {
-            if !search_context.stop_flag.load(Ordering::Relaxed) {
+            if !search_context.stop_search_requested() {
                 TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, best_move);
             }
         } else {
             best_score = evaluation::evaluate(position, ply, search_context.repetition_key_stack.as_ref());
-            if !search_context.stop_flag.load(Ordering::Relaxed) {
+            if !search_context.stop_search_requested() {
                 TRANSPOSITION_TABLE.insert(position, depth, alpha_original, beta_original, best_score, None);
             }
         }
@@ -279,7 +281,7 @@ fn negamax_search(
         if !is_terminal_score(score) {
             score = quiescence::quiescence_search(position, (ply + 1) as isize, alpha, beta);
         }
-        if !search_context.stop_flag.load(Ordering::Relaxed) {
+        if !search_context.stop_search_requested() {
             TRANSPOSITION_TABLE.insert(position, 0, alpha_original, beta_original, score, None);
         }
         score
