@@ -14,7 +14,7 @@ use crate::util::{fen, util};
 use crate::core::position::Position;
 use crate::eval::evaluation;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
-use crate::eval::evaluation::GameStatus;
+use crate::eval::evaluation::{has_three_fold_repetition, GameStatus};
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
@@ -192,11 +192,20 @@ fn negamax_search(
             match entry.bound_type {
                 BoundType::Exact => {
                     if let Some(best_move) = entry.best_move {
-                        pv.clear();
                         if let Some(undo_move_info) = position.make_move(&best_move) {
-                            pv.push(best_move);
+                            search_context.repetition_key_stack.push(RepetitionKey::new(position));
+                            if !has_three_fold_repetition(&search_context.repetition_key_stack) {
+                                search_context.repetition_key_stack.pop();
+                                pv.clear();
+                                pv.push(best_move);
+                                position.unmake_move(&undo_move_info);
+                                return entry.score
+                            } else {
+                                search_context.repetition_key_stack.pop();
+                            }
                             position.unmake_move(&undo_move_info);
-                            return entry.score
+                        } else {
+                            search_context.repetition_key_stack.pop();
                         }
                     }
                 },
@@ -245,7 +254,11 @@ fn negamax_search(
                 }
                 alpha = alpha.max(next_score);
                 position.unmake_move(&undo_move_info);
-                if alpha >= beta || (depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed)) {
+                if alpha >= beta {
+                    search_context.move_orderer.add_killer_move(mv, ply);
+                    break;
+                }
+                if  depth >= 2 && search_context.stop_flag.load(Ordering::Relaxed) {
                     break;
                 }
             }
@@ -274,10 +287,18 @@ fn negamax_search(
 }
 
 fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: &Vec<Move>, search_context: &SearchContext) -> SearchResults {
+    let get_game_status = |last_position| -> GameStatus {
+        let game_status = evaluation::get_game_status(last_position, &search_context.repetition_key_stack);
+        match game_status {
+            GameStatus::InProgress if score == 0 => GameStatus::Draw,
+            _ => game_status
+        }
+    };
     let raw_moves = r#move::convert_chess_moves_to_raw(pv);
     let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, raw_moves).unwrap();
+    // todo we can't be sure the last position actually is the scored position because the pv is not guaranteed accurate.
     let last_position = pv_with_positions.last().map_or(position, |(p, _)| p);
-    let game_status = get_game_status(last_position, search_context.repetition_key_stack.as_ref());
+    let game_status = get_game_status(&last_position);
     let expanded_pv: Vec<Move> = if pv.len() >= max_depth {
         pv.clone()
     } else {
@@ -327,12 +348,6 @@ fn retrieve_principal_variation(position: &Position, current_pv: &Vec<Move>, max
     }
     debug!("PV extended from length {} to length {}", current_pv.len(), pv.len());
     pv
-}
-
-
-
-fn get_game_status(position: &Position, repetition_key_stack: &Vec<RepetitionKey>) -> GameStatus {
-    eval::evaluation::get_game_status(position, repetition_key_stack)
 }
 
 pub fn get_repeat_position_count(repetition_key_stack: &Vec<RepetitionKey>) -> usize {
@@ -701,7 +716,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: GameStatus::InProgress,
+                game_status: GameStatus::Draw,
             }
         );
 
@@ -719,6 +734,57 @@ mod tests {
         );
     }
 
+    // https://lichess.org/YKQcIIfi/black#97
+    #[test]
+    fn test_li_chess_draws_problem() {
+        setup();
+        let fen = "6k1/5p1p/1Q4p1/q1P1P3/3P4/4Pb2/2K5/8 b - - 0 45";
+        let uci_initial_position_str = format!("position fen {}", fen);
+
+        let go_options_str = "depth 5";
+        let search_results_1 = uci::run_uci_position(&uci_initial_position_str, go_options_str);
+        let pv_moves_1 = search_results_1.pv_moves_as_string();
+        assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
+
+        let search_results_2 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3"), go_options_str);
+        let pv_moves_2 = search_results_2.pv_moves_as_string();
+        assert_eq!(search_results_2.pv_moves_as_string(), "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
+
+        let search_results_3 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"), go_options_str);
+        let pv_moves_3 = search_results_3.pv_moves_as_string();
+        assert_eq!(pv_moves_3, "d5-e4,c2-d1,a5-c3,d1-e2,c3-c2");
+
+        let search_results_4 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"), go_options_str);
+        let pv_moves_4 = search_results_4.pv_moves_as_string();
+        assert_eq!(pv_moves_4, "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
+
+        //TRANSPOSITION_TABLE.clear();
+        let search_results_5 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3 e4d5 b3c2"), go_options_str);
+        let pv_moves_5 = search_results_5.pv_moves_as_string();
+        assert_eq!(pv_moves_5, "a5-a2,c2-d3,a2-c4,d3-d2,g8-g7");
+
+        //
+        //
+        //
+        // let search_results_3 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, "f3e4"), go_options_str);
+        // let search_results_4 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, "f3e4"), go_options_str);
+        // let search_results_5 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, "f3e4"), go_options_str);
+
+        // assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
+        // test_eq(
+        //     &drawn_search_results,
+        //     &SearchResults {
+        //         position: drawn_search_results.position,
+        //         score: 0,
+        //         depth: 1,
+        //         pv: vec![],
+        //         game_status: GameStatus::Draw,
+        //     }
+        // );
+        //
+        // TRANSPOSITION_TABLE.clear();
+    }
+
     #[test]
     fn test_black_avoids_draw_using_contempt() {
         setup();
@@ -733,7 +799,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: GameStatus::InProgress,
+                game_status: GameStatus::Draw,
             }
         );
 
@@ -786,8 +852,7 @@ mod tests {
                 score: 0,
                 depth: 5,
                 pv: vec![],
-                // todo it'd be good to actually get the three fold repetition status
-                game_status: GameStatus::InProgress,
+                game_status: GameStatus::Draw,
             }
         );
     }
