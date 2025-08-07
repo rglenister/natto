@@ -1,4 +1,4 @@
-use crate::core::{board, piece};
+use crate::core::{board, piece, r#move};
 use crate::core::piece::{PieceColor};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::r#move::{Move, RawMove};
@@ -128,10 +128,14 @@ pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move>
 }
 
 pub fn replay_move_string(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, Move)>> {
-    replay_moves(position, moves_string_to_raw_moves(raw_moves_string)?)
+    replay_raw_moves(position, &moves_string_to_raw_moves(raw_moves_string)?)
 }
 
-pub fn replay_moves(position: &Position, raw_moves: Vec<RawMove>) -> Option<Vec<(Position, Move)>> {
+pub fn replay_moves(position: &Position, moves: &Vec<Move>) -> Option<Vec<(Position, Move)>> {
+    replay_raw_moves(position, &r#move::convert_chess_moves_to_raw(moves))
+}
+
+pub fn replay_raw_moves(position: &Position, raw_moves: &Vec<RawMove>) -> Option<Vec<(Position, Move)>> {
     let result: Option<Vec<(Position, Move)>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, Move)>, rm: &RawMove| {
         let mut current_position = if !acc.is_empty() { acc.last().unwrap().0.clone()} else { position.clone() };
         if let Some(undo_move_info) = current_position.make_raw_move(rm) {
