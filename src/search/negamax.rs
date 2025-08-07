@@ -394,14 +394,13 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
         error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
     }
 
-    format!("info depth {} score cp {} time {} nodes {} nps {} pv {} game_status {:?}",
+    format!("info depth {} score cp {} time {} nodes {} nps {} pv {}",
             search_results.depth,
             search_results.score,
             node_counter_stats.elapsed_time.as_millis(),
             node_counter_stats.node_count,
             node_counter_stats.nodes_per_second,
-            moves_string,
-            search_results.game_status)
+            moves_string)
 }
 
 fn is_mating_score(score: isize) -> bool {
