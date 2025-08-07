@@ -71,7 +71,7 @@ impl PieceType {
             'r' => Rook,
             'q' => Queen,
             'k' => King,
-            _ => return Err(format!("Invalid piece: {}", piece)),
+            _ => return Err(format!("Invalid piece: {piece}")),
         };
         Ok(piece_type)
     }

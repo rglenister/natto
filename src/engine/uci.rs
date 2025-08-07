@@ -7,11 +7,11 @@ use regex::{Captures, Regex};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use crate::util::util;
+use crate::utils::util;
 use crate::core::position::Position;
 use crate::search;
 
-include!("util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
 
@@ -109,7 +109,7 @@ pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
             None
         }
     } else {
-        error!("UCI unable to parse position: {}", input);
+        error!("UCI unable to parse position: {input}");
         None
     }
 }
@@ -138,7 +138,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
 
     let allocate_max_depth = || -> usize {
         let depth = uci_go_options.depth.max(uci_go_options.mate);
-        MAXIMUM_SEARCH_DEPTH.min(depth.map_or(usize::MAX, |d| d).try_into().unwrap_or(usize::MAX))
+        MAXIMUM_SEARCH_DEPTH.min(depth.map_or(usize::MAX, |d| d))
     };
 
     let allocate_max_nodes = || -> usize {
@@ -147,14 +147,14 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
 
     SearchParams {
         allocated_time_millis: allocate_move_time_millis().map_or(usize::MAX, |mtm| mtm),
-        max_depth: allocate_max_depth() as usize,
+        max_depth: allocate_max_depth(),
         max_nodes: allocate_max_nodes(),
     }
 }
 
 pub fn send_to_gui(data: &str) {
-    println!("{}", data);
-    info!("UCI Protocol: sending to GUI: {}", data);
+    println!("{data}");
+    info!("UCI Protocol: sending to GUI: {data}");
 }
 
 pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {

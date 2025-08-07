@@ -43,8 +43,8 @@ pub(crate) fn distance(square_index_1: isize, square_index_2: isize) -> usize {
     let square_2_row = square_index_2 / 8;
     let square_2_col = square_index_2 % 8;
 
-    let row_difference = (square_2_row - square_1_row).abs() as usize;
-    let col_difference = (square_2_col - square_1_col).abs() as usize;
+    let row_difference = (square_2_row - square_1_row).unsigned_abs();
+    let col_difference = (square_2_col - square_1_col).unsigned_abs();
 
     row_difference.max(col_difference)
 }
@@ -67,8 +67,8 @@ pub fn print_bitboard(bitboard: u64) {
         println!()
     }
     println!();
-    println!("{:0x}", bitboard);
-    println!("{:064b}", bitboard);
+    println!("{bitboard:0x}");
+    println!("{bitboard:064b}");
     println!();
 }
 
@@ -107,7 +107,7 @@ pub const fn column_bitboard(file: usize) -> u64 {
 }
 
 pub const fn row_bitboard(row: usize) -> u64 {
-    0x00000000000000ffu64 << row * 8
+    0x00000000000000ffu64 << (row * 8)
 }
 
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
@@ -131,13 +131,13 @@ pub fn replay_move_string(position: &Position, raw_moves_string: String) -> Opti
     replay_raw_moves(position, &moves_string_to_raw_moves(raw_moves_string)?)
 }
 
-pub fn replay_moves(position: &Position, moves: &Vec<Move>) -> Option<Vec<(Position, Move)>> {
-    replay_raw_moves(position, &r#move::convert_chess_moves_to_raw(moves))
+pub fn replay_moves(position: &Position, moves: &[Move]) -> Option<Vec<(Position, Move)>> {
+    replay_raw_moves(position, &r#move::convert_moves_to_raw(moves))
 }
 
-pub fn replay_raw_moves(position: &Position, raw_moves: &Vec<RawMove>) -> Option<Vec<(Position, Move)>> {
+pub fn replay_raw_moves(position: &Position, raw_moves: &[RawMove]) -> Option<Vec<(Position, Move)>> {
     let result: Option<Vec<(Position, Move)>> = raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, Move)>, rm: &RawMove| {
-        let mut current_position = if !acc.is_empty() { acc.last().unwrap().0.clone()} else { position.clone() };
+        let mut current_position = if !acc.is_empty() { acc.last().unwrap().0} else { *position };
         if let Some(undo_move_info) = current_position.make_raw_move(rm) {
             acc.push((current_position, undo_move_info.mov));
             return Some(acc);
@@ -190,7 +190,7 @@ pub fn parse_move(raw_move_string: String) -> Option<RawMove> {
         RawMove::new(
             parse_square(captures.name("from").unwrap().as_str()).unwrap() as u8,
             parse_square(captures.name("to").unwrap().as_str()).unwrap() as u8,
-            if promote_to.is_some() { Some(promote_to.unwrap().expect("REASON")) } else { None }
+            promote_to.map(|item| item.unwrap())
         )
     })
 }
@@ -252,11 +252,9 @@ pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: is
                 } else if (1 << square_to) & occupied_squares != 0 {
                     return false;
                 }
-            } else {
-                if (1 << square_to) & occupied_squares != 0 {
-                    let piece = board.get_piece(square_to as usize).unwrap();
-                    return piece.piece_color == attacking_color && [piece_type, PieceType::Queen].contains(&piece.piece_type)
-                }
+            } else if (1 << square_to) & occupied_squares != 0 {
+                let piece = board.get_piece(square_to as usize).unwrap();
+                return piece.piece_color == attacking_color && [piece_type, PieceType::Queen].contains(&piece.piece_type)
             }
             square_from = square_to;
             square_to += square_increment;
@@ -267,7 +265,7 @@ pub fn is_blocking_attack_to_square(position: &Position, target_piece_square: is
 
 #[cfg(test)]
 mod tests {
-    use crate::util::fen;
+    use crate::utils::fen;
     use crate::core::board::Board;
     use crate::core::piece::{Piece, PieceType};
     use crate::core::r#move::BaseMove;

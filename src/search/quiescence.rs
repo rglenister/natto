@@ -4,12 +4,12 @@ use crate::core::piece::{PieceColor, PieceType};
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::negamax::{increment_node_counter, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::core::move_gen;
-use crate::util::util;
+use crate::utils::util;
 use crate::core::position::Position;
 use crate::core::r#move::Move;
 use crate::search::move_ordering::order_quiescence_moves;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
@@ -45,10 +45,8 @@ pub fn quiescence_search(position: &mut Position, ply: isize, alpha: isize, beta
     let captures = generate_sorted_quiescence_moves(position);
 
     for mov in captures {
-        if matches!(mov, Move::Basic {..}) {
-            if !good_capture(position, &mov) {
-                continue; // Skip bad captures by SEE
-            }
+        if matches!(mov, Move::Basic {..}) && !good_capture(position, &mov) {
+            continue; // Skip bad captures by SEE
         }
         if let Some(undo_move_info) = position.make_move(&mov) {
             let score = -quiescence_search(position, ply + 1, -beta, -alpha);
@@ -81,7 +79,7 @@ pub fn quiescence_search(position: &mut Position, ply: isize, alpha: isize, beta
 }
 
 fn good_capture(position: &Position, mov: &Move) -> bool {
-    static_exchange_evaluation(position, &mov) >= 0
+    static_exchange_evaluation(position, mov) >= 0
 }
 
 // with delta pruning
@@ -95,7 +93,7 @@ fn static_exchange_evaluation(position: &Position, mv: &Move) -> isize {
     gain.push(PIECE_SCORES[attacked_piece as usize]);
 
     let mut occupied = position.board().bitboard_all_pieces();
-    let mut attackers = attackers_to(&position, attacked_square, occupied);
+    let mut attackers = attackers_to(position, attacked_square, occupied);
     let mut side_to_move = position.side_to_move();
 
     // Remove moving piece from occupied and attackers

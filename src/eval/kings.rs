@@ -3,10 +3,10 @@ use crate::core::piece::PieceColor;
 use crate::core::piece::PieceType;
 use crate::core::position::Position;
 use crate::eval::pawns;
-use crate::util::bitboard_iterator::BitboardIterator;
-use crate::util::util;
+use crate::utils::bitboard_iterator::BitboardIterator;
+use crate::utils::util;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 const ENEMY_PIECES_NEAR_KING_RADIUS : usize = 2;
 const ENEMY_PIECE_NEAR_KING_PENALTIES: [isize; 6] = [
@@ -93,7 +93,6 @@ fn king_near_passed_pawns(position: &Position, piece_color: PieceColor, king_squ
     if our_nearby_pawns != 0 {
         let their_pawns = position.board().bitboard_by_color_and_piece_type(!piece_color, PieceType::Pawn);
         return BitboardIterator::new(our_nearby_pawns)
-            .into_iter()
             .filter(|square| pawns::is_passed_pawn(*square, piece_color, their_pawns))
             .count();
     }

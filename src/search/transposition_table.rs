@@ -13,22 +13,16 @@ pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
     fn round_up_to_nearest_power_of_two(configured_hash_size: usize) -> usize {
         let rounded_up_hash_size = configured_hash_size.next_power_of_two();
         if rounded_up_hash_size != configured_hash_size {
-            info!(
-                "Hash size rounded up from {} ({:#X}) to {} ({:#X})",
-                configured_hash_size,
-                configured_hash_size,
-                rounded_up_hash_size,
-                rounded_up_hash_size)
+            info!("Hash size rounded up from {configured_hash_size} {configured_hash_size:#X} to {rounded_up_hash_size} {rounded_up_hash_size:#X}");
         }
         rounded_up_hash_size
     }
-
     fn bytes_to_gib(bytes: usize) -> f64 {
         bytes as f64 / (1024_f64 * 1024_f64 * 1024_f64)
     }
     
     let hash_size = round_up_to_nearest_power_of_two(config::get_hash_size());
-    info!("Creating transposition table with size {} ({:#X})", hash_size, hash_size);
+    info!("Creating transposition table with size {hash_size} ({hash_size:#X})");
     let transposition_table = TranspositionTable::new(hash_size);
     let memory_footprint = hash_size * 2 * size_of::<AtomicU64>();
     info!("Transposition table created. Total memory used is {} MiB ({:.2} GiB)", memory_footprint, bytes_to_gib(memory_footprint));
@@ -61,7 +55,7 @@ impl TranspositionTable {
         assert!(size.is_power_of_two(), "Size must be a power of 2");
         let table = (0..size * 2).map(|_| AtomicU64::new(0)).collect(); // Using 2 u64 per entry
         let table = Self { table, size };
-        ensure_physical_memory::<AtomicU64>(&table.table);
+        ensure_physical_memory(&table.table);
         table
     }
     
@@ -195,11 +189,11 @@ impl TranspositionTable {
     fn pack_entry(zobrist: u64, best_move: Option<Move>, depth: u8, score: i32, bound: BoundType) -> (u64, u64) {
         let packed1 = zobrist;
         let packed2 =
-            if best_move.is_some() { Self::pack_move(best_move.unwrap()) } else { 0 } |
+            if let Some(best_move) = best_move {
+                Self::pack_move(best_move) } else { 0 } |
                 ((depth as u64) << 21) |
                 (((score + MAXIMUM_SCORE as i32) as u64 & 0x0FFFFFFF) << 29) |
-                ((bound as u64) << 57) |
-                ((0u64) << 61);
+                ((bound as u64) << 57);
         (packed1, packed2)
     }
 
@@ -219,7 +213,7 @@ impl TranspositionTable {
     }
 }
 
-pub fn ensure_physical_memory<T>(data: &[AtomicU64]) {
+pub fn ensure_physical_memory(data: &[AtomicU64]) {
     for atomic in data {
         atomic.store(0, Ordering::Relaxed); // Write to every entry
     }

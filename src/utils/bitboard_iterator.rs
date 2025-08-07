@@ -25,7 +25,7 @@ impl Iterator for BitboardIterator {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::bitboard_iterator::BitboardIterator;
+    use crate::utils::bitboard_iterator::BitboardIterator;
 
     #[test]
     fn test_empty_bitboard() {

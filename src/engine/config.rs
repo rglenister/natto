@@ -75,7 +75,7 @@ pub fn get_config_as_string() -> String {
         hash_size: get_hash_size(),
         contempt: get_contempt(),
     };
-    format!("{:?}", configuration)
+    format!("{configuration:?}")
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -106,8 +106,8 @@ impl RuntimeConfig {
     }
 }
 
-static CONFIG: Lazy<Config> = Lazy::new(|| load_config());
-static RUNTIME_CONFIG: Lazy<RuntimeConfig> = Lazy::new(|| RuntimeConfig::default());
+static CONFIG: Lazy<Config> = Lazy::new(load_config);
+static RUNTIME_CONFIG: Lazy<RuntimeConfig> = Lazy::new(RuntimeConfig::default);
 static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(None));
 
 
@@ -177,7 +177,7 @@ fn load_config() -> Config {
                 )
                 .group(
                     ArgGroup::new("flags")
-                        .args(&["perft", "uci"])
+                        .args(["perft", "uci"])
                         .required(false)
                         .multiple(false)
                 ).get_matches();
@@ -192,7 +192,7 @@ fn load_config() -> Config {
                     "error" => LevelFilter::Error,
                     _ => LevelFilter::Error,
                 },
-                use_book: matches.get_one::<String>("use-book").map_or(true, |v| v == "true"),
+                use_book: matches.get_one::<String>("use-book").is_none_or(|v| v == "true"),
                 max_book_depth: matches.get_one::<u16>("max-book-depth").copied().unwrap() as usize,
                 hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
                 perft: *matches.get_one::<bool>("perft").unwrap_or(&false),

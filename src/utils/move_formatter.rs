@@ -2,10 +2,10 @@ use crate::core::board::Board;
 use crate::core::board::BoardSide::KingSide;
 use crate::core::piece::PieceType::Pawn;
 use crate::core::{piece::Piece, piece::PieceType, r#move::Move};
-use crate::util::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
+use crate::utils::move_formatter::MoveFormat::{LongAlgebraic, ShortAlgebraic};
 use crate::search::negamax::SearchResults;
 use phf::phf_map;
-use crate::util::util;
+use crate::utils::util;
 use crate::core::position::Position;
 use crate::core::move_gen::generate_moves;
 use crate::eval::evaluation;
@@ -52,11 +52,11 @@ pub fn format_move_list(position: &Position, search_results: &SearchResults) -> 
 impl FormatMove for MoveFormatter {
     fn format_move_list(&self, position: &Position, moves: &[Move]) -> Option<Vec<String>> {
         let mut result = Vec::new();
-        let mut current_position: Position = position.clone();
+        let mut current_position: Position = *position;
         for mv in moves.iter() {
-            let mut next_position = current_position.clone();
+            let mut next_position = current_position;
             next_position.make_move(mv).unwrap();
-            result.push(self.format_move_internal(&current_position, &mv, &next_position));
+            result.push(self.format_move_internal(&current_position, mv, &next_position));
             current_position.make_move(mv).unwrap();
         }
         Some(result)
@@ -73,7 +73,7 @@ impl MoveFormatter {
             Move::Castling { base_move: _, board_side } => {
                 if *board_side == KingSide { "0-0".to_string() } else { "0-0-0".to_string() }
             }
-            _ => self.basic_format(position, &mov, &next_position)
+            _ => self.basic_format(position, mov, next_position)
         }
     }
     
@@ -89,7 +89,7 @@ impl MoveFormatter {
         )
     }
     fn get_piece(&self, position: &Position, mov: &Move) -> String {
-        let piece = self.get_moved_piece(position, &mov);
+        let piece = self.get_moved_piece(position, mov);
         if piece.piece_type != PieceType::Pawn {
             PIECE_CHAR_TO_UNICODE[&piece.to_char()].to_string()
         } else {
@@ -145,7 +145,7 @@ impl MoveFormatter {
     }
 
     fn get_result(&self, next_position: &Position) -> String {
-        match evaluation::get_game_status(next_position, &vec!()) {
+        match evaluation::get_game_status(next_position, &[]) {
             GameStatus::Checkmate => { "#".to_string() }
             _ => "+".repeat(evaluation::check_count(next_position)).to_string()
         }

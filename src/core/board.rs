@@ -1,4 +1,4 @@
-use crate::util::util;
+use crate::utils::util;
 use std::fmt;
 use std::fmt::Write;
 use std::iter::Iterator;
@@ -6,7 +6,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::core::piece::{Piece, PieceColor, PieceType};
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 
 pub(crate) static NUMBER_OF_SQUARES: usize = 64;
@@ -109,7 +109,7 @@ impl Board {
         let mask: u64 = 1 << square_index;
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
-                if self.bit_boards[piece_color as usize][piece_type.clone() as usize] & mask != 0 {
+                if self.bit_boards[piece_color as usize][piece_type as usize] & mask != 0 {
                     return Some(Piece { piece_color, piece_type });
                 }
             }

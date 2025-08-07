@@ -4,9 +4,9 @@ use crate::core::board::Board;
 use crate::core::piece::{Piece, PieceColor, PieceType};
 #[allow(unused_imports)]
 use crate::core::position::Position;
-use crate::util::bitboard_iterator::BitboardIterator;
+use crate::utils::bitboard_iterator::BitboardIterator;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 const MG_PST: [[isize; 64]; 6] = [
     [ // mg pawns

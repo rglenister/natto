@@ -6,7 +6,7 @@ use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use thiserror::Error;
 use crate::core::board::Board;
-use crate::util::util;
+use crate::utils::util;
 use crate::core::position::Position;
 
 static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
@@ -101,7 +101,7 @@ pub fn write(position: &Position) -> String {
 
         fn encode_row(row: &str) -> String {
             if !row.is_empty() {
-                let remaining = row.trim_start_matches(|ch: char| ch == ' ');
+                let remaining = row.trim_start_matches(' ');
                 let run_length = row.len() - remaining.len();
                 if run_length > 0 {
                     run_length.to_string() + &encode_row(remaining)

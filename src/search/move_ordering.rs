@@ -65,6 +65,7 @@ impl MoveOrderer {
         self.killer_moves[ply][0] = Some(mov);
     }
 
+    #[allow(dead_code)]
     pub fn is_killer_move(&self, mov: &Move, ply: usize) -> bool {
         for slot in 0..MAX_KILLER_MOVES {
             if let Some(killer) = self.killer_moves[ply][slot] {
@@ -76,6 +77,7 @@ impl MoveOrderer {
         false
     }
 
+    #[allow(dead_code)]
     pub fn update_history_score(&mut self, position: &Position, mov: &Move, depth: i32) {
         let side_to_move = position.side_to_move() as usize;
         let from = mov.get_base_move().from as usize;

@@ -4,7 +4,7 @@ use serial_test::serial;
 use std::error::Error;
 use std::fs;
 use natto::core::position::{Position};
-use natto::util::fen;
+use natto::utils::fen;
 
 #[derive(Deserialize, Debug)]
 

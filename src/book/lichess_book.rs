@@ -1,4 +1,4 @@
-use crate::util::{fen, util};
+use crate::utils::{fen, util};
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::King;
 use crate::core::piece::{Piece, PieceColor};
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::position::Position;
 use crate::core::move_gen::generate_moves;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 
 pub struct LiChessOpeningBook {
@@ -29,12 +29,12 @@ impl OpeningBook for LiChessOpeningBook {
     }
 }
 fn get_opening_move(position: &Position) -> Result<RawMove, ErrorKind> {
-    let fen = fen::write(&position);
+    let fen = fen::write(position);
     let opening_moves = fetch_opening_moves(&fen)?;
-    if opening_moves.len() > 0 {
+    if !opening_moves.is_empty() {
         let move_string = weighted_random_move(&opening_moves);
         let corrected_move_string= map_castling_move_to_uci_format(&move_string, position);
-        let raw_chess_move = parse_move(&corrected_move_string)?;
+        let raw_chess_move = parse_move(corrected_move_string)?;
         validate_move(position, raw_chess_move)?;
         Ok(raw_chess_move)       
     } else {
@@ -56,7 +56,7 @@ struct LiChessOpeningResponse {
 }
 
 fn fetch_opening_moves(fen: &str) -> Result<Vec<LiChessMoveData>, ErrorKind> {
-    let url = format!("https://explorer.lichess.ovh/masters?fen={}", fen);
+    let url = format!("https://explorer.lichess.ovh/masters?fen={fen}");
 
     let response: LiChessOpeningResponse = reqwest::blocking::get(&url)
         .map_err(|e| ErrorKind::CommunicationsFailed { message: e.to_string() })?

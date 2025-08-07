@@ -66,9 +66,9 @@ impl NodeCounter {
 }
 
 pub fn perf_t() {
-    for depth in 0..NODE_COUNTS_AT_DEPTH.len() {
+    for (depth, node_count) in NODE_COUNTS_AT_DEPTH.iter().enumerate() {
         let stats = count_nodes(&Position::new_game(), depth);
-        assert_eq!(NODE_COUNTS_AT_DEPTH[depth], stats.node_count);
+        assert_eq!(*node_count, stats.node_count);
         println!("Depth {} nodes {} nps {}", depth, stats.node_count, stats.nodes_per_second);
     }
 }

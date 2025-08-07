@@ -2,8 +2,8 @@ use crate::core::board::{Board, BoardSide};
 use crate::core::position::Position;
 use crate::core::move_gen;
 use crate::core::piece::{PieceColor, PieceType};
-use crate::util::bitboard_iterator::BitboardIterator;
-use crate::util::util::column_bitboard;
+use crate::utils::bitboard_iterator::BitboardIterator;
+use crate::utils::util::column_bitboard;
 
 const BITBOARD_REGIONS: [u64; 2] = [
     column_bitboard(5) | column_bitboard(6) | column_bitboard(7), // kingside
@@ -141,7 +141,7 @@ mod tests {
     #[allow(unused_imports)]
     use super::*;
 
-    include!("../util/generated_macro.rs");
+    include!("../utils/generated_macro.rs");
 
     #[test]
     fn test_is_doubled_pawn() {

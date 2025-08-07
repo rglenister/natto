@@ -5,12 +5,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
-use crate::engine::config;
-use crate::util::move_formatter;
-use crate::util::move_formatter::FormatMove;
+use crate::engine::uci;
+use crate::utils::move_formatter;
+use crate::utils::move_formatter::FormatMove;
 use crate::core::{move_gen, r#move};
 use crate::core::r#move::Move;
-use crate::util::{fen, util};
+use crate::utils::{fen, util};
 use crate::core::position::Position;
 use crate::eval::evaluation;
 use crate::eval::node_counter::{NodeCountStats, NodeCounter};
@@ -18,9 +18,8 @@ use crate::eval::evaluation::{has_three_fold_repetition, GameStatus};
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
-use crate::uci;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
     let node_counter = NodeCounter::new();
@@ -46,7 +45,7 @@ impl Display for SearchResults {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.score,
                self.depth,
-               move_formatter::LONG_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
+               move_formatter::LONG_FORMATTER.format_move_list(&self.position, &self.pv).unwrap().join(", "),
                self.game_status)
     }
 }
@@ -83,6 +82,7 @@ pub struct SearchContext<'a> {
     stop_flag: Arc<AtomicBool>,
     repetition_key_stack: Vec<RepetitionKey>,
     move_orderer: MoveOrderer,
+    max_depth: usize,
 }
 
 impl SearchContext<'_> {
@@ -91,12 +91,14 @@ impl SearchContext<'_> {
         stop_flag: Arc<AtomicBool>,
         repetition_keys: Vec<RepetitionKey>,
         move_orderer: MoveOrderer,
+        max_depth: usize,
     ) -> SearchContext {
         SearchContext {
             search_params,
             stop_flag,
             repetition_key_stack: repetition_keys,
             move_orderer,
+            max_depth,
         }
     }
 
@@ -110,11 +112,10 @@ impl SearchContext<'_> {
 }
 
 impl SearchResults {
-    fn pv_moves(&self) -> Vec<Move> {
-        self.pv.clone()//.into_iter().map(|pm| pm.1).collect()
-    }
+
+    #[allow(dead_code)]
     fn pv_moves_as_string(&self) -> String {
-        self.pv_moves().iter().join(",")
+        self.pv.iter().join(",")
     }
 }
 
@@ -144,22 +145,22 @@ pub fn iterative_deepening(
     position: &mut Position,
     search_params: &SearchParams,
     stop_flag: Arc<AtomicBool>,
-    repetition_keys: &Vec<RepetitionKey>) -> SearchResults {
+    repetition_keys: &[RepetitionKey]) -> SearchResults {
 
     reset_node_counter();
     let mut search_results: Option<SearchResults> = None;
     for iteration_max_depth in 1..=search_params.max_depth {
-        let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repetition_keys.clone(), MoveOrderer::new());
+        let mut search_context = SearchContext::new(search_params, stop_flag.clone(), Vec::from(repetition_keys), MoveOrderer::new(), iteration_max_depth);
         let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-        let score = negamax(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        let score = negamax(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_search_requested() {
-            let iteration_search_results = create_search_results(position, score, iteration_max_depth, &pv.to_vec(), &search_context);
+            let iteration_search_results = create_search_results(position, score, iteration_max_depth, &pv, &search_context);
             search_results = Some(iteration_search_results.clone());
             debug!("Search results for depth {}: {}", iteration_max_depth, iteration_search_results.clone());
             uci::send_to_gui(format_uci_info(position, &iteration_search_results, &node_counter_stats()).as_str());
             let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate || is_mating_score(iteration_search_results.score);
             if is_checkmate {
-                info!("Found mate at depth {} - stopping search", iteration_max_depth);
+                info!("Found mate at depth {iteration_max_depth} - stopping search");
                 TRANSPOSITION_TABLE.clear();
                 break;
             }
@@ -175,13 +176,12 @@ fn negamax(
     current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
     pv: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
     depth: usize,
-    max_depth: usize,
     search_context: &mut SearchContext,
     mut alpha: isize,
     mut beta: isize,
 ) -> isize {
     increment_node_counter();
-    let ply = max_depth - depth;
+    let ply = search_context.max_depth - depth;
     let alpha_original = alpha;
     let beta_original = beta;
     if used_allocated_move_time(search_context.search_params) {
@@ -231,7 +231,7 @@ fn negamax(
     }
     if depth > 0 {
         let mut moves = move_gen::generate_moves(position);
-        let hash_move = ttable_entry.and_then(|entry| entry.best_move.clone());
+        let hash_move = ttable_entry.and_then(|entry| entry.best_move);
         let last_move = &current_line.last().cloned();
         move_ordering::order_moves(position, &mut moves, &search_context.move_orderer, ply, hash_move, last_move);
         let mut best_score = -MAXIMUM_SCORE;
@@ -246,7 +246,7 @@ fn negamax(
                     // Apply contempt to repetition-based draws
                     evaluation::apply_contempt(0)
                 } else {
-                    -negamax(position, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
+                    -negamax(position, current_line, &mut child_pv, depth - 1, search_context, -beta, -alpha)
                 };
                 current_line.pop();
                 search_context.repetition_key_stack.pop();
@@ -291,16 +291,16 @@ fn negamax(
     }
 }
 
-fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: &Vec<Move>, search_context: &SearchContext) -> SearchResults {
+fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: &[Move], search_context: &SearchContext) -> SearchResults {
     let get_game_status = |last_position, repetition_keys: &Vec<RepetitionKey>| -> GameStatus {
-        let game_status = evaluation::get_game_status(last_position, &repetition_keys);
+        let game_status = evaluation::get_game_status(last_position, repetition_keys);
         match game_status {
             GameStatus::InProgress if score == 0 => GameStatus::Draw,
             _ => game_status
         }
     };
 
-    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, &pv).unwrap();
+    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(position, pv).unwrap();
     let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth {
         extend_principal_variation(position, &pv_with_positions, max_depth)
     } else {
@@ -309,7 +309,7 @@ fn create_search_results(position: &Position, score: isize, max_depth: usize, pv
     let last_position = final_pv.last().map_or(position, |(p, _)| p);
     let pv_repetition_keys: Vec<RepetitionKey> = final_pv.iter().map(|(p, _)| RepetitionKey::new(p)).collect();
     let repetition_keys = [search_context.repetition_key_stack.clone(), pv_repetition_keys].concat();
-    let game_status = get_game_status(&last_position, &repetition_keys);
+    let game_status = get_game_status(last_position, &repetition_keys);
     let (_, moves): (Vec<Position>, Vec<Move>) = final_pv.into_iter().unzip();
     SearchResults {
         position: *position,
@@ -322,27 +322,27 @@ fn create_search_results(position: &Position, score: isize, max_depth: usize, pv
 
 
 
-fn extend_principal_variation(position: &Position, current_pv: &Vec<(Position, Move)>, max_depth: usize) -> Vec<(Position, Move)> {
-    let mut result_pv = current_pv.clone();
-    let last_position = current_pv.last().map_or(position, |(p, _)| &p);
-    let mut current_position = last_position.clone();
+fn extend_principal_variation(position: &Position, current_pv: &[(Position, Move)], max_depth: usize) -> Vec<(Position, Move)> {
+    let mut result_pv = current_pv.to_owned();
+    let last_position = current_pv.last().map_or(position, |(p, _)| p);
+    let mut current_position = *last_position;
 
     let mut visited_positions = HashSet::new();
     let mut num_missing_moves = max_depth - current_pv.len();
 
     while let Some(entry) = TRANSPOSITION_TABLE.probe(current_position.hash_code()) {
-        if num_missing_moves <= 0
+        if num_missing_moves == 0
             || entry.depth < num_missing_moves
             || entry.bound_type != BoundType::Exact {
             break;
         }
 
         if let Some(best_mv) = entry.best_move {
-            if let Some(_) = current_position.make_move(&best_mv) {
+            if current_position.make_move(&best_mv).is_some() {
                 if visited_positions.contains(&current_position.hash_code()) {
                     break;
                 }
-                result_pv.push((*last_position, best_mv).clone());
+                result_pv.push((*last_position, best_mv));
                 num_missing_moves -= 1;
                 visited_positions.insert(current_position.hash_code());
             } else {
@@ -356,7 +356,7 @@ fn extend_principal_variation(position: &Position, current_pv: &Vec<(Position, M
     result_pv
 }
 
-pub fn get_repeat_position_count(repetition_key_stack: &Vec<RepetitionKey>) -> usize {
+pub fn get_repeat_position_count(repetition_key_stack: &[RepetitionKey]) -> usize {
     let mut repetition_count = 0;
     let length = repetition_key_stack.len();
     if length >= 5 {
@@ -385,7 +385,7 @@ pub fn get_repeat_position_count(repetition_key_stack: &Vec<RepetitionKey>) -> u
 
 fn format_uci_info(position: &Position, search_results: &SearchResults, node_counter_stats: &NodeCountStats) -> String {
     let moves_string =             search_results.pv.iter()
-        .map(|pos| r#move::convert_chess_move_to_raw(&pos).to_string())
+        .map(|pos| r#move::convert_move_to_raw(pos).to_string())
         .collect::<Vec<String>>()
         .join(" ");
     
@@ -433,6 +433,7 @@ fn node_counter_stats() -> NodeCountStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::config;
 
     fn setup() {
         config::tests::initialize_test_config();

@@ -2,10 +2,10 @@ use crate::core::board::BoardSide::KingSide;
 use crate::core::board::BoardSide;
 use crate::core::piece::PieceType;
 use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
-use crate::util::util::format_square;
+use crate::utils::util::format_square;
 use std::fmt;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 #[derive(Debug, PartialEq, Eq, Default)]
 #[derive(Clone, Copy, Ord, PartialOrd)]
@@ -43,7 +43,7 @@ pub enum Move {
 
 impl Default for Move {
     fn default() -> Self {
-        Move::Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
+        Basic { base_move: BaseMove { from: 0, to: 0, capture: false } }
     }
 }
 
@@ -93,18 +93,18 @@ impl fmt::Display for RawMove {
     }
 }
 
-pub fn convert_chess_moves_to_raw(moves: &Vec<Move>) -> Vec<RawMove> {
-    moves.into_iter().map(|m| {
-        convert_chess_move_to_raw(&m)
+pub fn convert_moves_to_raw(moves: &[Move]) -> Vec<RawMove> {
+    moves.iter().map(|m| {
+        convert_move_to_raw(m)
     }).collect()
 }
 
-pub fn convert_chess_move_to_raw(chess_move: &Move) -> RawMove {
-    let promote_to: Option<PieceType>  = match chess_move {
+pub fn convert_move_to_raw(mov: &Move) -> RawMove {
+    let promote_to: Option<PieceType>  = match mov {
         Promotion { base_move: _base_move, promote_to } => { Some(*promote_to) },
         _ => None
     };
-    RawMove::new(chess_move.get_base_move().from, chess_move.get_base_move().to, promote_to)
+    RawMove::new(mov.get_base_move().from, mov.get_base_move().to, promote_to)
 }
 
 #[cfg(test)]
@@ -112,7 +112,7 @@ mod tests {
     use crate::core::piece::PieceType::Rook;
     use crate::core::board::BoardSide;
     use crate::core::piece::PieceType;
-    use crate::core::r#move::{convert_chess_moves_to_raw, BaseMove, Move, RawMove};
+    use crate::core::r#move::{convert_moves_to_raw, BaseMove, Move, RawMove};
     use crate::core::r#move::Move::{Basic, Castling, EnPassant, Promotion};
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
             Promotion { base_move: BaseMove { from: 5, to: 6, capture: false}, promote_to: PieceType::Rook },
             Castling { base_move: BaseMove { from: 7, to: 8, capture: false}, board_side: BoardSide::KingSide },
         ];
-        let raw_moves = convert_chess_moves_to_raw(&moves);
+        let raw_moves = convert_moves_to_raw(&moves);
         assert_eq!(raw_moves.len(), 4);
         assert_eq!(raw_moves[0], RawMove::new(1, 2, None));
         assert_eq!(raw_moves[1], RawMove::new(3, 4, None));

@@ -1,8 +1,7 @@
 
 use std::io::{self};
 pub mod core;
-pub mod uci;
-pub mod util;
+pub mod utils;
 pub mod eval;
 
 pub mod engine;
@@ -22,10 +21,10 @@ fn main() {
 //    println!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
     dotenv().ok();
     eprintln!("{}", config::get_config_as_string());
-    setup_logging().or_else(|err| {
-        eprintln!("Failed to initialize logging: {:?}", err);
-        error!("Failed to initialize logging: {:?}", err);
-        Err(err)
+    setup_logging().map_err(|err| {
+        eprintln!("Failed to initialize logging: {err:?}");
+        error!("Failed to initialize logging: {err:?}");
+        err
     }).ok();
     info!("{}", config::get_config_as_string());
     //let _ = *TRANSPOSITION_TABLE;
@@ -34,7 +33,7 @@ fn main() {
         node_counter::perf_t();
     } else {
         info!("Starting engine");
-        engine::engine::run(&config::get_uci_commands());
+        engine::uci_interface::run(&config::get_uci_commands());
         info!("Engine exited cleanly");
     }
 }

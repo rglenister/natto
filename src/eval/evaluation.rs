@@ -1,7 +1,5 @@
 use crate::core::board::Board;
 use crate::core::move_gen;
-use crate::core::piece::PieceColor::{Black, White};
-use crate::core::piece::PieceType::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
 use crate::engine::config::get_contempt;
@@ -10,12 +8,12 @@ use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;
 use crate::search;
 use crate::search::negamax::{RepetitionKey, MAXIMUM_SCORE};
-use crate::util::bitboard_iterator::BitboardIterator;
-use crate::util::util;
-use crate::util::util::row_bitboard;
+use crate::utils::bitboard_iterator::BitboardIterator;
+use crate::utils::util;
+use crate::utils::util::row_bitboard;
 use strum::IntoEnumIterator;
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 #[derive(Copy, Clone, Debug, Default)]
 #[derive(Eq, Hash, PartialEq)]
@@ -52,8 +50,8 @@ const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 75;
 fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
     let mut phase = PHASE_TOTAL;
 
-    for piece_type in [Knight, Bishop, Rook, Queen] {
-        let count = piece_counts[White as usize][piece_type as usize] + piece_counts[Black as usize][piece_type as usize];
+    for piece_type in [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
+        let count = piece_counts[PieceColor::White as usize][piece_type as usize] + piece_counts[PieceColor::Black as usize][piece_type as usize];
         phase -= PHASE_WEIGHTS[piece_type as usize] * count as isize;
     }
 
@@ -96,10 +94,10 @@ pub fn score_position(position: &Position) -> isize {
     if score == 0 {
         score = -1;
     }
-    if position.side_to_move() == White { score } else { -score }
+    if position.side_to_move() == PieceColor::White { score } else { -score }
 }
 
-pub fn evaluate(position: &Position, depth: usize, repetition_key_stack: &Vec<RepetitionKey>) -> isize {
+pub fn evaluate(position: &Position, depth: usize, repetition_key_stack: &[RepetitionKey]) -> isize {
     let game_status = get_game_status(position, repetition_key_stack);
     match game_status {
         GameStatus::InProgress => {
@@ -114,16 +112,16 @@ pub fn has_insufficient_material(position: &Position) -> bool {
     let board = position.board();
     let all_bitboards = &board.all_bitboards();
     for piece_color in PieceColor::iter() {
-        for piece_type in [Pawn, Rook, Queen] {
+        for piece_type in [PieceType::Pawn, PieceType::Rook, PieceType::Queen] {
             if all_bitboards[piece_color as usize][piece_type as usize] != 0 {
                 return false;
             }
         }
     }
-    let whites_bishop_count = board.get_piece_count(White, Bishop);
-    let blacks_bishop_count = board.get_piece_count(Black, Bishop);
-    let whites_knight_count = board.get_piece_count(White, Knight);
-    let blacks_knight_count = board.get_piece_count(Black, Knight);
+    let whites_bishop_count = board.get_piece_count(PieceColor::White, PieceType::Bishop);
+    let blacks_bishop_count = board.get_piece_count(PieceColor::Black, PieceType::Bishop);
+    let whites_knight_count = board.get_piece_count(PieceColor::White, PieceType::Knight);
+    let blacks_knight_count = board.get_piece_count(PieceColor::Black, PieceType::Knight);
     let whites_minor_piece_count = whites_bishop_count + whites_knight_count;
     let blacks_minor_piece_count = blacks_bishop_count + blacks_knight_count;
 
@@ -131,19 +129,22 @@ pub fn has_insufficient_material(position: &Position) -> bool {
         return true;
     }
 
-    if blacks_minor_piece_count == 0 && whites_minor_piece_count == 2 {
-        if whites_knight_count == 2 || (whites_bishop_count == 2 && board.has_bishops_on_same_color_squares(White)) {
+    let has_sufficient_minor_pieces = |piece_color: PieceColor, knight_count: usize, bishop_count: usize| -> bool {
+        knight_count == 2 || (bishop_count == 2 && board.has_bishops_on_same_color_squares(piece_color))
+    };
+
+    if blacks_minor_piece_count == 0 && whites_minor_piece_count == 2
+        && has_sufficient_minor_pieces(PieceColor::White, whites_knight_count, whites_bishop_count) {
             return true;
-        }
-    } else if whites_minor_piece_count == 0 && blacks_minor_piece_count == 2 {
-        if blacks_knight_count == 2 || (blacks_bishop_count == 2 && board.has_bishops_on_same_color_squares(Black)) {
+    }
+    if whites_minor_piece_count == 0 && blacks_minor_piece_count == 2
+        && has_sufficient_minor_pieces(PieceColor::Black, blacks_knight_count, blacks_bishop_count) {
             return true;
-        }
     }
     false
 }
 
-pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<RepetitionKey>) -> GameStatus {
+pub fn get_game_status(position: &Position, repetition_key_stack: &[RepetitionKey]) -> GameStatus {
     let has_legal_move = move_gen::has_legal_move(position);
     let check_count = move_gen::check_count(position);
     match (!has_legal_move, check_count > 0) {
@@ -154,7 +155,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<Repetitio
                 GameStatus::DrawnByFiftyMoveRule
             } else if has_three_fold_repetition(repetition_key_stack) {
                 GameStatus::DrawnByThreefoldRepetition
-            } else if has_insufficient_material(&position) {
+            } else if has_insufficient_material(position) {
                 GameStatus::DrawnByInsufficientMaterial
             } else {
                 GameStatus::InProgress
@@ -162,7 +163,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &Vec<Repetitio
         }
     }
 }
-pub fn has_three_fold_repetition(repetition_key_stack: &Vec<RepetitionKey>) -> bool {
+pub fn has_three_fold_repetition(repetition_key_stack: &[RepetitionKey]) -> bool {
     search::negamax::get_repeat_position_count(repetition_key_stack) >= 2
 }
 pub fn is_check(position: &Position) -> bool {
@@ -175,20 +176,20 @@ pub fn check_count(position: &Position) -> usize {
 
 fn score_bishops(position: &Position) -> isize {
     let board = position.board();
-    (board.has_bishop_pair(White) as isize - board.has_bishop_pair(Black) as isize) * BISHOP_PAIR_BONUS
+    (board.has_bishop_pair(PieceColor::White) as isize - board.has_bishop_pair(PieceColor::Black) as isize) * BISHOP_PAIR_BONUS
 }
 
 fn score_rooks(position: &Position) -> isize {
     fn score_rooks_for_color(board: &Board, piece_color: PieceColor) -> isize {
         let my_bitboards = board.bitboards_for_color(piece_color);
-        let pawns = my_bitboards[Pawn as usize];
-        let rooks = my_bitboards[Rook as usize];
-        let queens = my_bitboards[Queen as usize];
-        let row = if piece_color == White { 6 } else { 1 };
+        let pawns = my_bitboards[PieceType::Pawn as usize];
+        let rooks = my_bitboards[PieceType::Rook as usize];
+        let queens = my_bitboards[PieceType::Queen as usize];
+        let row = if piece_color == PieceColor::White { 6 } else { 1 };
         let seventh_rank_bonus = ((((rooks | queens) & row_bitboard(row)).count_ones()) >= 2) as isize * DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS;
         let mut on_open_file_count = 0;
-        let mut rook_iterator = BitboardIterator::new(rooks);
-        while let Some(rook_index) = rook_iterator.next() {
+        let rook_iterator = BitboardIterator::new(rooks);
+        for rook_index in rook_iterator {
             if util::column_bitboard(rook_index % 8) & (pawns) == 0 {
                 on_open_file_count += 1;                
             }
@@ -196,7 +197,7 @@ fn score_rooks(position: &Position) -> isize {
         seventh_rank_bonus + on_open_file_count as isize * ROOK_ON_OPEN_FILE_BONUS
     }
     let board = position.board();
-    score_rooks_for_color(board, White) - score_rooks_for_color(board, Black)
+    score_rooks_for_color(board, PieceColor::White) - score_rooks_for_color(board, PieceColor::Black)
 }
 
 
@@ -204,7 +205,7 @@ fn calculate_material_balance(piece_counts: [[usize; 6]; 2]) -> [isize; 6] {
     let mut result = [0; 6];
     for piece_type in PieceType::iter() {
         result[piece_type as usize] =
-            piece_counts[White as usize][piece_type as usize] as isize - piece_counts[Black as usize][piece_type as usize] as isize;
+            piece_counts[PieceColor::White as usize][piece_type as usize] as isize - piece_counts[PieceColor::Black as usize][piece_type as usize] as isize;
     }
     result
 }

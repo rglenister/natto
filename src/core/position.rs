@@ -8,9 +8,9 @@ use crate::core::board::BoardSide;
 use crate::core::piece::{Piece, PieceColor, PieceType};
 use crate::core::r#move::{BaseMove, Move, RawMove};
 use crate::core::{board, move_gen};
-use crate::util::{fen, util};
+use crate::utils::{fen, util};
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -28,33 +28,29 @@ impl PositionHashes {
 }
 
 static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
+    fn create_random_value_array<const N: usize>(rng: &mut Xoshiro256PlusPlus) -> [u64; N] {
+        let mut result = [0; N];
+        for i in result.iter_mut().take(N) {
+            *i = rng.random::<u64>();
+        }
+        result
+    }
+
     let seed: u64 = 49;
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
 
     let mut board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS] = [[[0; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS];
-    for color in 0..PositionHashes::NUM_COLORS {
-        for piece_type in 0..PositionHashes::NUM_PIECE_TYPES {
-            for square in 0..PositionHashes::NUM_SQUARES {
+    for color in 0..board_hashes_table.len() {
+        for piece_type in 0..board_hashes_table[0].len() {
+            for square in 0..board_hashes_table[0][0].len() {
                 board_hashes_table[color][piece_type][square] = rng.random::<u64>();
             }
         }
     }
 
-    let mut castling_hashes_table: [u64; PositionHashes::NUM_CASTLING_STATES] = [0; PositionHashes::NUM_CASTLING_STATES];
-    for state in 0..PositionHashes::NUM_CASTLING_STATES {
-        castling_hashes_table[state] = rng.random::<u64>();
-    }
-
-    let mut side_to_move_hashes_table: [u64; PositionHashes::NUM_COLORS] = [0; PositionHashes::NUM_COLORS];
-    for state in 0..PositionHashes::NUM_COLORS {
-        side_to_move_hashes_table[state] = rng.random::<u64>();
-    }
-
-    let mut en_passant_capture_square_hashes_table: [u64; PositionHashes::NUM_SQUARES] = [0; PositionHashes::NUM_SQUARES];
-    for square in 0..PositionHashes::NUM_SQUARES {
-        en_passant_capture_square_hashes_table[square] = rng.random::<u64>();
-    }
-
+    let castling_hashes_table = create_random_value_array::<{ PositionHashes::NUM_CASTLING_STATES }>(&mut rng);
+    let side_to_move_hashes_table = create_random_value_array::<{ PositionHashes::NUM_COLORS }>(&mut rng);
+    let en_passant_capture_square_hashes_table = create_random_value_array::<{ PositionHashes::NUM_SQUARES }>(&mut rng);
     PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table, en_passant_capture_square_hashes_table }
 });
 
@@ -243,18 +239,18 @@ impl Position {
     }
 
     pub fn make_move(&mut self, mov: &Move) -> Option<UndoMoveInfo> {
-        fn make_en_passant_move(mut position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove) {
+        fn make_en_passant_move(position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove) {
             undo_move_info.captured_piece_type = Some(PieceType::Pawn);
-            make_basic_move(&mut position, undo_move_info, base_move.from as usize, base_move.to as usize, true);
+            make_basic_move(position, undo_move_info, base_move.from as usize, base_move.to as usize, true);
             let forward_pawn_increment: i32 = if position.side_to_move == PieceColor::White { -8 } else { 8 };
             position.remove_piece((undo_move_info.old_en_passant_capture_square.unwrap() as i32 + forward_pawn_increment) as usize);
         }
-        fn make_castling_move(mut position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove, board_side: &BoardSide) -> bool {
+        fn make_castling_move(position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove, board_side: &BoardSide) -> bool {
             undo_move_info.captured_piece_type = None;
             let castling_metadata = &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
-            if move_gen::king_attacks_finder(&position, position.side_to_move) == 0 &&
-                move_gen::square_attacks_finder(&position, position.opposing_side(), castling_metadata.king_through_square) == 0 {
-                make_basic_move(&mut position, undo_move_info, base_move.from as usize, base_move.to as usize, false);
+            if move_gen::king_attacks_finder(position, position.side_to_move) == 0 &&
+                move_gen::square_attacks_finder(position, position.opposing_side(), castling_metadata.king_through_square) == 0 {
+                make_basic_move(position, undo_move_info, base_move.from as usize, base_move.to as usize, false);
                 let castling_meta_data = &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
                 position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
                 position.castling_rights[position.side_to_move as usize] = [false, false];
@@ -296,7 +292,7 @@ impl Position {
         #[allow(unused_variables)]
         let original_position: Position;
         #[cfg(debug_assertions)] {
-            original_position = self.clone();
+            original_position = *self;
         }
         let mut undo_move_info = UndoMoveInfo::new(self, *mov);
         self.en_passant_capture_square = None;
@@ -330,9 +326,9 @@ impl Position {
 
             #[cfg(debug_assertions)]
             {
-                let mut temp_new_position = self.clone();
+                let temp_new_position = self;
                 temp_new_position.unmake_move(&undo_move_info);
-                assert_eq!(format!("{:?}", temp_new_position), format!("{:?}", &original_position));
+                assert_eq!(format!("{temp_new_position:?}"), format!("{original_position:?}"));
             }
 
             Some(undo_move_info)
