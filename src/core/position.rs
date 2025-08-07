@@ -193,6 +193,10 @@ impl Position {
         self.castled[piece_color as usize]
     }
 
+    pub fn is_drawn_by_fifty_moves_rule(&self) -> bool {
+        self.half_move_clock >= 100
+    }
+
     fn create_initial_hash(&self) -> u64 {
         let mut initial_hash: u64 = self.get_board_hash();
         initial_hash ^= POSITION_HASHES.side_to_move_hashes_table[self.side_to_move as usize];
