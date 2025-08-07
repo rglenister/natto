@@ -143,7 +143,7 @@ impl fmt::Display for RawMove {
 }
 
 pub fn convert_moves_to_raw(moves: &[Move]) -> Vec<RawMove> {
-    moves.iter().map(|m| convert_move_to_raw(m)).collect()
+    moves.iter().map(convert_move_to_raw).collect()
 }
 
 pub fn convert_move_to_raw(mov: &Move) -> RawMove {
