@@ -1,9 +1,8 @@
-use std::sync::{Mutex, RwLock};
 use clap::{value_parser, Arg, ArgAction, ArgGroup, Command, Parser};
 use dotenv::dotenv;
 use log::LevelFilter;
 use once_cell::sync::Lazy;
-
+use std::sync::{Mutex, RwLock};
 
 pub fn get_log_file() -> String {
     CONFIG.log_file.clone()
@@ -21,18 +20,24 @@ pub fn get_uci_commands() -> Option<Vec<String>> {
     CONFIG.uci_commands.clone()
 }
 
-
 pub fn get_use_book() -> bool {
-    RUNTIME_CONFIG.use_book.read().unwrap().unwrap_or(CONFIG.use_book)
+    RUNTIME_CONFIG
+        .use_book
+        .read()
+        .unwrap()
+        .unwrap_or(CONFIG.use_book)
 }
 
 pub fn set_use_book(use_book: bool) {
     *RUNTIME_CONFIG.use_book.write().unwrap() = Some(use_book);
 }
 
-
 pub fn get_max_book_depth() -> usize {
-    RUNTIME_CONFIG.max_book_depth.read().unwrap().unwrap_or(CONFIG.max_book_depth)
+    RUNTIME_CONFIG
+        .max_book_depth
+        .read()
+        .unwrap()
+        .unwrap_or(CONFIG.max_book_depth)
 }
 
 pub fn set_max_book_depth(max_book_depth: usize) {
@@ -40,7 +45,7 @@ pub fn set_max_book_depth(max_book_depth: usize) {
 }
 
 pub fn get_contempt() -> isize {
-    RUNTIME_CONFIG.contempt.read().unwrap().unwrap_or(0) 
+    RUNTIME_CONFIG.contempt.read().unwrap().unwrap_or(0)
 }
 
 pub fn set_contempt(contempt: isize) {
@@ -48,7 +53,11 @@ pub fn set_contempt(contempt: isize) {
 }
 
 pub fn get_hash_size() -> usize {
-    RUNTIME_CONFIG.hash_size.read().unwrap().unwrap_or(CONFIG.hash_size)
+    RUNTIME_CONFIG
+        .hash_size
+        .read()
+        .unwrap()
+        .unwrap_or(CONFIG.hash_size)
 }
 
 pub fn set_hash_size(hash_size: usize) {
@@ -56,7 +65,6 @@ pub fn set_hash_size(hash_size: usize) {
 }
 
 pub fn get_config_as_string() -> String {
-
     #[allow(dead_code)]
     #[derive(Debug)]
     struct DynamicConfig {
@@ -109,7 +117,6 @@ impl RuntimeConfig {
 static CONFIG: Lazy<Config> = Lazy::new(load_config);
 static RUNTIME_CONFIG: Lazy<RuntimeConfig> = Lazy::new(RuntimeConfig::default);
 static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(None));
-
 
 fn load_config() -> Config {
     dotenv().ok();
@@ -207,9 +214,7 @@ pub fn reset_global_configs(config: Config) {
 }
 
 fn is_power_of_two(s: &str) -> Result<String, String> {
-    let size: usize = s
-        .parse()
-        .map_err(|_| format!("`{s}` isn't a number"))?;
+    let size: usize = s.parse().map_err(|_| format!("`{s}` isn't a number"))?;
     if size.is_power_of_two() {
         Ok(size.to_string())
     } else {
@@ -260,7 +265,6 @@ pub mod tests {
         assert_eq!(get_uci_commands(), None);
     }
 
-
     #[test]
     fn test_read_write_use_book() {
         assert_eq!(get_use_book(), true);
@@ -269,22 +273,22 @@ pub mod tests {
         set_use_book(true);
         assert_eq!(get_use_book(), true);
     }
-    
+
     #[test]
     fn test_read_write_max_book_depth() {
         assert_eq!(get_max_book_depth(), 10);
         set_max_book_depth(20);
         assert_eq!(get_max_book_depth(), 20);
     }
-    
+
     #[test]
     fn test_read_write_hash_size() {
         assert_eq!(get_hash_size(), 1048576);
         set_hash_size(1048577);
         assert_eq!(get_hash_size(), 1048577);
         set_hash_size(1048576);
-    }    
-    
+    }
+
     #[test]
     fn test_read_write_contempt() {
         assert_eq!(get_contempt(), 0);

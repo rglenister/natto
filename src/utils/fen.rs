@@ -1,20 +1,21 @@
-use itertools::Itertools;
-use crate::core::piece::PieceColor::White;
-use crate::core::piece::Piece;
 use crate::core::board;
+use crate::core::board::Board;
+use crate::core::piece::Piece;
+use crate::core::piece::PieceColor::White;
+use crate::core::position::Position;
+use crate::utils::util;
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use thiserror::Error;
-use crate::core::board::Board;
-use crate::utils::util;
-use crate::core::position::Position;
 
-static FEN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(
+static FEN_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
     r"^(?<board>((?<RankItem>[pnbrqkPNBRQK1-8]{1,8})/?){8})\s+(?<side_to_move>[bw])\s+(?<castling_rights>-|K?Q?k?q?)\s+(?<en_passant_target_square>-|[a-h][3-6])\s+(?<halfmove_clock>\d+)\s+(?<fullmove_number>\d+)\s*$"
-).unwrap());
+).unwrap()
+});
 
-#[derive(Debug, Error)]
-#[derive(PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ErrorKind {
     #[error("Failed to parse fen: {0}")]
     InvalidFen(String),
@@ -35,7 +36,9 @@ struct FenParts<'a> {
 
 impl From<&Position> for Fen {
     fn from(position: &Position) -> Self {
-        Fen { fen: write(position) }
+        Fen {
+            fen: write(position),
+        }
     }
 }
 
@@ -47,9 +50,22 @@ impl<'a> TryFrom<Captures<'a>> for FenParts<'a> {
             side_to_move: captures.name("side_to_move").unwrap().as_str(),
             castling_rights: captures.name("castling_rights").unwrap().as_str(),
             en_passant_target_square: captures.name("en_passant_target_square").unwrap().as_str(),
-            halfmove_clock: captures.name("halfmove_clock").unwrap().as_str().parse().unwrap(),
-            fullmove_number: captures.name("fullmove_number").unwrap().as_str().parse().unwrap(),
-        }).map_err(|_: std::num::ParseIntError| ErrorKind::InvalidFen(captures.name("fen").unwrap().as_str().to_string()))
+            halfmove_clock: captures
+                .name("halfmove_clock")
+                .unwrap()
+                .as_str()
+                .parse()
+                .unwrap(),
+            fullmove_number: captures
+                .name("fullmove_number")
+                .unwrap()
+                .as_str()
+                .parse()
+                .unwrap(),
+        })
+        .map_err(|_: std::num::ParseIntError| {
+            ErrorKind::InvalidFen(captures.name("fen").unwrap().as_str().to_string())
+        })
     }
 }
 pub fn parse(fen: String) -> Result<Position, ErrorKind> {
@@ -68,25 +84,33 @@ pub fn parse(fen: String) -> Result<Position, ErrorKind> {
             board.put_piece(i, Piece::from_char(ch).unwrap());
         }
     }
-    
+
     Ok(Position::new(
         board,
         util::create_color(fen_parts.side_to_move).unwrap(),
         fen_parts.castling_rights.to_string(),
         util::parse_square(fen_parts.en_passant_target_square),
         fen_parts.halfmove_clock,
-        fen_parts.fullmove_number
+        fen_parts.fullmove_number,
     ))
 }
 
 pub fn write(position: &Position) -> String {
-    return format!("{} {} {} {} {} {}",
-                   write_board(position.board()),
-                   if position.side_to_move() == White { "w" } else { "b" },
-                   get_castling_rights(position),
-                   position.en_passant_capture_square().map_or("-".to_string(), util::format_square),
-                   position.half_move_clock(),
-                   position.full_move_number());
+    return format!(
+        "{} {} {} {} {} {}",
+        write_board(position.board()),
+        if position.side_to_move() == White {
+            "w"
+        } else {
+            "b"
+        },
+        get_castling_rights(position),
+        position
+            .en_passant_capture_square()
+            .map_or("-".to_string(), util::format_square),
+        position.half_move_clock(),
+        position.full_move_number()
+    );
 
     fn write_board(board: &Board) -> String {
         return (0..64)
@@ -116,10 +140,18 @@ pub fn write(position: &Position) -> String {
 
     fn get_castling_rights(position: &Position) -> String {
         let mut output = String::new();
-        if position.castling_rights()[0][0] { output.push('K'); }
-        if position.castling_rights()[0][1] { output.push('Q'); }
-        if position.castling_rights()[1][0] { output.push('k'); }
-        if position.castling_rights()[1][1] { output.push('q'); }
+        if position.castling_rights()[0][0] {
+            output.push('K');
+        }
+        if position.castling_rights()[0][1] {
+            output.push('Q');
+        }
+        if position.castling_rights()[1][0] {
+            output.push('k');
+        }
+        if position.castling_rights()[1][1] {
+            output.push('q');
+        }
         if output.is_empty() {
             output.push('-');
         }
@@ -146,7 +178,7 @@ fn digits_to_spaces(input: &str) -> String {
 }
 
 fn reverse_rows(input: &str) -> String {
-    let rows : Vec<&str> = input.split("/").collect::<Vec<&str>>();
+    let rows: Vec<&str> = input.split("/").collect::<Vec<&str>>();
     let rows_reversed: Vec<_> = rows.iter().cloned().rev().collect();
     rows_reversed.join("")
 }
@@ -168,14 +200,17 @@ mod tests {
         assert_eq!(position.as_ref().unwrap().half_move_clock(), 0);
         assert_eq!(position.as_ref().unwrap().full_move_number(), 1);
     }
-    
+
     #[test]
     fn test_parse_invalid_fen() {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A";
         let position = parse(fen.to_string());
         assert!(position.is_err());
         let error = position.err().unwrap();
-        assert_eq!(error.to_string(), "Failed to parse fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A");
+        assert_eq!(
+            error.to_string(),
+            "Failed to parse fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A"
+        );
     }
     #[test]
     fn test_write_1() {
@@ -193,4 +228,3 @@ mod tests {
         assert_eq!(result, fen);
     }
 }
-

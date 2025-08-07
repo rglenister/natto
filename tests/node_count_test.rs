@@ -1,10 +1,10 @@
-use natto::{eval::node_counter};
+use natto::core::position::Position;
+use natto::eval::node_counter;
+use natto::utils::fen;
 use serde_derive::Deserialize;
 use serial_test::serial;
 use std::error::Error;
 use std::fs;
-use natto::core::position::{Position};
-use natto::utils::fen;
 
 #[derive(Deserialize, Debug)]
 
@@ -31,7 +31,11 @@ fn test_fens() {
     for test in test_cases {
         let position = fen::parse(test.fen).expect("Failed to parse FEN");
         let node_count_stats = node_counter::count_nodes(&position, test.depth);
-        assert_eq!(node_count_stats.node_count, test.nodes, "Test {}",  test_number);
+        assert_eq!(
+            node_count_stats.node_count, test.nodes,
+            "Test {}",
+            test_number
+        );
         test_number += 1;
         println!("{:?}", node_count_stats);
     }

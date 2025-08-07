@@ -1,4 +1,3 @@
-
 pub struct BitboardIterator {
     bitboard: u64,
 }
@@ -64,7 +63,4 @@ mod tests {
         let squares: Vec<usize> = BitboardIterator::new(bitboard).collect();
         assert!(squares.is_empty());
     }
-
 }
-
-

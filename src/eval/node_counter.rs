@@ -1,10 +1,9 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
-use rayon::prelude::*;
 use crate::core::move_gen;
 use crate::core::position::Position;
 use crate::core::r#move::Move;
-
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
 const NODE_COUNTS_AT_DEPTH: [usize; 11] = [
     1,
@@ -33,7 +32,10 @@ pub(crate) struct NodeCounter {
 
 impl NodeCounter {
     pub(crate) fn new() -> Self {
-        NodeCounter {  node_counter: AtomicUsize::new(0), start_time: Instant::now() }
+        NodeCounter {
+            node_counter: AtomicUsize::new(0),
+            start_time: Instant::now(),
+        }
     }
     pub(crate) fn increment(&self) -> usize {
         self.node_counter.fetch_add(1, Ordering::Relaxed)
@@ -58,7 +60,11 @@ impl NodeCounter {
         let node_count_stats: NodeCountStats = NodeCountStats {
             node_count: self.node_count(),
             start_time: self.start_time,
-            nodes_per_second: if elapsed_micros != 0 { (self.node_count() * 1000000) / elapsed_micros as usize } else { 0 },
+            nodes_per_second: if elapsed_micros != 0 {
+                (self.node_count() * 1000000) / elapsed_micros as usize
+            } else {
+                0
+            },
             elapsed_time: elapsed,
         };
         node_count_stats
@@ -69,7 +75,10 @@ pub fn perf_t() {
     for (depth, node_count) in NODE_COUNTS_AT_DEPTH.iter().enumerate() {
         let stats = count_nodes(&Position::new_game(), depth);
         assert_eq!(*node_count, stats.node_count);
-        println!("Depth {} nodes {} nps {}", depth, stats.node_count, stats.nodes_per_second);
+        println!(
+            "Depth {} nodes {} nps {}",
+            depth, stats.node_count, stats.nodes_per_second
+        );
     }
 }
 
@@ -81,8 +90,18 @@ pub fn count_nodes(position: &Position, max_depth: usize) -> NodeCountStats {
     node_counter.stats()
 }
 
-fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &mut Position, depth: usize, max_depth: usize) -> usize {
-    fn process_move<F>(position: &mut Position, mov: Move, depth: usize, max_depth: usize, do_count_nodes_fn: F) -> usize
+fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(
+    position: &mut Position,
+    depth: usize,
+    max_depth: usize,
+) -> usize {
+    fn process_move<F>(
+        position: &mut Position,
+        mov: Move,
+        depth: usize,
+        max_depth: usize,
+        do_count_nodes_fn: F,
+    ) -> usize
     where
         F: Fn(&mut Position, usize, usize) -> usize,
     {
@@ -100,12 +119,28 @@ fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &mut Position, de
         if USE_PARALLEL_ITERATOR {
             moves
                 .into_par_iter()
-                .map(|mov| process_move(&mut position.clone(), mov, depth, max_depth, do_count_nodes::<false>))
+                .map(|mov| {
+                    process_move(
+                        &mut position.clone(),
+                        mov,
+                        depth,
+                        max_depth,
+                        do_count_nodes::<false>,
+                    )
+                })
                 .sum()
         } else {
             moves
                 .into_iter()
-                .map(|mov| process_move(&mut position.clone(), mov, depth, max_depth, do_count_nodes::<false>))
+                .map(|mov| {
+                    process_move(
+                        &mut position.clone(),
+                        mov,
+                        depth,
+                        max_depth,
+                        do_count_nodes::<false>,
+                    )
+                })
                 .sum()
         }
     } else {
@@ -116,7 +151,7 @@ fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &mut Position, de
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_perft() {
         let position = Position::new_game();

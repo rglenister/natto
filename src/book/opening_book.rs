@@ -1,10 +1,8 @@
-use thiserror::Error;
 use crate::core::position::Position;
 use crate::core::r#move::RawMove;
+use thiserror::Error;
 
-
-#[derive(Debug, Error)]
-#[derive(PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ErrorKind {
     #[error("No opening moves found")]
     NoOpeningMovesFound,

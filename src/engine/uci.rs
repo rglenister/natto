@@ -1,19 +1,22 @@
 use crate::core::piece::PieceColor::{Black, White};
+use crate::core::position::Position;
 use crate::core::r#move::{Move, RawMove};
+use crate::search;
 use crate::search::negamax::{RepetitionKey, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
+use crate::utils::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use crate::utils::util;
-use crate::core::position::Position;
-use crate::search;
+use std::sync::Arc;
 
 include!("../utils/generated_macro.rs");
 
-static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$").unwrap());
+static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$")
+        .unwrap()
+});
 
 #[derive(Clone, Debug)]
 pub struct UciPosition {
@@ -25,18 +28,21 @@ pub struct UciPosition {
 
 impl UciPosition {
     pub fn all_game_positions(&self) -> Vec<Position> {
-        let game_positions: Vec<_> = self.position_move_pairs
+        let game_positions: Vec<_> = self
+            .position_move_pairs
             .iter()
             .flat_map(|pairs| pairs.iter().map(|pm| pm.0))
             .collect();
 
-        [vec!(self.given_position).as_slice(), game_positions.as_slice()].concat()
+        [
+            vec![self.given_position].as_slice(),
+            game_positions.as_slice(),
+        ]
+        .concat()
     }
 }
 
-#[derive(Clone)]
-#[derive(Default)]
-#[derive(Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct UciGoOptions {
     pub time: [Option<usize>; 2],
     pub inc: [Option<usize>; 2],
@@ -53,7 +59,9 @@ pub struct UciGoOptions {
 pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptions {
     let mut uci_go_options = UciGoOptions::default();
     if let Some(options_string) = options_string {
-        let re_numeric_options = Regex::new(r"(wtime|btime|winc|binc|movestogo|depth|nodes|mate|movetime) (\d+)").unwrap();
+        let re_numeric_options =
+            Regex::new(r"(wtime|btime|winc|binc|movestogo|depth|nodes|mate|movetime) (\d+)")
+                .unwrap();
         let mut params = HashMap::new();
 
         for cap in re_numeric_options.captures_iter(&options_string) {
@@ -74,7 +82,7 @@ pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptio
             match &cap[1] {
                 "infinite" => uci_go_options.infinite = true,
                 "ponder" => uci_go_options.ponder = true,
-                _ => ()
+                _ => (),
             }
         }
 
@@ -88,13 +96,26 @@ pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptio
 
 pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
     fn create_uci_position(position: &Position, captures: &Captures) -> Option<UciPosition> {
-        captures.get(3)
-            .map_or(Some(vec!()), |m| { util::replay_move_string(position, m.as_str().to_string()) })
+        captures
+            .get(3)
+            .map_or(Some(vec![]), |m| {
+                util::replay_move_string(position, m.as_str().to_string())
+            })
             .map(|moves| UciPosition {
                 given_position: *position,
-                end_position: if !moves.is_empty() { moves.last().unwrap().0 } else {*position},
+                end_position: if !moves.is_empty() {
+                    moves.last().unwrap().0
+                } else {
+                    *position
+                },
                 position_move_pairs: Some(moves),
-                repetition_keys: util::create_repetition_keys(position, captures.get(3).map_or("".to_string(), |m| m.as_str().to_string())).unwrap(),
+                repetition_keys: util::create_repetition_keys(
+                    position,
+                    captures
+                        .get(3)
+                        .map_or("".to_string(), |m| m.as_str().to_string()),
+                )
+                .unwrap(),
             })
     }
 
@@ -114,15 +135,21 @@ pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
     }
 }
 
-pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPosition) -> SearchParams {
+pub fn create_search_params(
+    uci_go_options: &UciGoOptions,
+    uci_position: &UciPosition,
+) -> SearchParams {
     let allocate_move_time_millis = || -> Option<usize> {
         if uci_go_options.move_time.is_some() {
             uci_go_options.move_time
         } else {
             let side_to_move = uci_position.end_position.side_to_move();
             let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
-            let inc_per_move_millis: usize = uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
-            let remaining_number_of_moves_to_go: usize = uci_go_options.moves_to_go.map_or(30, |moves_to_go| moves_to_go);
+            let inc_per_move_millis: usize =
+                uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
+            let remaining_number_of_moves_to_go: usize = uci_go_options
+                .moves_to_go
+                .map_or(30, |moves_to_go| moves_to_go);
 
             let base_time = remaining_time_millis / remaining_number_of_moves_to_go;
             // Add a portion of the increment (50% here)
@@ -141,9 +168,7 @@ pub fn create_search_params(uci_go_options: &UciGoOptions, uci_position: &UciPos
         MAXIMUM_SEARCH_DEPTH.min(depth.map_or(usize::MAX, |d| d))
     };
 
-    let allocate_max_nodes = || -> usize {
-        uci_go_options.nodes.map_or(usize::MAX, |nodes| nodes)
-    };
+    let allocate_max_nodes = || -> usize { uci_go_options.nodes.map_or(usize::MAX, |nodes| nodes) };
 
     SearchParams {
         allocated_time_millis: allocate_move_time_millis().map_or(usize::MAX, |mtm| mtm),
@@ -161,7 +186,12 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
     let uci_position = parse_position(uci_position_str).unwrap();
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);
-    search::negamax::iterative_deepening(&mut uci_position.end_position.clone(), &search_params, Arc::new(AtomicBool::new(false)), &uci_position.repetition_keys)
+    search::negamax::iterative_deepening(
+        &mut uci_position.end_position.clone(),
+        &search_params,
+        Arc::new(AtomicBool::new(false)),
+        &uci_position.repetition_keys,
+    )
 }
 
 #[cfg(test)]
@@ -174,15 +204,26 @@ mod tests {
         if side_to_move == Black {
             position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None));
         }
-        UciPosition { given_position: position, end_position: position, position_move_pairs: None, repetition_keys: vec!() }
+        UciPosition {
+            given_position: position,
+            end_position: position,
+            position_move_pairs: None,
+            repetition_keys: vec![],
+        }
     }
 
     #[test]
     fn test_parse_position() {
         assert!(parse_position("position startpos").is_some());
-        assert!(parse_position("position fen r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0").is_some());
+        assert!(parse_position(
+            "position fen r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0"
+        )
+        .is_some());
         assert!(parse_position("position startpos moves e2e4 e7e5").is_some());
-        assert!(parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5").is_some());
+        assert!(
+            parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5")
+                .is_some()
+        );
         assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
         assert!(parse_position("position startpos moves e2e3 e7e5 b1c3 d7d5 a2a4 f8a3 b2a3 b8c6 f1b5 d8h4 c3d5 h4f2 e1f2    c8g1").is_none());
     }
@@ -202,7 +243,13 @@ mod tests {
         assert_eq!(uci_go_options.move_time, Some(1234));
         assert_eq!(uci_go_options.ponder, true);
         assert_eq!(uci_go_options.infinite, true);
-        assert_eq!(uci_go_options.search_moves, Some(vec!(RawMove::new(sq!("e2"), sq!("e4"), None), RawMove::new(sq!("e7"), sq!("e5"), None))));
+        assert_eq!(
+            uci_go_options.search_moves,
+            Some(vec!(
+                RawMove::new(sq!("e2"), sq!("e4"), None),
+                RawMove::new(sq!("e7"), sq!("e5"), None)
+            ))
+        );
     }
 
     #[test]
@@ -238,7 +285,7 @@ mod tests {
         let command = "go wtime 10000 btime 1100 winc 200 binc 400 movestogo 10".to_string();
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
-        assert_eq!(search_params.allocated_time_millis,1100);
+        assert_eq!(search_params.allocated_time_millis, 1100);
         assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }

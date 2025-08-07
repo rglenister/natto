@@ -1,25 +1,22 @@
-use crate::utils::{fen, util};
+use crate::book::opening_book::{ErrorKind, OpeningBook};
+use crate::core::move_gen::generate_moves;
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::piece::PieceType::King;
 use crate::core::piece::{Piece, PieceColor};
-use crate::book::opening_book::{ErrorKind, OpeningBook};
+use crate::core::position::Position;
 use crate::core::r#move::{Move, RawMove};
+use crate::utils::{fen, util};
 use rand::{rng, Rng};
 use reqwest;
 use serde::{Deserialize, Serialize};
-use crate::core::position::Position;
-use crate::core::move_gen::generate_moves;
 
 include!("../utils/generated_macro.rs");
 
-
-pub struct LiChessOpeningBook {
-}
+pub struct LiChessOpeningBook {}
 
 impl LiChessOpeningBook {
     pub fn new() -> LiChessOpeningBook {
-        LiChessOpeningBook {
-        }
+        LiChessOpeningBook {}
     }
 }
 
@@ -33,10 +30,10 @@ fn get_opening_move(position: &Position) -> Result<RawMove, ErrorKind> {
     let opening_moves = fetch_opening_moves(&fen)?;
     if !opening_moves.is_empty() {
         let move_string = weighted_random_move(&opening_moves);
-        let corrected_move_string= map_castling_move_to_uci_format(&move_string, position);
+        let corrected_move_string = map_castling_move_to_uci_format(&move_string, position);
         let raw_chess_move = parse_move(corrected_move_string)?;
         validate_move(position, raw_chess_move)?;
-        Ok(raw_chess_move)       
+        Ok(raw_chess_move)
     } else {
         Err(ErrorKind::NoOpeningMovesFound {})
     }
@@ -59,16 +56,22 @@ fn fetch_opening_moves(fen: &str) -> Result<Vec<LiChessMoveData>, ErrorKind> {
     let url = format!("https://explorer.lichess.ovh/masters?fen={fen}");
 
     let response: LiChessOpeningResponse = reqwest::blocking::get(&url)
-        .map_err(|e| ErrorKind::CommunicationsFailed { message: e.to_string() })?
+        .map_err(|e| ErrorKind::CommunicationsFailed {
+            message: e.to_string(),
+        })?
         .json()
-        .map_err(|e| ErrorKind::CommunicationsFailed { message: e.to_string() })?;
+        .map_err(|e| ErrorKind::CommunicationsFailed {
+            message: e.to_string(),
+        })?;
 
     Ok(response.moves)
 }
 
-
 fn weighted_random_move(moves: &[LiChessMoveData]) -> String {
-    let total_games: u32 = moves.iter().map(|m| (m.white + m.black + m.draws) as u32).sum();
+    let total_games: u32 = moves
+        .iter()
+        .map(|m| (m.white + m.black + m.draws) as u32)
+        .sum();
 
     let mut rng = rng();
     let mut pick = rng.random_range(0..total_games);
@@ -84,7 +87,11 @@ fn weighted_random_move(moves: &[LiChessMoveData]) -> String {
 }
 fn map_castling_move_to_uci_format<'a>(move_string: &'a str, position: &Position) -> &'a str {
     let king_on_home_square = |square_index: usize, piece_color: PieceColor| -> bool {
-        position.board().get_piece(square_index) == Some(Piece { piece_color, piece_type: King })
+        position.board().get_piece(square_index)
+            == Some(Piece {
+                piece_color,
+                piece_type: King,
+            })
     };
     let white_king_on_home_square = king_on_home_square(sq!("e1"), White);
     let black_king_on_home_square = king_on_home_square(sq!("e8"), Black);
@@ -98,11 +105,14 @@ fn map_castling_move_to_uci_format<'a>(move_string: &'a str, position: &Position
 }
 
 fn parse_move(move_string: &str) -> Result<RawMove, ErrorKind> {
-    util::parse_move(move_string.to_string()).ok_or(ErrorKind::InvalidMoveString { move_string: move_string.to_string() })    
+    util::parse_move(move_string.to_string()).ok_or(ErrorKind::InvalidMoveString {
+        move_string: move_string.to_string(),
+    })
 }
 
 fn validate_move(position: &Position, raw_chess_move: RawMove) -> Result<Move, ErrorKind> {
-    util::find_generated_move(generate_moves(position), &raw_chess_move).ok_or(ErrorKind::IllegalMove { raw_chess_move })
+    util::find_generated_move(generate_moves(position), &raw_chess_move)
+        .ok_or(ErrorKind::IllegalMove { raw_chess_move })
 }
 
 #[cfg(test)]
@@ -112,7 +122,9 @@ mod tests {
     #[test]
     fn test_get_opening_move() {
         let opening_book = LiChessOpeningBook::new();
-        let opening_move = opening_book.get_opening_move(&Position::from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+        let opening_move = opening_book.get_opening_move(&Position::from(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        ));
         let opening_move = opening_move.unwrap();
         assert!(opening_move.promote_to.is_none());
     }

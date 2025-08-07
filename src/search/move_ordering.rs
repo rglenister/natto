@@ -1,9 +1,9 @@
-use arrayvec::ArrayVec;
-use crate::core::r#move::Move;
-use crate::core::position::Position;
 use crate::core::piece::PieceType;
+use crate::core::position::Position;
+use crate::core::r#move::Move;
 use crate::eval::evaluation::PIECE_SCORES;
 use crate::search::negamax::MAXIMUM_SEARCH_DEPTH;
+use arrayvec::ArrayVec;
 
 // Constants for move scoring
 const HASH_MOVE_SCORE: i32 = 20000;
@@ -102,8 +102,16 @@ impl MoveOrderer {
         }
     }
 
-    pub fn _update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
-        if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
+    pub fn _update_countermove(
+        &mut self,
+        position: &Position,
+        last_move: &Move,
+        countermove: Move,
+    ) {
+        if let Some(piece) = position
+            .board()
+            .get_piece(last_move.get_base_move().to as usize)
+        {
             let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
             let to_square = last_move.get_base_move().to as usize;
             self.counter_moves[piece_idx][to_square] = Some(countermove);
@@ -112,7 +120,10 @@ impl MoveOrderer {
 
     pub fn get_countermove(&self, position: &Position, last_move: &Option<&Move>) -> Option<Move> {
         if let Some(last_move) = last_move {
-            if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
+            if let Some(piece) = position
+                .board()
+                .get_piece(last_move.get_base_move().to as usize)
+            {
                 let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
                 let to_square = last_move.get_base_move().to as usize;
                 return self.counter_moves[piece_idx][to_square];
@@ -122,9 +133,15 @@ impl MoveOrderer {
     }
 
     // Score moves for ordering
-    pub fn score_moves<T>(&self, position: &Position, hash_move: Option<Move>, moves: &mut T, ply: usize, last_move: Option<&Move>) 
-    where 
-        T: AsMut<[(Move, i32)]>
+    pub fn score_moves<T>(
+        &self,
+        position: &Position,
+        hash_move: Option<Move>,
+        moves: &mut T,
+        ply: usize,
+        last_move: Option<&Move>,
+    ) where
+        T: AsMut<[(Move, i32)]>,
     {
         let countermove = self.get_countermove(position, &last_move);
         let moves_slice = moves.as_mut();
@@ -134,7 +151,14 @@ impl MoveOrderer {
         }
     }
 
-    fn score_move(&self, position: &Position, mov: &Move, hash_move: Option<Move>, ply: usize, countermove: Option<Move>) -> i32 {
+    fn score_move(
+        &self,
+        position: &Position,
+        mov: &Move,
+        hash_move: Option<Move>,
+        ply: usize,
+        countermove: Option<Move>,
+    ) -> i32 {
         // Hash move gets highest priority
         if let Some(hash_move) = hash_move {
             if *mov == hash_move {
@@ -155,7 +179,7 @@ impl MoveOrderer {
                 if let Some(aggressor) = position.board().get_piece(base_move.from as usize) {
                     let aggressor_value = PIECE_SCORES[aggressor.piece_type as usize];
 
-                    // MVV-LVA = victim value - aggressor value/100 
+                    // MVV-LVA = victim value - aggressor value/100
                     // This ensures higher value victims are prioritized, then lowest value attackers
                     score += victim_value as i32 - (aggressor_value as i32) / 100;
                 }
@@ -200,9 +224,9 @@ impl MoveOrderer {
     }
 
     // Sort moves based on scores (highest first)
-    pub fn sort_moves<T>(moves: &mut T) 
-    where 
-        T: AsMut<[(Move, i32)]>
+    pub fn sort_moves<T>(moves: &mut T)
+    where
+        T: AsMut<[(Move, i32)]>,
     {
         let moves_slice = moves.as_mut();
         moves_slice.sort_by(|a, b| b.1.cmp(&a.1));
@@ -213,7 +237,9 @@ impl MoveOrderer {
         let base_move = mov.get_base_move();
         if !base_move.capture {
             if let Move::Promotion { promote_to, .. } = mov {
-                return (PIECE_SCORES[*promote_to as usize] as i32 - PIECE_SCORES[PieceType::Pawn as usize] as i32) / 100;
+                return (PIECE_SCORES[*promote_to as usize] as i32
+                    - PIECE_SCORES[PieceType::Pawn as usize] as i32)
+                    / 100;
             }
             return 0;
         }
@@ -237,7 +263,14 @@ impl MoveOrderer {
 }
 
 // Functions for move ordering
-pub fn order_moves(position: &Position, moves: &mut Vec<Move>, move_orderer: &MoveOrderer, ply: usize, hash_move: Option<Move>, last_move: &Option<Move>) {
+pub fn order_moves(
+    position: &Position,
+    moves: &mut Vec<Move>,
+    move_orderer: &MoveOrderer,
+    ply: usize,
+    hash_move: Option<Move>,
+    last_move: &Option<Move>,
+) {
     // Maximum legal moves from any position is ~218, so 256 is safe
     const MAX_MOVES: usize = 256;
 
@@ -246,7 +279,13 @@ pub fn order_moves(position: &Position, moves: &mut Vec<Move>, move_orderer: &Mo
     scored_moves.extend(moves.iter().map(|m| (*m, 0)));
 
     // Score each move
-    move_orderer.score_moves(position, hash_move, &mut scored_moves, ply, Option::from(last_move));
+    move_orderer.score_moves(
+        position,
+        hash_move,
+        &mut scored_moves,
+        ply,
+        Option::from(last_move),
+    );
 
     // Sort by score
     MoveOrderer::sort_moves(&mut scored_moves);
@@ -263,7 +302,11 @@ pub fn order_quiescence_moves(position: &Position, moves: &mut Vec<Move>) {
 
     // Create a scored move list on the stack with MVV-LVA scores
     let mut scored_moves: ArrayVec<(Move, i32), MAX_CAPTURES> = ArrayVec::new();
-    scored_moves.extend(moves.iter().map(|m| (*m, MoveOrderer::mvv_lva_score(position, m))));
+    scored_moves.extend(
+        moves
+            .iter()
+            .map(|m| (*m, MoveOrderer::mvv_lva_score(position, m))),
+    );
 
     // Sort by score
     scored_moves.sort_by(|a, b| b.1.cmp(&a.1));
@@ -283,8 +326,20 @@ mod tests {
         let mut move_orderer = MoveOrderer::new();
         let ply = 2;
 
-        let killer_move1 = Move::Basic { base_move: BaseMove { from: 12, to: 28, capture: false } };
-        let killer_move2 = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
+        let killer_move1 = Move::Basic {
+            base_move: BaseMove {
+                from: 12,
+                to: 28,
+                capture: false,
+            },
+        };
+        let killer_move2 = Move::Basic {
+            base_move: BaseMove {
+                from: 11,
+                to: 27,
+                capture: false,
+            },
+        };
 
         move_orderer.add_killer_move(killer_move1, ply);
         assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move1));
@@ -300,7 +355,13 @@ mod tests {
         assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
 
         // Capturing moves should not be added as killers
-        let capture_move = Move::Basic { base_move: BaseMove { from: 10, to: 26, capture: true } };
+        let capture_move = Move::Basic {
+            base_move: BaseMove {
+                from: 10,
+                to: 26,
+                capture: true,
+            },
+        };
         move_orderer.add_killer_move(capture_move, ply);
         assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move2));
         assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
@@ -311,9 +372,27 @@ mod tests {
         let mut move_orderer = MoveOrderer::new();
         let ply = 3;
 
-        let killer_move1 = Move::Basic { base_move: BaseMove { from: 12, to: 28, capture: false } };
-        let killer_move2 = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
-        let other_move = Move::Basic { base_move: BaseMove { from: 10, to: 26, capture: false } };
+        let killer_move1 = Move::Basic {
+            base_move: BaseMove {
+                from: 12,
+                to: 28,
+                capture: false,
+            },
+        };
+        let killer_move2 = Move::Basic {
+            base_move: BaseMove {
+                from: 11,
+                to: 27,
+                capture: false,
+            },
+        };
+        let other_move = Move::Basic {
+            base_move: BaseMove {
+                from: 10,
+                to: 26,
+                capture: false,
+            },
+        };
 
         move_orderer.add_killer_move(killer_move1, ply);
         move_orderer.add_killer_move(killer_move2, ply);
@@ -334,10 +413,34 @@ mod tests {
         let ply = 0;
 
         // Create sample moves
-        let hash_move = Move::Basic { base_move: BaseMove { from: 60, to: 62, capture: false } }; // E1-G1 (castling)
-        let capture = Move::Basic { base_move: BaseMove { from: 28, to: 21, capture: true } }; // E5-F6 (capture)
-        let killer_move = Move::Basic { base_move: BaseMove { from: 12, to: 28, capture: false } }; // E2-E4
-        let quiet_move = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } }; // D2-D4
+        let hash_move = Move::Basic {
+            base_move: BaseMove {
+                from: 60,
+                to: 62,
+                capture: false,
+            },
+        }; // E1-G1 (castling)
+        let capture = Move::Basic {
+            base_move: BaseMove {
+                from: 28,
+                to: 21,
+                capture: true,
+            },
+        }; // E5-F6 (capture)
+        let killer_move = Move::Basic {
+            base_move: BaseMove {
+                from: 12,
+                to: 28,
+                capture: false,
+            },
+        }; // E2-E4
+        let quiet_move = Move::Basic {
+            base_move: BaseMove {
+                from: 11,
+                to: 27,
+                capture: false,
+            },
+        }; // D2-D4
 
         // Add killer move
         move_orderer.add_killer_move(killer_move, ply);
@@ -345,10 +448,14 @@ mod tests {
         // Add some history for quiet move
         move_orderer.update_history_score(&position, &quiet_move, 3); // depth 3
 
-        let hash_move_score = move_orderer.score_move(&position, &hash_move, Some(hash_move), ply, None);
-        let capture_score = move_orderer.score_move(&position, &capture, Some(hash_move), ply, None);
-        let killer_score = move_orderer.score_move(&position, &killer_move, Some(hash_move), ply, None);
-        let quiet_score = move_orderer.score_move(&position, &quiet_move, Some(hash_move), ply, None);
+        let hash_move_score =
+            move_orderer.score_move(&position, &hash_move, Some(hash_move), ply, None);
+        let capture_score =
+            move_orderer.score_move(&position, &capture, Some(hash_move), ply, None);
+        let killer_score =
+            move_orderer.score_move(&position, &killer_move, Some(hash_move), ply, None);
+        let quiet_score =
+            move_orderer.score_move(&position, &quiet_move, Some(hash_move), ply, None);
 
         // Hash move should be highest
         assert!(hash_move_score > capture_score);
