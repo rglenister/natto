@@ -17,7 +17,7 @@ pub const SHORT_FORMATTER: MoveFormatter = MoveFormatter::new(ShortAlgebraic);
 pub const LONG_FORMATTER: MoveFormatter = MoveFormatter::new(LongAlgebraic);
 
 pub trait FormatMove {
-    fn format_move_list(&self, position: &Position, chess_moves: &[Move]) -> Option<Vec<String>>;
+    fn format_move_list(&self, position: &Position, moves: &[Move]) -> Option<Vec<String>>;
 }
 
 #[derive(Eq, Hash, PartialEq)]
@@ -50,10 +50,10 @@ pub fn format_move_list(position: &Position, search_results: &SearchResults) -> 
 }
 
 impl FormatMove for MoveFormatter {
-    fn format_move_list(&self, position: &Position, chess_moves: &[Move]) -> Option<Vec<String>> {
+    fn format_move_list(&self, position: &Position, moves: &[Move]) -> Option<Vec<String>> {
         let mut result = Vec::new();
         let mut current_position: Position = position.clone();
-        for mv in chess_moves.iter() {
+        for mv in moves.iter() {
             let mut next_position = current_position.clone();
             next_position.make_move(mv).unwrap();
             result.push(self.format_move_internal(&current_position, &mv, &next_position));
@@ -174,8 +174,8 @@ impl MoveFormatter {
         }
     }
 
-    fn get_moved_piece(&self, position: &Position, chess_move: &Move) -> Piece {
-        position.board().get_piece(chess_move.get_base_move().from as usize).unwrap()
+    fn get_moved_piece(&self, position: &Position, mov: &Move) -> Piece {
+        position.board().get_piece(mov.get_base_move().from as usize).unwrap()
     }
 
 }
