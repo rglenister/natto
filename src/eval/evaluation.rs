@@ -78,7 +78,7 @@ pub fn score_position(position: &Position) -> isize {
     let piece_material_balance = calculate_material_balance(piece_counts);
     let material_score = piece_material_balance.iter().enumerate().map(|(idx, &balance)| {
         balance * PIECE_SCORES[idx]
-    })   
+    })
         .sum::<isize>();
 
     let (psq_mg, psq_eg) = score_board_psq_values(board);
@@ -88,11 +88,14 @@ pub fn score_position(position: &Position) -> isize {
     let (score_mg, score_eg) = (psq_mg + king_mg + pawn_mg, psq_eg + king_eg + pawn_eg);
     let blended_score = (score_mg * (PHASE_TOTAL - phase) + score_eg * phase) / PHASE_TOTAL;
 
-    let score =  blended_score
-        + material_score
-        + score_bishops(position)
-        + score_rooks(position);
+    let mut score = blended_score
+         + material_score
+         + score_bishops(position)
+         + score_rooks(position);
 
+    if score == 0 {
+        score = -1;
+    }
     if position.side_to_move() == White { score } else { -score }
 }
 
@@ -100,8 +103,7 @@ pub fn evaluate(position: &Position, depth: usize, repetition_key_stack: &Vec<Re
     let game_status = get_game_status(position, repetition_key_stack);
     match game_status {
         GameStatus::InProgress => {
-            let score = score_position(position);
-            if score != 0 { score } else { -1 }
+            score_position(position)
         },
         GameStatus::Checkmate => depth as isize - MAXIMUM_SCORE,
         _ => apply_contempt(0), // Apply contempt to drawn positions
@@ -217,7 +219,7 @@ mod tests {
     #[test]
     fn test_score_pieces() {
         let position: Position = Position::new_game();
-        assert_eq!(score_position(&position), 0);
+        assert_eq!(score_position(&position), -1);
 
         let missing_white_pawn: Position = Position::from("rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1");
         assert_eq!(score_position(&missing_white_pawn), -35);

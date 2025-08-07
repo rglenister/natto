@@ -356,7 +356,7 @@ mod tests {
             let fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let mut position: Position = Position::from(fen);
             let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, 0);
+            assert_eq!(score, -1);
         }
 
         #[test]

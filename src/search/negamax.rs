@@ -18,7 +18,7 @@ use crate::eval::evaluation::{has_three_fold_repetition, GameStatus};
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::{move_ordering, quiescence};
 use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
-use crate::{eval, uci};
+use crate::uci;
 
 include!("../util/generated_macro.rs");
 
@@ -46,7 +46,7 @@ impl Display for SearchResults {
         write!(f, "score: {} depth: {} bestline: {} game_status: {:?}",
                self.score,
                self.depth,
-               move_formatter::SHORT_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
+               move_formatter::LONG_FORMATTER.format_move_list(&self.position, &*self.pv).unwrap().join(", "),
                self.game_status)
     }
 }
@@ -151,7 +151,7 @@ pub fn iterative_deepening(
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(search_params, stop_flag.clone(), repetition_keys.clone(), MoveOrderer::new());
         let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-        let score = negamax_search(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+        let score = negamax(position, &mut ArrayVec::new(), &mut pv, iteration_max_depth, iteration_max_depth, &mut search_context, -MAXIMUM_SCORE, MAXIMUM_SCORE);
         if !search_context.stop_search_requested() {
             let iteration_search_results = create_search_results(position, score, iteration_max_depth, &pv.to_vec(), &search_context);
             search_results = Some(iteration_search_results.clone());
@@ -170,7 +170,7 @@ pub fn iterative_deepening(
     search_results.unwrap()
 }
 
-fn negamax_search(
+fn negamax(
     position: &mut Position,
     current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
     pv: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
@@ -178,7 +178,7 @@ fn negamax_search(
     max_depth: usize,
     search_context: &mut SearchContext,
     mut alpha: isize,
-    beta: isize,
+    mut beta: isize,
 ) -> isize {
     increment_node_counter();
     let ply = max_depth - depth;
@@ -195,31 +195,34 @@ fn negamax_search(
                 BoundType::Exact => {
                     if let Some(best_move) = entry.best_move {
                         if let Some(undo_move_info) = position.make_move(&best_move) {
-                            search_context.repetition_key_stack.push(RepetitionKey::new(position));
-                            if !has_three_fold_repetition(&search_context.repetition_key_stack) {
-                                search_context.repetition_key_stack.pop();
+                            let is_drawn = {
+                                position.is_drawn_by_fifty_moves_rule() || {
+                                    search_context.repetition_key_stack.push(RepetitionKey::new(position));
+                                    let drawn_by_threefold_repetition = has_three_fold_repetition(&search_context.repetition_key_stack);
+                                    search_context.repetition_key_stack.pop();
+                                    drawn_by_threefold_repetition
+                                }
+                            };
+
+                            if !is_drawn {
                                 pv.clear();
                                 pv.push(best_move);
                                 position.unmake_move(&undo_move_info);
                                 return entry.score
-                            } else {
-                                search_context.repetition_key_stack.pop();
                             }
                             position.unmake_move(&undo_move_info);
-                        } else {
-                            search_context.repetition_key_stack.pop();
                         }
                     }
                 },
                 BoundType::LowerBound => if entry.score > alpha {
                     alpha = entry.score
                 },
-                // BoundType::UpperBound => if entry.score < beta {
-                //     beta = entry.score
-                // },
                 BoundType::UpperBound => {
-                    // do nothing
-                }
+                    if entry.score < beta {
+                        beta = entry.score;
+                    }
+                },
+
             }
             if alpha >= beta {
                 return entry.score;
@@ -239,11 +242,11 @@ fn negamax_search(
                 let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                 current_line.push(mv);
                 search_context.repetition_key_stack.push(RepetitionKey::new(position));
-                let next_score = if get_repeat_position_count(&search_context.repetition_key_stack) >= 2 {
+                let next_score = if position.is_drawn_by_fifty_moves_rule() || has_three_fold_repetition(&search_context.repetition_key_stack) {
                     // Apply contempt to repetition-based draws
                     evaluation::apply_contempt(0)
                 } else {
-                    -negamax_search(position, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
+                    -negamax(position, current_line, &mut child_pv, depth - 1, max_depth, search_context, -beta, -alpha)
                 };
                 current_line.pop();
                 search_context.repetition_key_stack.pop();
@@ -289,46 +292,47 @@ fn negamax_search(
 }
 
 fn create_search_results(position: &Position, score: isize, max_depth: usize, pv: &Vec<Move>, search_context: &SearchContext) -> SearchResults {
-    let get_game_status = |last_position| -> GameStatus {
-        let game_status = evaluation::get_game_status(last_position, &search_context.repetition_key_stack);
+    let get_game_status = |last_position, repetition_keys: &Vec<RepetitionKey>| -> GameStatus {
+        let game_status = evaluation::get_game_status(last_position, &repetition_keys);
         match game_status {
             GameStatus::InProgress if score == 0 => GameStatus::Draw,
             _ => game_status
         }
     };
-    let raw_moves = r#move::convert_chess_moves_to_raw(pv);
-    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, raw_moves).unwrap();
-    // todo we can't be sure the last position actually is the scored position because the pv is not guaranteed accurate.
-    let last_position = pv_with_positions.last().map_or(position, |(p, _)| p);
-    let game_status = get_game_status(&last_position);
-    let expanded_pv: Vec<Move> = if pv.len() >= max_depth {
-        pv.clone()
+
+    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, &pv).unwrap();
+    let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth {
+        extend_principal_variation(position, &pv_with_positions, max_depth)
     } else {
-        retrieve_principal_variation(&position.clone(), &pv, max_depth)
+        pv_with_positions
     };
+    let last_position = final_pv.last().map_or(position, |(p, _)| p);
+    let pv_repetition_keys: Vec<RepetitionKey> = final_pv.iter().map(|(p, _)| RepetitionKey::new(p)).collect();
+    let repetition_keys = [search_context.repetition_key_stack.clone(), pv_repetition_keys].concat();
+    let game_status = get_game_status(&last_position, &repetition_keys);
+    let (_, moves): (Vec<Position>, Vec<Move>) = final_pv.into_iter().unzip();
     SearchResults {
         position: *position,
         score,
         depth: max_depth,
-        pv: expanded_pv.clone(),
+        pv: moves,
         game_status,
     }
 }
 
 
-fn retrieve_principal_variation(position: &Position, current_pv: &Vec<Move>, max_depth: usize) -> Vec<Move> {
-    let mut pv = current_pv.clone();
-    let raw_moves = r#move::convert_chess_moves_to_raw(&pv);
-    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(&position, raw_moves).unwrap();
-    let last_position = pv_with_positions.last().map_or(position, |(p, _)| p);
+
+fn extend_principal_variation(position: &Position, current_pv: &Vec<(Position, Move)>, max_depth: usize) -> Vec<(Position, Move)> {
+    let mut result_pv = current_pv.clone();
+    let last_position = current_pv.last().map_or(position, |(p, _)| &p);
     let mut current_position = last_position.clone();
 
     let mut visited_positions = HashSet::new();
-    let mut depth = max_depth - current_pv.len();
+    let mut num_missing_moves = max_depth - current_pv.len();
 
     while let Some(entry) = TRANSPOSITION_TABLE.probe(current_position.hash_code()) {
-        if depth <= 0
-            || entry.depth < depth
+        if num_missing_moves <= 0
+            || entry.depth < num_missing_moves
             || entry.bound_type != BoundType::Exact {
             break;
         }
@@ -338,8 +342,8 @@ fn retrieve_principal_variation(position: &Position, current_pv: &Vec<Move>, max
                 if visited_positions.contains(&current_position.hash_code()) {
                     break;
                 }
-                pv.push(best_mv);
-                depth -= 1;
+                result_pv.push((*last_position, best_mv).clone());
+                num_missing_moves -= 1;
                 visited_positions.insert(current_position.hash_code());
             } else {
                 break;
@@ -348,8 +352,8 @@ fn retrieve_principal_variation(position: &Position, current_pv: &Vec<Move>, max
             break;
         }
     }
-    debug!("PV extended from length {} to length {}", current_pv.len(), pv.len());
-    pv
+    debug!("PV extended from length {} to length {}", current_pv.len(), result_pv.len());
+    result_pv
 }
 
 pub fn get_repeat_position_count(repetition_key_stack: &Vec<RepetitionKey>) -> usize {
@@ -390,13 +394,14 @@ fn format_uci_info(position: &Position, search_results: &SearchResults, node_cou
         error!("Invalid moves for position [{}] being sent to host as UCI info: [{}]", fen::write(position), moves_string);
     }
 
-    format!("info depth {} score cp {} time {} nodes {} nps {} pv {}",
+    format!("info depth {} score cp {} time {} nodes {} nps {} pv {} game_status {:?}",
             search_results.depth,
             search_results.score,
             node_counter_stats.elapsed_time.as_millis(),
             node_counter_stats.node_count,
             node_counter_stats.nodes_per_second,
-            moves_string)
+            moves_string,
+            search_results.game_status)
 }
 
 fn is_mating_score(score: isize) -> bool {
@@ -718,7 +723,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: GameStatus::Draw,
+                game_status: GameStatus::DrawnByThreefoldRepetition,
             }
         );
 
@@ -745,11 +750,11 @@ mod tests {
 
         let go_options_str = "depth 5";
         let search_results_1 = uci::run_uci_position(&uci_initial_position_str, go_options_str);
-        let pv_moves_1 = search_results_1.pv_moves_as_string();
+        let _pv_moves_1 = search_results_1.pv_moves_as_string();
         assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
 
         let search_results_2 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3"), go_options_str);
-        let pv_moves_2 = search_results_2.pv_moves_as_string();
+        let _pv_moves_2 = search_results_2.pv_moves_as_string();
         assert_eq!(search_results_2.pv_moves_as_string(), "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
 
         let search_results_3 = uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"), go_options_str);
@@ -801,7 +806,7 @@ mod tests {
                 score: 0,
                 depth: 1,
                 pv: vec![],
-                game_status: GameStatus::Draw,
+                game_status: GameStatus::DrawnByThreefoldRepetition,
             }
         );
 
@@ -845,16 +850,16 @@ mod tests {
     fn test_perpetual_check() {
         setup();
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
-        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 5");
-        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7,g6-f8".to_string());
+        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 4");
+        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,
             &SearchResults {
                 position: search_results.position,
                 score: 0,
-                depth: 5,
+                depth: 4,
                 pv: vec![],
-                game_status: GameStatus::Draw,
+                game_status: GameStatus::DrawnByThreefoldRepetition,
             }
         );
     }

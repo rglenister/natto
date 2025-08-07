@@ -41,7 +41,7 @@ impl MoveOrderer {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub fn _clear(&mut self) {
         self.killer_moves = [[None; MAX_KILLER_MOVES]; MAXIMUM_SEARCH_DEPTH];
         self.history_table = [[[0; 64]; 64]; 2];
         self.counter_moves = [[None; 64]; 12];
@@ -99,7 +99,8 @@ impl MoveOrderer {
             }
         }
     }
-    pub fn update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
+
+    pub fn _update_countermove(&mut self, position: &Position, last_move: &Move, countermove: Move) {
         if let Some(piece) = position.board().get_piece(last_move.get_base_move().to as usize) {
             let piece_idx = (piece.piece_color as usize * 6) + (piece.piece_type as usize);
             let to_square = last_move.get_base_move().to as usize;
