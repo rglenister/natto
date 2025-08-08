@@ -1,21 +1,22 @@
+use crate::core::board::Board;
+use crate::core::board::BoardSide;
+use crate::core::piece::{Piece, PieceColor, PieceType};
+use crate::core::r#move::{BaseMove, Move, RawMove};
+use crate::core::{board, move_gen};
+use crate::utils::{fen, util};
 use once_cell::sync::Lazy;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use std::fmt;
-use crate::core::board::{Board};
-use crate::core::board::BoardSide;
-use crate::core::piece::{Piece, PieceColor, PieceType};
-use crate::core::r#move::{BaseMove, Move, RawMove};
-use crate::core::{board, move_gen};
-use crate::util::{fen, util};
 
-include!("../util/generated_macro.rs");
+include!("../utils/generated_macro.rs");
 
 pub const NEW_GAME_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 struct PositionHashes {
-    pub board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS],
+    pub board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES];
+        PositionHashes::NUM_COLORS],
     pub castling_hashes_table: [u64; PositionHashes::NUM_CASTLING_STATES],
     pub side_to_move_hashes_table: [u64; PositionHashes::NUM_COLORS],
     pub en_passant_capture_square_hashes_table: [u64; PositionHashes::NUM_SQUARES],
@@ -28,34 +29,42 @@ impl PositionHashes {
 }
 
 static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
+    fn create_random_value_array<const N: usize>(rng: &mut Xoshiro256PlusPlus) -> [u64; N] {
+        let mut result = [0; N];
+        for i in result.iter_mut().take(N) {
+            *i = rng.random::<u64>();
+        }
+        result
+    }
+
     let seed: u64 = 49;
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
 
-    let mut board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS] = [[[0; PositionHashes::NUM_SQUARES]; PositionHashes::NUM_PIECE_TYPES]; PositionHashes::NUM_COLORS];
-    for color in 0..PositionHashes::NUM_COLORS {
-        for piece_type in 0..PositionHashes::NUM_PIECE_TYPES {
-            for square in 0..PositionHashes::NUM_SQUARES {
+    let mut board_hashes_table: [[[u64; PositionHashes::NUM_SQUARES];
+        PositionHashes::NUM_PIECE_TYPES];
+        PositionHashes::NUM_COLORS] = [[[0; PositionHashes::NUM_SQUARES];
+        PositionHashes::NUM_PIECE_TYPES];
+        PositionHashes::NUM_COLORS];
+    for color in 0..board_hashes_table.len() {
+        for piece_type in 0..board_hashes_table[0].len() {
+            for square in 0..board_hashes_table[0][0].len() {
                 board_hashes_table[color][piece_type][square] = rng.random::<u64>();
             }
         }
     }
 
-    let mut castling_hashes_table: [u64; PositionHashes::NUM_CASTLING_STATES] = [0; PositionHashes::NUM_CASTLING_STATES];
-    for state in 0..PositionHashes::NUM_CASTLING_STATES {
-        castling_hashes_table[state] = rng.random::<u64>();
+    let castling_hashes_table =
+        create_random_value_array::<{ PositionHashes::NUM_CASTLING_STATES }>(&mut rng);
+    let side_to_move_hashes_table =
+        create_random_value_array::<{ PositionHashes::NUM_COLORS }>(&mut rng);
+    let en_passant_capture_square_hashes_table =
+        create_random_value_array::<{ PositionHashes::NUM_SQUARES }>(&mut rng);
+    PositionHashes {
+        board_hashes_table,
+        castling_hashes_table,
+        side_to_move_hashes_table,
+        en_passant_capture_square_hashes_table,
     }
-
-    let mut side_to_move_hashes_table: [u64; PositionHashes::NUM_COLORS] = [0; PositionHashes::NUM_COLORS];
-    for state in 0..PositionHashes::NUM_COLORS {
-        side_to_move_hashes_table[state] = rng.random::<u64>();
-    }
-
-    let mut en_passant_capture_square_hashes_table: [u64; PositionHashes::NUM_SQUARES] = [0; PositionHashes::NUM_SQUARES];
-    for square in 0..PositionHashes::NUM_SQUARES {
-        en_passant_capture_square_hashes_table[square] = rng.random::<u64>();
-    }
-
-    PositionHashes { board_hashes_table, castling_hashes_table, side_to_move_hashes_table, en_passant_capture_square_hashes_table }
 });
 
 #[derive(Copy, Clone, Debug, Default, Eq)]
@@ -99,7 +108,6 @@ impl UndoMoveInfo {
     }
 }
 
-
 impl From<&str> for Position {
     fn from(fen: &str) -> Self {
         fen::parse(fen.to_string()).unwrap()
@@ -114,14 +122,17 @@ impl fmt::Display for Position {
 
 impl PartialEq for Position {
     fn eq(&self, other: &Self) -> bool {
-        self.board == other.board &&
-        self.side_to_move == other.side_to_move &&
-        self.castling_rights == other.castling_rights &&
-        match (move_gen::is_en_passant_capture_possible(self), move_gen::is_en_passant_capture_possible(other)) {
-            (true, true) => self.en_passant_capture_square == other.en_passant_capture_square,
-            (false, false) => true,
-            _ => false,
-        }
+        self.board == other.board
+            && self.side_to_move == other.side_to_move
+            && self.castling_rights == other.castling_rights
+            && match (
+                move_gen::is_en_passant_capture_possible(self),
+                move_gen::is_en_passant_capture_possible(other),
+            ) {
+                (true, true) => self.en_passant_capture_square == other.en_passant_capture_square,
+                (false, false) => true,
+                _ => false,
+            }
     }
 }
 
@@ -148,7 +159,6 @@ impl Position {
         position
     }
 
-
     pub fn new_game() -> Position {
         Position::from(NEW_GAME_FEN)
     }
@@ -166,7 +176,11 @@ impl Position {
     }
 
     pub fn opposing_side(&self) -> PieceColor {
-        if self.side_to_move == PieceColor::White {PieceColor::Black} else {PieceColor::White}
+        if self.side_to_move == PieceColor::White {
+            PieceColor::Black
+        } else {
+            PieceColor::White
+        }
     }
 
     pub fn castling_rights(&self) -> [[bool; 2]; 2] {
@@ -188,39 +202,49 @@ impl Position {
     pub fn hash_code(&self) -> u64 {
         self.hash_code
     }
-    
+
     pub fn has_castled(&self, piece_color: PieceColor) -> bool {
         self.castled[piece_color as usize]
+    }
+
+    pub fn is_drawn_by_fifty_moves_rule(&self) -> bool {
+        self.half_move_clock >= 100
     }
 
     fn create_initial_hash(&self) -> u64 {
         let mut initial_hash: u64 = self.get_board_hash();
         initial_hash ^= POSITION_HASHES.side_to_move_hashes_table[self.side_to_move as usize];
-        initial_hash ^= POSITION_HASHES.castling_hashes_table[Position::castling_rights_as_u8(&self.castling_rights) as usize];
+        initial_hash ^= POSITION_HASHES.castling_hashes_table
+            [Position::castling_rights_as_u8(&self.castling_rights) as usize];
 
         if move_gen::is_en_passant_capture_possible(self) {
-            initial_hash ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
+            initial_hash ^= POSITION_HASHES.en_passant_capture_square_hashes_table
+                [self.en_passant_capture_square.unwrap()];
         }
         initial_hash
     }
 
     fn get_board_hash(&self) -> u64 {
         let mut result: u64 = 0;
-        self.board.process_pieces(|piece_color, piece_type, square_index| {
-            result ^= POSITION_HASHES.board_hashes_table[piece_color as usize][piece_type as usize][square_index];
-        });
+        self.board
+            .process_pieces(|piece_color, piece_type, square_index| {
+                result ^= POSITION_HASHES.board_hashes_table[piece_color as usize]
+                    [piece_type as usize][square_index];
+            });
         result
     }
 
     fn put_piece(&mut self, square_index: usize, piece: Piece) {
         self.remove_piece(square_index);
         self.board.put_piece(square_index, piece.clone());
-        self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][square_index];
+        self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize]
+            [piece.piece_type as usize][square_index];
     }
 
     fn remove_piece(&mut self, square_index: usize) -> Option<Piece> {
         if let Some(piece) = self.board.remove_piece(square_index) {
-            self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize][piece.piece_type as usize][square_index];
+            self.hash_code ^= POSITION_HASHES.board_hashes_table[piece.piece_color as usize]
+                [piece.piece_type as usize][square_index];
             Some(piece)
         } else {
             None
@@ -239,20 +263,58 @@ impl Position {
     }
 
     pub fn make_move(&mut self, mov: &Move) -> Option<UndoMoveInfo> {
-        fn make_en_passant_move(mut position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove) {
+        fn make_en_passant_move(
+            position: &mut Position,
+            undo_move_info: &mut UndoMoveInfo,
+            base_move: &BaseMove,
+        ) {
             undo_move_info.captured_piece_type = Some(PieceType::Pawn);
-            make_basic_move(&mut position, undo_move_info, base_move.from as usize, base_move.to as usize, true);
-            let forward_pawn_increment: i32 = if position.side_to_move == PieceColor::White { -8 } else { 8 };
-            position.remove_piece((undo_move_info.old_en_passant_capture_square.unwrap() as i32 + forward_pawn_increment) as usize);
+            make_basic_move(
+                position,
+                undo_move_info,
+                base_move.from as usize,
+                base_move.to as usize,
+                true,
+            );
+            let forward_pawn_increment: i32 = if position.side_to_move == PieceColor::White {
+                -8
+            } else {
+                8
+            };
+            position.remove_piece(
+                (undo_move_info.old_en_passant_capture_square.unwrap() as i32
+                    + forward_pawn_increment) as usize,
+            );
         }
-        fn make_castling_move(mut position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove, board_side: &BoardSide) -> bool {
+        fn make_castling_move(
+            position: &mut Position,
+            undo_move_info: &mut UndoMoveInfo,
+            base_move: &BaseMove,
+            board_side: &BoardSide,
+        ) -> bool {
             undo_move_info.captured_piece_type = None;
-            let castling_metadata = &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
-            if move_gen::king_attacks_finder(&position, position.side_to_move) == 0 &&
-                move_gen::square_attacks_finder(&position, position.opposing_side(), castling_metadata.king_through_square) == 0 {
-                make_basic_move(&mut position, undo_move_info, base_move.from as usize, base_move.to as usize, false);
-                let castling_meta_data = &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
-                position.move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
+            let castling_metadata =
+                &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
+            if move_gen::king_attacks_finder(position, position.side_to_move) == 0
+                && move_gen::square_attacks_finder(
+                    position,
+                    position.opposing_side(),
+                    castling_metadata.king_through_square,
+                ) == 0
+            {
+                make_basic_move(
+                    position,
+                    undo_move_info,
+                    base_move.from as usize,
+                    base_move.to as usize,
+                    false,
+                );
+                let castling_meta_data =
+                    &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
+                position.move_piece(
+                    castling_meta_data.rook_from_square,
+                    castling_meta_data.rook_to_square,
+                );
                 position.castling_rights[position.side_to_move as usize] = [false, false];
                 position.castled[position.side_to_move as usize] = true;
                 true
@@ -261,26 +323,60 @@ impl Position {
             }
         }
 
-        fn make_promotion_move(position: &mut Position, undo_move_info: &mut UndoMoveInfo, base_move: &BaseMove, promote_to: &PieceType) {
-            undo_move_info.captured_piece_type = position.remove_piece(undo_move_info.mov.get_base_move().to as usize).map(|piece| piece.piece_type);
+        fn make_promotion_move(
+            position: &mut Position,
+            undo_move_info: &mut UndoMoveInfo,
+            base_move: &BaseMove,
+            promote_to: &PieceType,
+        ) {
+            undo_move_info.captured_piece_type = position
+                .remove_piece(undo_move_info.mov.get_base_move().to as usize)
+                .map(|piece| piece.piece_type);
             position.remove_piece(base_move.from as usize);
-            position.put_piece(base_move.to as usize, Piece { piece_color: position.side_to_move(), piece_type: *promote_to });
+            position.put_piece(
+                base_move.to as usize,
+                Piece {
+                    piece_color: position.side_to_move(),
+                    piece_type: *promote_to,
+                },
+            );
             position.half_move_clock = 0;
         }
 
-        fn make_basic_move(position: &mut Position, undo_move_info: &mut UndoMoveInfo, from: usize, to: usize, capture: bool) {
-            undo_move_info.captured_piece_type = position.board().get_piece(undo_move_info.mov.get_base_move().to as usize).map(|piece| piece.piece_type);
+        fn make_basic_move(
+            position: &mut Position,
+            undo_move_info: &mut UndoMoveInfo,
+            from: usize,
+            to: usize,
+            capture: bool,
+        ) {
+            undo_move_info.captured_piece_type = position
+                .board()
+                .get_piece(undo_move_info.mov.get_base_move().to as usize)
+                .map(|piece| piece.piece_type);
             let piece = position.move_piece(from, to);
             let piece_type = piece.piece_type;
             if piece_type == PieceType::Pawn && util::distance(from as isize, to as isize) == 2 {
                 position.en_passant_capture_square = Some((from + to) / 2);
-            } else if piece_type == PieceType::King && from == board::KING_HOME_SQUARE[position.side_to_move as usize] {
+            } else if piece_type == PieceType::King
+                && from == board::KING_HOME_SQUARE[position.side_to_move as usize]
+            {
                 position.castling_rights[position.side_to_move as usize] = [false, false];
             } else if piece_type == PieceType::Rook {
-                if from == board::CASTLING_METADATA[position.side_to_move as usize][BoardSide::KingSide as usize].rook_from_square {
-                    position.castling_rights[position.side_to_move as usize][BoardSide::KingSide as usize] = false;
-                } else if from == board::CASTLING_METADATA[position.side_to_move as usize][BoardSide::QueenSide as usize].rook_from_square {
-                    position.castling_rights[position.side_to_move as usize][BoardSide::QueenSide as usize] = false;
+                if from
+                    == board::CASTLING_METADATA[position.side_to_move as usize]
+                        [BoardSide::KingSide as usize]
+                        .rook_from_square
+                {
+                    position.castling_rights[position.side_to_move as usize]
+                        [BoardSide::KingSide as usize] = false;
+                } else if from
+                    == board::CASTLING_METADATA[position.side_to_move as usize]
+                        [BoardSide::QueenSide as usize]
+                        .rook_from_square
+                {
+                    position.castling_rights[position.side_to_move as usize]
+                        [BoardSide::QueenSide as usize] = false;
                 }
             }
             if capture || piece_type == PieceType::Pawn {
@@ -291,25 +387,41 @@ impl Position {
         }
         #[allow(unused_variables)]
         let original_position: Position;
-        #[cfg(debug_assertions)] {
-            original_position = self.clone();
+        #[cfg(debug_assertions)]
+        {
+            original_position = *self;
         }
         let mut undo_move_info = UndoMoveInfo::new(self, *mov);
         self.en_passant_capture_square = None;
 
         match mov {
             Move::Basic { base_move } => {
-                make_basic_move(self, &mut undo_move_info, base_move.from as usize, base_move.to as usize, base_move.capture);
+                make_basic_move(
+                    self,
+                    &mut undo_move_info,
+                    base_move.from as usize,
+                    base_move.to as usize,
+                    base_move.capture,
+                );
             }
-            Move::EnPassant { base_move, capture_square: _ } => {
+            Move::EnPassant {
+                base_move,
+                capture_square: _,
+            } => {
                 make_en_passant_move(self, &mut undo_move_info, base_move);
             }
-            Move::Castling { base_move, board_side } => {
+            Move::Castling {
+                base_move,
+                board_side,
+            } => {
                 if !make_castling_move(self, &mut undo_move_info, base_move, board_side) {
                     return None;
                 }
             }
-            Move::Promotion { base_move, promote_to } => {
+            Move::Promotion {
+                base_move,
+                promote_to,
+            } => {
                 make_promotion_move(self, &mut undo_move_info, base_move, promote_to);
             }
         }
@@ -326,9 +438,12 @@ impl Position {
 
             #[cfg(debug_assertions)]
             {
-                let mut temp_new_position = self.clone();
+                let temp_new_position = self;
                 temp_new_position.unmake_move(&undo_move_info);
-                assert_eq!(format!("{:?}", temp_new_position), format!("{:?}", &original_position));
+                assert_eq!(
+                    format!("{temp_new_position:?}"),
+                    format!("{original_position:?}")
+                );
             }
 
             Some(undo_move_info)
@@ -345,24 +460,58 @@ impl Position {
             Move::Basic { base_move } => {
                 self.move_piece(base_move.to as usize, base_move.from as usize);
                 if let Some(piece_type) = undo_move_info.captured_piece_type {
-                    self.put_piece(base_move.to as usize, Piece { piece_color: self.side_to_move, piece_type });
+                    self.put_piece(
+                        base_move.to as usize,
+                        Piece {
+                            piece_color: self.side_to_move,
+                            piece_type,
+                        },
+                    );
                 }
             }
-            Move::EnPassant { base_move, capture_square } => {
+            Move::EnPassant {
+                base_move,
+                capture_square,
+            } => {
                 self.move_piece(base_move.to as usize, base_move.from as usize);
-                self.put_piece(*capture_square as usize, Piece { piece_color: self.side_to_move, piece_type: PieceType::Pawn });
+                self.put_piece(
+                    *capture_square as usize,
+                    Piece {
+                        piece_color: self.side_to_move,
+                        piece_type: PieceType::Pawn,
+                    },
+                );
             }
-            Move::Castling { base_move, board_side } => {
+            Move::Castling {
+                base_move,
+                board_side,
+            } => {
                 self.move_piece(base_move.to as usize, base_move.from as usize);
-                let castling_metadata = &board::CASTLING_METADATA[!self.side_to_move as usize][*board_side as usize];
-                self.move_piece(castling_metadata.rook_to_square, castling_metadata.rook_from_square);
+                let castling_metadata =
+                    &board::CASTLING_METADATA[!self.side_to_move as usize][*board_side as usize];
+                self.move_piece(
+                    castling_metadata.rook_to_square,
+                    castling_metadata.rook_from_square,
+                );
                 self.castled[!self.side_to_move as usize] = false;
             }
             Move::Promotion { base_move, .. } => {
                 self.remove_piece(base_move.to as usize);
-                self.put_piece(base_move.from as usize, Piece { piece_color: !self.side_to_move, piece_type: PieceType::Pawn });
+                self.put_piece(
+                    base_move.from as usize,
+                    Piece {
+                        piece_color: !self.side_to_move,
+                        piece_type: PieceType::Pawn,
+                    },
+                );
                 if let Some(piece_type) = undo_move_info.captured_piece_type {
-                    self.put_piece(base_move.to as usize, Piece { piece_color: self.side_to_move, piece_type });
+                    self.put_piece(
+                        base_move.to as usize,
+                        Piece {
+                            piece_color: self.side_to_move,
+                            piece_type,
+                        },
+                    );
                 }
             }
         }
@@ -379,17 +528,23 @@ impl Position {
         self.hash_code ^= POSITION_HASHES.side_to_move_hashes_table[PieceColor::Black as usize];
 
         if self.castling_rights != undo_move_info.old_castling_rights {
-            self.hash_code ^= POSITION_HASHES.castling_hashes_table[Position::castling_rights_as_u8(&undo_move_info.old_castling_rights) as usize];
-            self.hash_code ^= POSITION_HASHES.castling_hashes_table[Position::castling_rights_as_u8(&self.castling_rights) as usize];
+            self.hash_code ^= POSITION_HASHES.castling_hashes_table
+                [Position::castling_rights_as_u8(&undo_move_info.old_castling_rights) as usize];
+            self.hash_code ^= POSITION_HASHES.castling_hashes_table
+                [Position::castling_rights_as_u8(&self.castling_rights) as usize];
         }
         // en passant moves are only included in the hash if the relevant pawn can actually be captured en passant
-        if undo_move_info.old_en_passant_capture_square.is_some() && undo_move_info.old_is_en_passant_capture_possible {
+        if undo_move_info.old_en_passant_capture_square.is_some()
+            && undo_move_info.old_is_en_passant_capture_possible
+        {
             // remove the old en passant from the hash only if an en passant capture could be made because it won't have been added to the hash
-            self.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[undo_move_info.old_en_passant_capture_square.unwrap()];
+            self.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table
+                [undo_move_info.old_en_passant_capture_square.unwrap()];
         }
         if move_gen::is_en_passant_capture_possible(self) {
             // add the new en passant square to the hash only if an en passant capture can actually be made
-            self.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table[self.en_passant_capture_square.unwrap()];
+            self.hash_code ^= POSITION_HASHES.en_passant_capture_square_hashes_table
+                [self.en_passant_capture_square.unwrap()];
         }
 
         #[cfg(debug_assertions)]
@@ -417,28 +572,31 @@ impl Position {
     }
 
     fn castling_rights_as_u8(castling_rights: &[[bool; 2]; 2]) -> u8 {
-        (castling_rights[PieceColor::White as usize][BoardSide::KingSide as usize] as u8) |
-            ((castling_rights[PieceColor::White as usize][BoardSide::QueenSide as usize] as u8) << 1) |
-            ((castling_rights[PieceColor::Black as usize][BoardSide::KingSide as usize] as u8) << 2) |
-            ((castling_rights[PieceColor::Black as usize][BoardSide::QueenSide as usize] as u8) << 3)
+        (castling_rights[PieceColor::White as usize][BoardSide::KingSide as usize] as u8)
+            | ((castling_rights[PieceColor::White as usize][BoardSide::QueenSide as usize] as u8)
+                << 1)
+            | ((castling_rights[PieceColor::Black as usize][BoardSide::KingSide as usize] as u8)
+                << 2)
+            | ((castling_rights[PieceColor::Black as usize][BoardSide::QueenSide as usize] as u8)
+                << 3)
     }
 }
 #[cfg(test)]
 mod tests {
-    use crate::core::piece::PieceType::Queen;
-    use crate::core::move_gen::generate_moves;
     use super::*;
-    
+    use crate::core::move_gen::generate_moves;
+    use crate::core::piece::PieceType::Queen;
+
     #[test]
     fn test_general_usability() {
-        let position: Position =
-            Position::new(
-                Board::new(),
-                PieceColor::Black,
-                "KQkq".to_string(),
-                Some(31),
-                99,
-                50);
+        let position: Position = Position::new(
+            Board::new(),
+            PieceColor::Black,
+            "KQkq".to_string(),
+            Some(31),
+            99,
+            50,
+        );
 
         assert!(position.board.get_piece(3).is_none());
         assert_eq!(position.side_to_move(), PieceColor::Black);
@@ -460,36 +618,79 @@ mod tests {
 
         let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1";
         let position: Position = Position::from(fen);
-        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize], true);
-        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], true);
-        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], false);
-        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], false);
+        assert_eq!(
+            position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize],
+            true
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize],
+            true
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize],
+            false
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize],
+            false
+        );
 
         let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kq - 0 1";
         let position: Position = Position::from(fen);
-        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize], false);
-        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], false);
-        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], true);
-        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], true);
+        assert_eq!(
+            position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize],
+            false
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize],
+            false
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize],
+            true
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize],
+            true
+        );
 
         let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w Qk - 0 1";
         let position: Position = Position::from(fen);
-        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize], false);
-        assert_eq!(position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize], true);
-        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize], true);
-        assert_eq!(position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize], false);
+        assert_eq!(
+            position.castling_rights()[PieceColor::White as usize][BoardSide::KingSide as usize],
+            false
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::White as usize][BoardSide::QueenSide as usize],
+            true
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::Black as usize][BoardSide::KingSide as usize],
+            true
+        );
+        assert_eq!(
+            position.castling_rights()[PieceColor::Black as usize][BoardSide::QueenSide as usize],
+            false
+        );
     }
-
 
     #[test]
     fn test_cannot_castle_out_of_check() {
         let fen = "r3k2r/p1pp1pb1/bn2Qnp1/2qPN3/1p2P3/2N5/PPPBBPPP/R3K2R b KQkq - 3 2";
         let mut position = Position::from(fen);
         let moves = generate_moves(&position);
-        let castling_moves: Vec<&Move> =
-            moves.iter().filter(|chess_move| matches!(chess_move, Move::Castling { .. })).collect();
+        let castling_moves: Vec<&Move> = moves
+            .iter()
+            .filter(|chess_move| matches!(chess_move, Move::Castling { .. }))
+            .collect();
         assert_eq!(castling_moves.len(), 2);
-        assert_eq!(castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).count(), 0);
+        assert_eq!(
+            castling_moves
+                .iter()
+                .filter_map(|chess_move| { position.make_move(chess_move) })
+                .count(),
+            0
+        );
     }
 
     #[test]
@@ -497,29 +698,47 @@ mod tests {
         let fen = "r3k3/8/8/8/7B/8/8/4K3 b q - 0 1";
         let mut position = Position::from(fen);
         let moves = generate_moves(&position);
-        let castling_moves: Vec<_> =
-            moves.iter().filter(|chess_move| matches!(chess_move, Move::Castling { .. })).collect();
+        let castling_moves: Vec<_> = moves
+            .iter()
+            .filter(|chess_move| matches!(chess_move, Move::Castling { .. }))
+            .collect();
         assert_eq!(castling_moves.len(), 1);
-        assert_eq!(castling_moves.iter().filter_map(|chess_move| { position.make_move(chess_move) }).count(), 0);
+        assert_eq!(
+            castling_moves
+                .iter()
+                .filter_map(|chess_move| { position.make_move(chess_move) })
+                .count(),
+            0
+        );
     }
 
     #[test]
     fn test_ep_capture_square_is_set_after_double_white_pawn_move() {
         let mut position = Position::new_game();
-        position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None))
+            .unwrap();
         assert_eq!(position.en_passant_capture_square, Some(sq!("e3")));
-        position.make_raw_move(&RawMove::new(sq!("b8"), sq!("c6"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("b8"), sq!("c6"), None))
+            .unwrap();
         assert_eq!(position.en_passant_capture_square, None);
     }
 
     #[test]
     fn test_ep_capture_square_is_set_after_double_black_pawn_move() {
         let mut position = Position::new_game();
-        position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e3"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("e2"), sq!("e3"), None))
+            .unwrap();
         assert_eq!(position.en_passant_capture_square, None);
-        position.make_raw_move(&RawMove::new(sq!("a7"), sq!("a5"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("a7"), sq!("a5"), None))
+            .unwrap();
         assert_eq!(position.en_passant_capture_square, Some(sq!("a6")));
-        position.make_raw_move(&RawMove::new(sq!("c2"), sq!("c3"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("c2"), sq!("c3"), None))
+            .unwrap();
         assert_eq!(position.en_passant_capture_square, None);
     }
 
@@ -527,67 +746,137 @@ mod tests {
     fn test_castling_rights_lost_after_castling() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
         let position = Position::from(fen);
-        assert_eq!(position.castling_rights[PieceColor::White as usize], [true, true]);
-        assert_eq!(position.castling_rights[PieceColor::Black as usize], [true, true]);
-        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 15);
+        assert_eq!(
+            position.castling_rights[PieceColor::White as usize],
+            [true, true]
+        );
+        assert_eq!(
+            position.castling_rights[PieceColor::Black as usize],
+            [true, true]
+        );
+        assert_eq!(
+            Position::castling_rights_as_u8(&position.castling_rights),
+            15
+        );
 
         let moves = generate_moves(&position);
-        let castling_moves: Vec<_> =
-            moves.iter().filter(|chess_move| matches!(chess_move, Move::Castling { .. })).collect();
+        let castling_moves: Vec<_> = moves
+            .iter()
+            .filter(|chess_move| matches!(chess_move, Move::Castling { .. }))
+            .collect();
         assert_eq!(castling_moves.len(), 2);
 
         let mut position_0 = position.clone();
         position_0.make_move(&castling_moves[0]).unwrap();
-        assert_eq!(position_0.castling_rights[PieceColor::White as usize], [false, false]);
+        assert_eq!(
+            position_0.castling_rights[PieceColor::White as usize],
+            [false, false]
+        );
 
         let mut position_1 = position.clone();
         position_1.make_move(&castling_moves[0]).unwrap();
-        assert_eq!(position_1.castling_rights[PieceColor::White as usize], [false, false]);
-        assert_eq!(Position::castling_rights_as_u8(&position_1.castling_rights), 12);
+        assert_eq!(
+            position_1.castling_rights[PieceColor::White as usize],
+            [false, false]
+        );
+        assert_eq!(
+            Position::castling_rights_as_u8(&position_1.castling_rights),
+            12
+        );
     }
 
     #[test]
     fn test_castling_rights_lost_after_moving_king() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
         let mut position = Position::from(fen);
-        assert_eq!(position.castling_rights[PieceColor::White as usize], [true, true]);
-        assert_eq!(position.castling_rights[PieceColor::Black as usize], [true, true]);
-        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 15);
+        assert_eq!(
+            position.castling_rights[PieceColor::White as usize],
+            [true, true]
+        );
+        assert_eq!(
+            position.castling_rights[PieceColor::Black as usize],
+            [true, true]
+        );
+        assert_eq!(
+            Position::castling_rights_as_u8(&position.castling_rights),
+            15
+        );
         let moves = generate_moves(&position);
         let king_moves: Vec<_> = util::filter_moves_by_from_square(moves, sq!("e1"));
         assert_eq!(king_moves.len(), 7);
         let _ = position.make_move(&king_moves[0]).unwrap();
-        assert_eq!(position.castling_rights[PieceColor::White as usize], [false, false]);
-        assert_eq!(position.castling_rights[PieceColor::Black as usize], [true, true]);
-        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 12);
+        assert_eq!(
+            position.castling_rights[PieceColor::White as usize],
+            [false, false]
+        );
+        assert_eq!(
+            position.castling_rights[PieceColor::Black as usize],
+            [true, true]
+        );
+        assert_eq!(
+            Position::castling_rights_as_u8(&position.castling_rights),
+            12
+        );
     }
     #[test]
     fn test_castling_rights_lost_after_moving_rook() {
         let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
         let original_position = Position::from(fen);
-        assert_eq!(original_position.castling_rights[PieceColor::White as usize], [true, true]);
-        assert_eq!(original_position.castling_rights[PieceColor::Black as usize], [true, true]);
+        assert_eq!(
+            original_position.castling_rights[PieceColor::White as usize],
+            [true, true]
+        );
+        assert_eq!(
+            original_position.castling_rights[PieceColor::Black as usize],
+            [true, true]
+        );
 
         let mut position = original_position.clone();
-        position.make_raw_move(&RawMove::new(sq!("a1"), sq!("a2"), None)).unwrap();
-        assert_eq!(position.castling_rights[PieceColor::White as usize], [true, false]);
-        assert_eq!(position.castling_rights[PieceColor::Black as usize], [true, true]);
-        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 13);
+        position
+            .make_raw_move(&RawMove::new(sq!("a1"), sq!("a2"), None))
+            .unwrap();
+        assert_eq!(
+            position.castling_rights[PieceColor::White as usize],
+            [true, false]
+        );
+        assert_eq!(
+            position.castling_rights[PieceColor::Black as usize],
+            [true, true]
+        );
+        assert_eq!(
+            Position::castling_rights_as_u8(&position.castling_rights),
+            13
+        );
 
         let mut position = original_position.clone();
-        position.make_raw_move(&RawMove::new(sq!("h1"), sq!("h2"), None)).unwrap();
-        assert_eq!(position.castling_rights[PieceColor::White as usize], [false, true]);
-        assert_eq!(position.castling_rights[PieceColor::Black as usize], [true, true]);
-        assert_eq!(Position::castling_rights_as_u8(&position.castling_rights), 14);
+        position
+            .make_raw_move(&RawMove::new(sq!("h1"), sq!("h2"), None))
+            .unwrap();
+        assert_eq!(
+            position.castling_rights[PieceColor::White as usize],
+            [false, true]
+        );
+        assert_eq!(
+            position.castling_rights[PieceColor::Black as usize],
+            [true, true]
+        );
+        assert_eq!(
+            Position::castling_rights_as_u8(&position.castling_rights),
+            14
+        );
     }
 
     #[test]
     fn test_full_move_counter_incremented_after_black_move() {
         let mut position = Position::new_game();
         assert_eq!(position.full_move_number, 1);
-        position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None))
+            .unwrap();
         assert_eq!(position.full_move_number, 1);
-        let _ = position.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
+        let _ = position
+            .make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None))
+            .unwrap();
         assert_eq!(position.full_move_number, 2);
     }
 
@@ -595,19 +884,33 @@ mod tests {
     fn test_half_move_counter_incrementation() {
         let mut position = Position::new_game();
         assert_eq!(position.half_move_clock, 0);
-        position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 0);
-        position.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 0);
-        position.make_raw_move(&RawMove::new(sq!("g1"), sq!("f3"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("g1"), sq!("f3"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 1);
-        position.make_raw_move(&RawMove::new(sq!("d7"), sq!("d6"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("d7"), sq!("d6"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 0);
-        position.make_raw_move(&RawMove::new(sq!("b1"), sq!("c3"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("b1"), sq!("c3"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 1);
-        position.make_raw_move(&RawMove::new(sq!("d8"), sq!("g5"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("d8"), sq!("g5"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 2);
-        position.make_raw_move(&RawMove::new(sq!("f3"), sq!("g5"), None)).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("f3"), sq!("g5"), None))
+            .unwrap();
         assert_eq!(position.half_move_clock, 0);
     }
 
@@ -619,12 +922,16 @@ mod tests {
 
         // non capture promotion
         let mut position = original_position.clone();
-        position.make_raw_move(&RawMove::new(sq!("f2"), sq!("f1"), Some(Queen))).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("f2"), sq!("f1"), Some(Queen)))
+            .unwrap();
         assert_eq!(position.half_move_clock, 0);
 
         // capturing promotion
         let mut position = original_position.clone();
-        position.make_raw_move(&RawMove::new(sq!("f2"), sq!("e1"), Some(Queen))).unwrap();
+        position
+            .make_raw_move(&RawMove::new(sq!("f2"), sq!("e1"), Some(Queen)))
+            .unwrap();
         assert_eq!(position.half_move_clock, 0);
     }
 
@@ -634,10 +941,12 @@ mod tests {
         let position = Position::from(fen);
         assert_eq!(position.has_castled(PieceColor::White), false);
         assert_eq!(position.has_castled(PieceColor::Black), false);
-        
+
         let moves = generate_moves(&position);
-        let castling_moves: Vec<_> = 
-            moves.iter().filter(|chess_move| matches!(chess_move, Move::Castling { .. })).collect();
+        let castling_moves: Vec<_> = moves
+            .iter()
+            .filter(|chess_move| matches!(chess_move, Move::Castling { .. }))
+            .collect();
         assert_eq!(castling_moves.len(), 2);
         let mut position_0 = position.clone();
         position_0.make_move(&castling_moves[0]).unwrap();
@@ -652,22 +961,35 @@ mod tests {
         let original_position = Position::from(fen);
 
         // no capture
-        let mut position= original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("g5"), sq!("e6"), None)).unwrap();
+        let mut position = original_position.clone();
+        let undo_move_info = position
+            .make_raw_move(&RawMove::new(sq!("g5"), sq!("e6"), None))
+            .unwrap();
         position.unmake_move(&undo_move_info);
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
 
         // with capture
-        let mut position= original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("g5"), sq!("e4"), None)).unwrap();
+        let mut position = original_position.clone();
+        let undo_move_info = position
+            .make_raw_move(&RawMove::new(sq!("g5"), sq!("e4"), None))
+            .unwrap();
         position.unmake_move(&undo_move_info);
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
 
         // still in check
-        let mut position= original_position.clone();
+        let mut position = original_position.clone();
         let undo_move_info = position.make_raw_move(&RawMove::new(sq!("g5"), sq!("f3"), None));
         assert!(undo_move_info.is_none());
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", original_position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", original_position)
+        );
     }
 
     #[test]
@@ -677,9 +999,14 @@ mod tests {
 
         // with capture
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("f5"), sq!("e6"), None)).unwrap();
+        let undo_move_info = position
+            .make_raw_move(&RawMove::new(sq!("f5"), sq!("e6"), None))
+            .unwrap();
         position.unmake_move(&undo_move_info);
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
     }
 
     #[test]
@@ -689,9 +1016,14 @@ mod tests {
 
         // legal castling
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("e8"), sq!("c8"), None)).unwrap();
+        let undo_move_info = position
+            .make_raw_move(&RawMove::new(sq!("e8"), sq!("c8"), None))
+            .unwrap();
         position.unmake_move(&undo_move_info);
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
 
         let fen = "r3k3/8/8/8/8/8/8/2R1K3 b q - 0 1";
         let original_position = Position::from(fen);
@@ -700,7 +1032,10 @@ mod tests {
         let mut position = original_position.clone();
         let undo_move_info = position.make_raw_move(&RawMove::new(sq!("e8"), sq!("c8"), None));
         assert!(undo_move_info.is_none());
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
     }
 
     #[test]
@@ -710,23 +1045,37 @@ mod tests {
 
         // no capture
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("b7"), sq!("b8"), Some(Queen))).unwrap();
+        let undo_move_info = position
+            .make_raw_move(&RawMove::new(sq!("b7"), sq!("b8"), Some(Queen)))
+            .unwrap();
         position.unmake_move(&undo_move_info);
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
 
         // with capture
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen))).unwrap();
+        let undo_move_info = position
+            .make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen)))
+            .unwrap();
         position.unmake_move(&undo_move_info);
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
 
         // still in check
         let fen = "2n1k3/1P6/8/8/7b/8/8/4K3 w - - 0 1";
         let original_position = Position::from(fen);
 
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen)));
+        let undo_move_info =
+            position.make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen)));
         assert!(undo_move_info.is_none());
-        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+        assert_eq!(
+            format!("{:?}", original_position),
+            format!("{:?}", position)
+        );
     }
 }

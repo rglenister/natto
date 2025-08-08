@@ -1,4 +1,3 @@
-
 pub struct BitboardIterator {
     bitboard: u64,
 }
@@ -25,7 +24,7 @@ impl Iterator for BitboardIterator {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::bitboard_iterator::BitboardIterator;
+    use crate::utils::bitboard_iterator::BitboardIterator;
 
     #[test]
     fn test_empty_bitboard() {
@@ -64,7 +63,4 @@ mod tests {
         let squares: Vec<usize> = BitboardIterator::new(bitboard).collect();
         assert!(squares.is_empty());
     }
-
 }
-
-

@@ -1,10 +1,7 @@
-
-
-pub mod uci;
-pub mod eval;
-pub mod core;
 mod book;
+pub mod core;
+pub mod eval;
 mod search;
-pub mod util;
+pub mod utils;
 
 pub mod engine;

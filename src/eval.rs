@@ -1,6 +1,6 @@
 pub mod evaluation;
 
-pub mod node_counter;
+pub mod perf_t;
 
 pub mod pawns;
 

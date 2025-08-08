@@ -1,10 +1,10 @@
-use natto::{eval::node_counter};
+use natto::core::position::Position;
+use natto::eval::perf_t;
+use natto::utils::fen;
 use serde_derive::Deserialize;
 use serial_test::serial;
 use std::error::Error;
 use std::fs;
-use natto::core::position::{Position};
-use natto::util::fen;
 
 #[derive(Deserialize, Debug)]
 
@@ -18,7 +18,7 @@ struct FenTestCase {
 #[serial]
 fn test_fen_new_game_position() {
     let position = Position::new_game();
-    let node_count_stats = node_counter::count_nodes(&position, 6);
+    let node_count_stats = perf_t::count_nodes(&position, 6);
     println!("{:?}", node_count_stats);
     assert_eq!(node_count_stats.node_count, 119_060_324);
 }
@@ -30,8 +30,12 @@ fn test_fens() {
     let mut test_number = 0;
     for test in test_cases {
         let position = fen::parse(test.fen).expect("Failed to parse FEN");
-        let node_count_stats = node_counter::count_nodes(&position, test.depth);
-        assert_eq!(node_count_stats.node_count, test.nodes, "Test {}",  test_number);
+        let node_count_stats = perf_t::count_nodes(&position, test.depth);
+        assert_eq!(
+            node_count_stats.node_count, test.nodes,
+            "Test {}",
+            test_number
+        );
         test_number += 1;
         println!("{:?}", node_count_stats);
     }
