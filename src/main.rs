@@ -7,7 +7,6 @@ pub mod engine;
 
 mod book;
 mod search;
-use crate::eval::perf_t;
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
@@ -31,7 +30,7 @@ fn main() {
     //let _ = *TRANSPOSITION_TABLE;
     if config::get_perft() {
         println!("Running perft test");
-        perf_t::perf_t();
+        utils::perf_t::perf_t();
     } else {
         info!("Starting engine");
         engine::uci_interface::run(&config::get_uci_commands());

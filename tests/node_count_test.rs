@@ -1,5 +1,5 @@
 use natto::core::position::Position;
-use natto::eval::perf_t;
+use natto::utils::perf_t;
 use natto::utils::fen;
 use serde_derive::Deserialize;
 use serial_test::serial;

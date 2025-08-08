@@ -100,7 +100,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_perft() {
+    fn test_perf_t() {
         let position = Position::new_game();
         let node_count_stats = count_nodes(&position, 5);
         assert_eq!(node_count_stats.node_count, 4865609);
