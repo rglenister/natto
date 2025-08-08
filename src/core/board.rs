@@ -305,13 +305,9 @@ impl Board {
     }
 
     pub fn has_bishops_on_same_color_squares(&self, piece_color: PieceColor) -> bool {
-        let mut counts = [0; 2];
         let bishops = self.bit_boards[piece_color as usize][PieceType::Bishop as usize];
-        util::process_bits(bishops, |square_index| {
-            let color_index = Self::is_white_square(square_index as usize) as usize;
-            counts[color_index] += 1;
-        });
-        counts[0] > 1 || counts[1] > 1
+        (bishops & BLACK_SQUARES_MASK).count_ones() >= 2
+            || (bishops & WHITE_SQUARES_MASK).count_ones() >= 2
     }
 }
 
