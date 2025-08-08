@@ -1,6 +1,6 @@
 use natto::core::position::Position;
-use natto::utils::perf_t;
 use natto::utils::fen;
+use natto::utils::perf_t;
 use serde_derive::Deserialize;
 use serial_test::serial;
 use std::error::Error;
