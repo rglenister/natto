@@ -1,7 +1,6 @@
 use crate::core::board;
 use crate::core::board::Board;
 use crate::core::piece::Piece;
-use crate::core::piece::PieceColor::White;
 use crate::core::position::Position;
 use crate::utils::util;
 use itertools::Itertools;
@@ -99,11 +98,7 @@ pub fn write(position: &Position) -> String {
     return format!(
         "{} {} {} {} {} {}",
         write_board(position.board()),
-        if position.side_to_move() == White {
-            "w"
-        } else {
-            "b"
-        },
+        ['w', 'b'][position.side_to_move() as usize],
         get_castling_rights(position),
         position
             .en_passant_capture_square()
