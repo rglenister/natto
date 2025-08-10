@@ -30,11 +30,7 @@ impl PositionHashes {
 
 static POSITION_HASHES: Lazy<PositionHashes> = Lazy::new(|| {
     fn create_random_value_array<const N: usize>(rng: &mut Xoshiro256PlusPlus) -> [u64; N] {
-        let mut result = [0; N];
-        for i in result.iter_mut().take(N) {
-            *i = rng.random::<u64>();
-        }
-        result
+        core::array::from_fn(|_| rng.random::<u64>())
     }
 
     let seed: u64 = 49;
