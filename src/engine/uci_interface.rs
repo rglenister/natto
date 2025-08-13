@@ -5,7 +5,6 @@ use crate::engine::config::{set_contempt, set_hash_size, set_max_book_depth, set
 use crate::engine::{config, uci};
 use crate::eval::evaluation::GameStatus::{Checkmate, Stalemate};
 use crate::search::negamax::iterative_deepening;
-use crate::search::transposition_table::TRANSPOSITION_TABLE;
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
@@ -147,7 +146,6 @@ impl Engine {
     fn uci_new_game(&self, uci_position: &mut Option<uci::UciPosition>) {
         info!("UCI new game command received");
         *uci_position = None;
-        TRANSPOSITION_TABLE.clear();
     }
 
     fn uci_go(
@@ -241,7 +239,7 @@ impl Engine {
                     }
                 }
                 "contempt" => {
-                    if let Ok(v) = value.parse::<isize>() {
+                    if let Ok(v) = value.parse::<i32>() {
                         set_contempt(v);
                     }
                 }

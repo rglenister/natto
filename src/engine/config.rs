@@ -36,11 +36,11 @@ pub fn set_max_book_depth(max_book_depth: usize) {
     *RUNTIME_CONFIG.max_book_depth.write().unwrap() = Some(max_book_depth);
 }
 
-pub fn get_contempt() -> isize {
-    RUNTIME_CONFIG.contempt.read().unwrap().unwrap_or(0)
+pub fn get_contempt() -> i32 {
+    RUNTIME_CONFIG.contempt.read().unwrap().unwrap_or(0i32)
 }
 
-pub fn set_contempt(contempt: isize) {
+pub fn set_contempt(contempt: i32) {
     *RUNTIME_CONFIG.contempt.write().unwrap() = Some(contempt);
 }
 
@@ -61,7 +61,7 @@ pub fn get_config_as_string() -> String {
         use_book: bool,
         max_book_depth: usize,
         hash_size: usize,
-        contempt: isize,
+        contempt: i32,
     }
     let configuration = DynamicConfig {
         log_file: get_log_file(),
@@ -90,7 +90,7 @@ struct RuntimeConfig {
     pub use_book: RwLock<Option<bool>>,
     pub max_book_depth: RwLock<Option<usize>>,
     pub hash_size: RwLock<Option<usize>>,
-    pub contempt: RwLock<Option<isize>>,
+    pub contempt: RwLock<Option<i32>>,
 }
 
 impl RuntimeConfig {
@@ -170,9 +170,8 @@ fn load_config() -> Config {
                     .long("hash-size")
                     .action(ArgAction::Set)
                     .required(false)
-                    .default_value("1048576")
-                    .value_parser(is_power_of_two)
-                    .help("the maximum number of items that the hash table can hold - must be a power of two")
+                    .default_value("512")
+                    .help("the size of the hash table in Mib")
                     .env("ENGINE_HASH_SIZE"),
             )
             .arg(
@@ -221,15 +220,6 @@ pub fn reset_global_configs(config: Config) {
     RUNTIME_CONFIG.reset();
 }
 
-fn is_power_of_two(s: &str) -> Result<String, String> {
-    let size: usize = s.parse().map_err(|_| format!("`{s}` isn't a number"))?;
-    if size.is_power_of_two() {
-        Ok(size.to_string())
-    } else {
-        Err(format!("`{s}` isn't a power of two"))
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -247,7 +237,7 @@ pub mod tests {
             log_level: LevelFilter::Info,
             use_book: true,
             max_book_depth: 10,
-            hash_size: 1048576,
+            hash_size: 512,
             perft: false,
             uci_commands: None,
         }
@@ -291,7 +281,7 @@ pub mod tests {
 
     #[test]
     fn test_read_write_hash_size() {
-        assert_eq!(get_hash_size(), 1048576);
+        assert_eq!(get_hash_size(), 512);
         set_hash_size(1048577);
         assert_eq!(get_hash_size(), 1048577);
         set_hash_size(1048576);
