@@ -81,34 +81,15 @@ pub const KING_HOME_SQUARE: [usize; 2] = [sq!("e1"), sq!("e8")];
 
 const KING_HOME_SQUARE_MASKS: [u64; 2] = [1 << sq!("e1"), 1 << sq!("e8")];
 
-const ROOK_HOME_SQUARE_MASKS: [[u64; 2]; 2] = [
-    [1 << sq!("h1"), 1 << sq!("a1")],
-    [1 << sq!("h8"), 1 << sq!("a8")],
-];
+const ROOK_HOME_SQUARE_MASKS: [[u64; 2]; 2] = [[1 << sq!("h1"), 1 << sq!("a1")], [1 << sq!("h8"), 1 << sq!("a8")]];
 
 const CASTLING_EMPTY_SQUARE_MASKS: [[u64; 2]; 2] = [
-    [
-        (1 << sq!("f1")) | (1 << sq!("g1")),
-        (1 << sq!("b1")) | (1 << sq!("c1")) | (1 << sq!("d1")),
-    ],
-    [
-        (1 << sq!("f8")) | (1 << sq!("g8")),
-        (1 << sq!("b8")) | (1 << sq!("c8")) | (1 << sq!("d8")),
-    ],
+    [(1 << sq!("f1")) | (1 << sq!("g1")), (1 << sq!("b1")) | (1 << sq!("c1")) | (1 << sq!("d1"))],
+    [(1 << sq!("f8")) | (1 << sq!("g8")), (1 << sq!("b8")) | (1 << sq!("c8")) | (1 << sq!("d8"))],
 ];
 
 #[derive(
-    Copy,
-    Clone,
-    Debug,
-    Ord,
-    PartialOrd,
-    strum_macros::Display,
-    strum_macros::EnumCount,
-    EnumIter,
-    Eq,
-    Hash,
-    PartialEq,
+    Copy, Clone, Debug, Ord, PartialOrd, strum_macros::Display, strum_macros::EnumCount, EnumIter, Eq, Hash, PartialEq,
 )]
 #[repr(u8)]
 pub enum BoardSide {
@@ -118,9 +99,7 @@ pub enum BoardSide {
 
 impl Board {
     pub fn new() -> Self {
-        Self {
-            bit_boards: [[0; 6]; 2],
-        }
+        Self { bit_boards: [[0; 6]; 2] }
     }
 
     pub fn get_piece(&self, square_index: usize) -> Option<Piece> {
@@ -128,10 +107,7 @@ impl Board {
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
                 if self.bit_boards[piece_color as usize][piece_type as usize] & mask != 0 {
-                    return Some(Piece {
-                        piece_color,
-                        piece_type,
-                    });
+                    return Some(Piece { piece_color, piece_type });
                 }
             }
         }
@@ -149,10 +125,7 @@ impl Board {
             for piece_type in PieceType::iter() {
                 if self.bit_boards[piece_color as usize][piece_type as usize] & mask != 0 {
                     self.bit_boards[piece_color as usize][piece_type as usize] &= !mask;
-                    return Some(Piece {
-                        piece_color,
-                        piece_type,
-                    });
+                    return Some(Piece { piece_color, piece_type });
                 }
             }
         }
@@ -171,40 +144,30 @@ impl Board {
         self.bit_boards[piece_color as usize]
     }
     pub fn bitboard_all_pieces(&self) -> u64 {
-        Board::bitboard_by_color(self, PieceColor::White)
-            | Board::bitboard_by_color(self, PieceColor::Black)
+        Board::bitboard_by_color(self, PieceColor::White) | Board::bitboard_by_color(self, PieceColor::Black)
     }
 
-    pub fn bitboard_by_color_and_piece_type(
-        &self,
-        piece_color: PieceColor,
-        piece_type: PieceType,
-    ) -> u64 {
+    pub fn bitboard_by_color_and_piece_type(&self, piece_color: PieceColor, piece_type: PieceType) -> u64 {
         self.bit_boards[piece_color as usize][piece_type as usize]
     }
 
     pub fn bitboard_by_color(&self, piece_color: PieceColor) -> u64 {
-        self.bit_boards[piece_color as usize]
-            .iter()
-            .fold(0, |acc, x| acc | *x)
+        self.bit_boards[piece_color as usize].iter().fold(0, |acc, x| acc | *x)
     }
 
     pub fn king_square(&self, piece_color: PieceColor) -> usize {
-        self.bitboard_by_color_and_piece_type(piece_color, PieceType::King)
-            .trailing_zeros() as usize
+        self.bitboard_by_color_and_piece_type(piece_color, PieceType::King).trailing_zeros() as usize
     }
 
     pub fn white_pawn_attacks(&self) -> u64 {
-        let bitboard: u64 =
-            self.bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
+        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
         let left_attacks = (bitboard & !0x0101010101010101) << 7;
         let right_attacks = (bitboard & !0x8080808080808080) << 9;
         left_attacks | right_attacks
     }
 
     pub fn black_pawn_attacks(&self) -> u64 {
-        let bitboard: u64 =
-            self.bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
+        let bitboard: u64 = self.bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
         let left_attacks = (bitboard & !0x0101010101010101) >> 9;
         let right_attacks = (bitboard & !0x8080808080808080) >> 7;
         left_attacks | right_attacks
@@ -212,17 +175,13 @@ impl Board {
 
     pub fn can_castle(&self, side_to_move: PieceColor, board_side: &BoardSide) -> bool {
         let king_home_square_mask = KING_HOME_SQUARE_MASKS[side_to_move as usize];
-        let king_bitboard: u64 =
-            self.bitboard_by_color_and_piece_type(side_to_move, PieceType::King);
+        let king_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::King);
         if (king_bitboard & king_home_square_mask) != 0 {
-            let rook_home_square_mask =
-                ROOK_HOME_SQUARE_MASKS[side_to_move as usize][*board_side as usize];
-            let rook_bitboard: u64 =
-                self.bitboard_by_color_and_piece_type(side_to_move, PieceType::Rook);
+            let rook_home_square_mask = ROOK_HOME_SQUARE_MASKS[side_to_move as usize][*board_side as usize];
+            let rook_bitboard: u64 = self.bitboard_by_color_and_piece_type(side_to_move, PieceType::Rook);
 
             if rook_bitboard & rook_home_square_mask != 0
-                && CASTLING_EMPTY_SQUARE_MASKS[side_to_move as usize][*board_side as usize]
-                    & self.bitboard_all_pieces()
+                && CASTLING_EMPTY_SQUARE_MASKS[side_to_move as usize][*board_side as usize] & self.bitboard_all_pieces()
                     == 0
             {
                 return true;
@@ -250,8 +209,7 @@ impl Board {
         for piece_color in PieceColor::iter() {
             for piece_type in PieceType::iter() {
                 counts[piece_color as usize][piece_type as usize] =
-                    self.bit_boards[piece_color as usize][piece_type as usize].count_ones()
-                        as usize;
+                    self.bit_boards[piece_color as usize][piece_type as usize].count_ones() as usize;
             }
         }
         counts
@@ -266,8 +224,7 @@ impl Board {
     }
 
     pub fn get_piece_count(&self, piece_color: PieceColor, piece_type: PieceType) -> usize {
-        self.bitboard_by_color_and_piece_type(piece_color, piece_type)
-            .count_ones() as usize
+        self.bitboard_by_color_and_piece_type(piece_color, piece_type).count_ones() as usize
     }
 
     pub const fn row(square_index: usize) -> usize {
@@ -295,8 +252,7 @@ impl Board {
     }
 
     pub fn is_along_side(square_1: usize, square_2: usize) -> bool {
-        (square_2 as i32 - square_1 as i32).abs() == 1
-            && Board::row(square_1) == Board::row(square_2)
+        (square_2 as i32 - square_1 as i32).abs() == 1 && Board::row(square_1) == Board::row(square_2)
     }
 
     pub fn has_bishop_pair(&self, piece_color: PieceColor) -> bool {
@@ -306,8 +262,7 @@ impl Board {
 
     pub fn has_bishops_on_same_color_squares(&self, piece_color: PieceColor) -> bool {
         let bishops = self.bit_boards[piece_color as usize][PieceType::Bishop as usize];
-        (bishops & BLACK_SQUARES_MASK).count_ones() >= 2
-            || (bishops & WHITE_SQUARES_MASK).count_ones() >= 2
+        (bishops & BLACK_SQUARES_MASK).count_ones() >= 2 || (bishops & WHITE_SQUARES_MASK).count_ones() >= 2
     }
 }
 
@@ -346,10 +301,7 @@ mod tests {
     fn test_get() {
         let mut board: Board = Board::new();
         let square_index = 63;
-        let piece: Piece = Piece {
-            piece_color: PieceColor::White,
-            piece_type: PieceType::Knight,
-        };
+        let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight };
         board.put_piece(square_index, piece);
         assert!(board.get_piece(square_index).is_some());
         let retrieved_piece = board.get_piece(square_index).expect("whatever");
@@ -362,10 +314,7 @@ mod tests {
         let mut board: Board = Board::new();
         let square_index = 1;
         assert!(board.remove_piece(square_index).is_none());
-        let piece: Piece = Piece {
-            piece_color: PieceColor::White,
-            piece_type: PieceType::Knight,
-        };
+        let piece: Piece = Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight };
         board.put_piece(square_index, piece.clone());
         let piece2: Piece = board.remove_piece(square_index).expect("Whatever");
         assert_eq!(piece, piece2);
@@ -376,13 +325,7 @@ mod tests {
         let mut board: Board = Board::new();
         let square_index = 16;
         assert!(board.get_piece(square_index).is_none());
-        board.put_piece(
-            square_index,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Knight,
-            },
-        );
+        board.put_piece(square_index, Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight });
         assert!(board.get_piece(square_index).is_some());
         board.clear();
         assert!(board.get_piece(square_index).is_none());
@@ -391,294 +334,90 @@ mod tests {
     #[test]
     fn test_king_side_white_castling() {
         let mut board: Board = Board::new();
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            false
-        );
-        board.put_piece(
-            4,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::King,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            false
-        );
-        board.put_piece(
-            7,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Rook,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), false);
+        board.put_piece(4, Piece { piece_color: PieceColor::White, piece_type: PieceType::King });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), false);
+        board.put_piece(7, Piece { piece_color: PieceColor::White, piece_type: PieceType::Rook });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), true);
 
-        board.put_piece(
-            6,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Knight,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            false
-        );
+        board.put_piece(6, Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), false);
         board.remove_piece(6);
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), true);
 
-        board.put_piece(
-            5,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            false
-        );
+        board.put_piece(5, Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), false);
         board.remove_piece(5);
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::KingSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::KingSide), true);
     }
     #[test]
     fn test_queen_side_white_castling() {
         let mut board: Board = Board::new();
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            false
-        );
-        board.put_piece(
-            4,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::King,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            false
-        );
-        board.put_piece(
-            0,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Rook,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
+        board.put_piece(4, Piece { piece_color: PieceColor::White, piece_type: PieceType::King });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
+        board.put_piece(0, Piece { piece_color: PieceColor::White, piece_type: PieceType::Rook });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), true);
 
-        board.put_piece(
-            1,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Knight,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            false
-        );
+        board.put_piece(1, Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
         board.remove_piece(1);
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), true);
 
-        board.put_piece(
-            2,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            false
-        );
+        board.put_piece(2, Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
         board.remove_piece(2);
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), true);
 
-        board.put_piece(
-            3,
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Queen,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            false
-        );
+        board.put_piece(3, Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), false);
         board.remove_piece(3);
-        assert_eq!(
-            board.can_castle(PieceColor::White, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::White, &BoardSide::QueenSide), true);
     }
 
     #[test]
     fn test_king_side_black_castling() {
         let mut board: Board = Board::new();
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            false
-        );
-        board.put_piece(
-            60,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::King,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            false
-        );
-        board.put_piece(
-            63,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Rook,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), false);
+        board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: PieceType::King });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), false);
+        board.put_piece(63, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Rook });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), true);
 
-        board.put_piece(
-            62,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Knight,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            false
-        );
+        board.put_piece(62, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), false);
         board.remove_piece(62);
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), true);
 
-        board.put_piece(
-            61,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            false
-        );
+        board.put_piece(61, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), false);
         board.remove_piece(61);
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::KingSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::KingSide), true);
     }
 
     #[test]
     fn test_queen_side_black_castling() {
         let mut board: Board = Board::new();
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            false
-        );
-        board.put_piece(
-            60,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::King,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            false
-        );
-        board.put_piece(
-            56,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Rook,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
+        board.put_piece(60, Piece { piece_color: PieceColor::Black, piece_type: PieceType::King });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
+        board.put_piece(56, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Rook });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        board.put_piece(
-            57,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Knight,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            false
-        );
+        board.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         board.remove_piece(57);
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        board.put_piece(
-            58,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            false
-        );
+        board.put_piece(58, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         board.remove_piece(58);
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
 
-        board.put_piece(
-            59,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Queen,
-            },
-        );
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            false
-        );
+        board.put_piece(59, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), false);
         board.remove_piece(59);
-        assert_eq!(
-            board.can_castle(PieceColor::Black, &BoardSide::QueenSide),
-            true
-        );
+        assert_eq!(board.can_castle(PieceColor::Black, &BoardSide::QueenSide), true);
     }
 
     #[test]
@@ -687,22 +426,10 @@ mod tests {
         let mut board2: Board = Board::new();
         assert_eq!(board1, board2);
 
-        board1.put_piece(
-            57,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Knight,
-            },
-        );
+        board1.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight });
         assert_ne!(board1, board2);
 
-        board2.put_piece(
-            57,
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Knight,
-            },
-        );
+        board2.put_piece(57, Piece { piece_color: PieceColor::Black, piece_type: PieceType::Knight });
         assert_eq!(board1, board2);
     }
 
@@ -732,41 +459,14 @@ mod tests {
     #[test]
     fn test_get_piece_count() {
         let mut board = Board::new();
-        assert_eq!(
-            board.get_piece_count(PieceColor::White, PieceType::Knight),
-            0
-        );
+        assert_eq!(board.get_piece_count(PieceColor::White, PieceType::Knight), 0);
 
-        board.put_piece(
-            sq!("a3"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Knight,
-            },
-        );
-        board.put_piece(
-            sq!("h8"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Knight,
-            },
-        );
-        assert_eq!(
-            board.get_piece_count(PieceColor::White, PieceType::Knight),
-            2
-        );
+        board.put_piece(sq!("a3"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight });
+        board.put_piece(sq!("h8"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Knight });
+        assert_eq!(board.get_piece_count(PieceColor::White, PieceType::Knight), 2);
 
-        board.put_piece(
-            sq!("a3"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Queen,
-            },
-        );
-        assert_eq!(
-            board.get_piece_count(PieceColor::White, PieceType::Knight),
-            1
-        );
+        board.put_piece(sq!("a3"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        assert_eq!(board.get_piece_count(PieceColor::White, PieceType::Knight), 1);
     }
 
     #[test]
@@ -775,194 +475,65 @@ mod tests {
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
         assert_eq!(board.has_bishop_pair(PieceColor::Black), false);
 
-        board.put_piece(
-            sq!("c1"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
+        board.put_piece(sq!("c1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
-        board.put_piece(
-            sq!("f1"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
+        board.put_piece(sq!("f1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
         assert_eq!(board.has_bishop_pair(PieceColor::White), true);
 
-        board.put_piece(
-            sq!("c8"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
+        board.put_piece(sq!("c8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
         assert_eq!(board.has_bishop_pair(PieceColor::Black), false);
-        board.put_piece(
-            sq!("f8"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
+        board.put_piece(sq!("f8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
         assert_eq!(board.has_bishop_pair(PieceColor::Black), true);
 
         board.remove_piece(sq!("c1"));
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
 
-        board.put_piece(
-            sq!("d1"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
+        board.put_piece(sq!("d1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
         assert_eq!(board.has_bishop_pair(PieceColor::White), false);
     }
 
     #[test]
     fn test_has_bishops_on_same_color_squares() {
         let mut board = Board::new();
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::White),
-            false
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::Black),
-            false
-        );
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), false);
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
 
-        board.put_piece(
-            sq!("c1"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::White),
-            false
-        );
-        board.put_piece(
-            sq!("f1"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::White),
-            false
-        );
-        board.put_piece(
-            sq!("g1"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::White),
-            true
-        );
+        board.put_piece(sq!("c1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), false);
+        board.put_piece(sq!("f1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), false);
+        board.put_piece(sq!("g1"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Bishop });
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::White), true);
 
-        board.put_piece(
-            sq!("c8"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::Black),
-            false
-        );
-        board.put_piece(
-            sq!("f8"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::Black),
-            false
-        );
-        board.put_piece(
-            sq!("g8"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Bishop,
-            },
-        );
-        assert_eq!(
-            board.has_bishops_on_same_color_squares(PieceColor::Black),
-            true
-        );
+        board.put_piece(sq!("c8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
+        board.put_piece(sq!("f8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), false);
+        board.put_piece(sq!("g8"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Bishop });
+        assert_eq!(board.has_bishops_on_same_color_squares(PieceColor::Black), true);
     }
 
     #[test]
     fn test_get_piece_counts() {
         let position: Position = Position::new_game();
         let piece_counts = position.board().get_piece_counts();
-        assert_eq!(
-            piece_counts[PieceColor::White as usize][PieceType::Pawn as usize],
-            8
-        );
-        assert_eq!(
-            piece_counts[PieceColor::White as usize][PieceType::Knight as usize],
-            2
-        );
-        assert_eq!(
-            piece_counts[PieceColor::White as usize][PieceType::Bishop as usize],
-            2
-        );
-        assert_eq!(
-            piece_counts[PieceColor::White as usize][PieceType::Rook as usize],
-            2
-        );
-        assert_eq!(
-            piece_counts[PieceColor::White as usize][PieceType::Queen as usize],
-            1
-        );
-        assert_eq!(
-            piece_counts[PieceColor::White as usize][PieceType::King as usize],
-            1
-        );
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Pawn as usize], 8);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Knight as usize], 2);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Bishop as usize], 2);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Rook as usize], 2);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::Queen as usize], 1);
+        assert_eq!(piece_counts[PieceColor::White as usize][PieceType::King as usize], 1);
 
-        assert_eq!(
-            piece_counts[PieceColor::Black as usize][PieceType::Pawn as usize],
-            8
-        );
-        assert_eq!(
-            piece_counts[PieceColor::Black as usize][PieceType::Knight as usize],
-            2
-        );
-        assert_eq!(
-            piece_counts[PieceColor::Black as usize][PieceType::Bishop as usize],
-            2
-        );
-        assert_eq!(
-            piece_counts[PieceColor::Black as usize][PieceType::Rook as usize],
-            2
-        );
-        assert_eq!(
-            piece_counts[PieceColor::Black as usize][PieceType::Queen as usize],
-            1
-        );
-        assert_eq!(
-            piece_counts[PieceColor::Black as usize][PieceType::King as usize],
-            1
-        );
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Pawn as usize], 8);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Knight as usize], 2);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Bishop as usize], 2);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Rook as usize], 2);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::Queen as usize], 1);
+        assert_eq!(piece_counts[PieceColor::Black as usize][PieceType::King as usize], 1);
     }
 
     #[test]
     fn test_get_total_number_of_pieces() {
-        assert_eq!(
-            Position::new_game().board().get_total_number_of_pieces(),
-            32
-        );
+        assert_eq!(Position::new_game().board().get_total_number_of_pieces(), 32);
     }
 }

@@ -41,12 +41,7 @@ fn main() {
 fn setup_logging() -> Result<(), fern::InitError> {
     Dispatch::new()
         .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{}] [{}] {}",
-                Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                message
-            ))
+            out.finish(format_args!("[{}] [{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S"), record.level(), message))
         })
         .level(config::get_log_level())
         .chain(io::stderr())

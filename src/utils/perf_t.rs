@@ -4,28 +4,14 @@ use crate::core::r#move::Move;
 use crate::utils::node_counter::{NodeCountStats, NodeCounter};
 use rayon::prelude::*;
 
-const NODE_COUNTS_AT_DEPTH: [usize; 11] = [
-    1,
-    20,
-    400,
-    8902,
-    197281,
-    4865609,
-    119060324,
-    3195901860,
-    84998978956,
-    2439530234167,
-    69352859712417,
-];
+const NODE_COUNTS_AT_DEPTH: [usize; 11] =
+    [1, 20, 400, 8902, 197281, 4865609, 119060324, 3195901860, 84998978956, 2439530234167, 69352859712417];
 
 pub fn perf_t() {
     for (depth, node_count) in NODE_COUNTS_AT_DEPTH.iter().enumerate() {
         let stats = count_nodes(&Position::new_game(), depth);
         assert_eq!(*node_count, stats.node_count);
-        println!(
-            "Depth {} nodes {} nps {}",
-            depth, stats.node_count, stats.nodes_per_second
-        );
+        println!("Depth {} nodes {} nps {}", depth, stats.node_count, stats.nodes_per_second);
     }
 }
 
@@ -37,11 +23,7 @@ pub fn count_nodes(position: &Position, max_depth: usize) -> NodeCountStats {
     node_counter.stats()
 }
 
-fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(
-    position: &mut Position,
-    depth: usize,
-    max_depth: usize,
-) -> usize {
+fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(position: &mut Position, depth: usize, max_depth: usize) -> usize {
     fn process_move<F>(
         position: &mut Position,
         mov: Move,
@@ -66,28 +48,12 @@ fn do_count_nodes<const USE_PARALLEL_ITERATOR: bool>(
         if USE_PARALLEL_ITERATOR {
             moves
                 .into_par_iter()
-                .map(|mov| {
-                    process_move(
-                        &mut position.clone(),
-                        mov,
-                        depth,
-                        max_depth,
-                        do_count_nodes::<false>,
-                    )
-                })
+                .map(|mov| process_move(&mut position.clone(), mov, depth, max_depth, do_count_nodes::<false>))
                 .sum()
         } else {
             moves
                 .into_iter()
-                .map(|mov| {
-                    process_move(
-                        &mut position.clone(),
-                        mov,
-                        depth,
-                        max_depth,
-                        do_count_nodes::<false>,
-                    )
-                })
+                .map(|mov| process_move(&mut position.clone(), mov, depth, max_depth, do_count_nodes::<false>))
                 .sum()
         }
     } else {

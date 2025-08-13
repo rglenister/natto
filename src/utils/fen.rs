@@ -35,9 +35,7 @@ struct FenParts<'a> {
 
 impl From<&Position> for Fen {
     fn from(position: &Position) -> Self {
-        Fen {
-            fen: write(position),
-        }
+        Fen { fen: write(position) }
     }
 }
 
@@ -49,22 +47,10 @@ impl<'a> TryFrom<Captures<'a>> for FenParts<'a> {
             side_to_move: captures.name("side_to_move").unwrap().as_str(),
             castling_rights: captures.name("castling_rights").unwrap().as_str(),
             en_passant_target_square: captures.name("en_passant_target_square").unwrap().as_str(),
-            halfmove_clock: captures
-                .name("halfmove_clock")
-                .unwrap()
-                .as_str()
-                .parse()
-                .unwrap(),
-            fullmove_number: captures
-                .name("fullmove_number")
-                .unwrap()
-                .as_str()
-                .parse()
-                .unwrap(),
+            halfmove_clock: captures.name("halfmove_clock").unwrap().as_str().parse().unwrap(),
+            fullmove_number: captures.name("fullmove_number").unwrap().as_str().parse().unwrap(),
         })
-        .map_err(|_: std::num::ParseIntError| {
-            ErrorKind::InvalidFen(captures.name("fen").unwrap().as_str().to_string())
-        })
+        .map_err(|_: std::num::ParseIntError| ErrorKind::InvalidFen(captures.name("fen").unwrap().as_str().to_string()))
     }
 }
 pub fn parse(fen: String) -> Result<Position, ErrorKind> {
@@ -100,9 +86,7 @@ pub fn write(position: &Position) -> String {
         write_board(position.board()),
         ['w', 'b'][position.side_to_move() as usize],
         get_castling_rights(position),
-        position
-            .en_passant_capture_square()
-            .map_or("-".to_string(), util::format_square),
+        position.en_passant_capture_square().map_or("-".to_string(), util::format_square),
         position.half_move_clock(),
         position.full_move_number()
     );
@@ -162,13 +146,7 @@ fn expand_board(fen_board: &str) -> String {
 fn digits_to_spaces(input: &str) -> String {
     input
         .chars()
-        .map(|c| {
-            if c.is_ascii_digit() {
-                " ".repeat(c.to_digit(10).unwrap() as usize)
-            } else {
-                c.to_string()
-            }
-        })
+        .map(|c| if c.is_ascii_digit() { " ".repeat(c.to_digit(10).unwrap() as usize) } else { c.to_string() })
         .collect()
 }
 
@@ -202,10 +180,7 @@ mod tests {
         let position = parse(fen.to_string());
         assert!(position.is_err());
         let error = position.err().unwrap();
-        assert_eq!(
-            error.to_string(),
-            "Failed to parse fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A"
-        );
+        assert_eq!(error.to_string(), "Failed to parse fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 A");
     }
     #[test]
     fn test_write_1() {
