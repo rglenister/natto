@@ -5,7 +5,7 @@ use crate::core::r#move::Move;
 use crate::eval::evaluation::{is_drawn_by_agreement, score_position, PIECE_SCORES};
 use crate::search::move_ordering::order_quiescence_moves;
 use crate::search::negamax::{
-    increment_node_counter, SearchContext, SearchParams, DRAW_SCORE, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH,
+    increment_node_counter, SearchContext, DRAW_SCORE, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH,
 };
 use crate::utils::util;
 use arrayvec::ArrayVec;
@@ -382,6 +382,7 @@ mod tests {
         use crate::core::r#move::Move::{Basic, EnPassant, Promotion};
         use crate::search::move_ordering::MoveOrderer;
         use std::sync::Arc;
+        use crate::search::negamax::SearchParams;
 
         fn create_search_context() -> SearchContext<'static> {
             SearchContext::new(
