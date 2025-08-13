@@ -164,7 +164,7 @@ pub fn iterative_deepening(
             let iteration_search_results =
                 create_search_results(position, score, iteration_max_depth, &pv, &search_context);
             search_results = Some(iteration_search_results.clone());
-            debug!("Search results for depth {}: {}", iteration_max_depth, iteration_search_results);
+            debug!("Search results for depth {iteration_max_depth}: {iteration_search_results}");
             uci::send_to_gui(format_uci_info(position, &iteration_search_results, &node_counter_stats()).as_str());
             if is_terminal_score(score) {
                 info!(

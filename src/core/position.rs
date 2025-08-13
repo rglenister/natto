@@ -380,7 +380,7 @@ impl Position {
 
             #[cfg(debug_assertions)]
             {
-                let mut temp_new_position = self.clone();
+                let mut temp_new_position = *self;
                 temp_new_position.unmake_move(&undo_move_info);
                 assert_eq!(format!("{temp_new_position:?}"), format!("{original_position:?}"));
             }
