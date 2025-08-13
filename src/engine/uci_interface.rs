@@ -93,12 +93,7 @@ impl Engine {
         if let Some(uci_commands) = uci_commands {
             for uci_command in uci_commands {
                 println!("Running UCI command: {uci_command}");
-                self.run_uci_command(
-                    search_handle,
-                    uci_position,
-                    uci_command,
-                    UciCommand::from_input(uci_command),
-                );
+                self.run_uci_command(search_handle, uci_position, uci_command, UciCommand::from_input(uci_command));
             }
         } else {
             while !self.main_loop_quit_flag.load(Ordering::Relaxed) {
@@ -126,16 +121,11 @@ impl Engine {
             UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
             UciCommand::Quit => self.uci_quit(&self.search_stop_flag, &self.main_loop_quit_flag),
             UciCommand::UciNewGame => self.uci_new_game(uci_position),
-            UciCommand::Position(_position_str) => {
-                self.uci_set_position(&input.to_string(), uci_position)
-            }
+            UciCommand::Position(_position_str) => self.uci_set_position(&input.to_string(), uci_position),
             UciCommand::None => self.uci_none(input.to_string()),
-            UciCommand::Go(_go_options_string) => self.uci_go(
-                &&self.search_stop_flag,
-                search_handle,
-                input.to_string(),
-                uci_position,
-            ),
+            UciCommand::Go(_go_options_string) => {
+                self.uci_go(&&self.search_stop_flag, search_handle, input.to_string(), uci_position)
+            }
         }
     }
 
@@ -171,8 +161,7 @@ impl Engine {
         if let Some(uci_pos) = uci_position {
             if search_handle.is_none() {
                 if !self.play_move_from_opening_book(uci_pos) {
-                    let uci_go_options: uci::UciGoOptions =
-                        uci::parse_uci_go_options(Some(input.clone()));
+                    let uci_go_options: uci::UciGoOptions = uci::parse_uci_go_options(Some(input.clone()));
                     debug!("go options = {uci_go_options:?}");
 
                     let search_params = uci::create_search_params(&uci_go_options, uci_pos);
@@ -190,10 +179,7 @@ impl Engine {
                             stop_flag,
                             &uci_pos_clone.repetition_keys,
                         );
-                        debug!(
-                            "score: {} depth {}",
-                            search_results.score, search_results.depth
-                        );
+                        debug!("score: {} depth {}", search_results.score, search_results.depth);
                         let best_move = search_results.pv.first().map(convert_move_to_raw);
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {best_move}").as_str());
@@ -283,11 +269,7 @@ impl Engine {
         main_loop_quit_flag.store(true, Ordering::Relaxed);
     }
 
-    fn uci_stop(
-        &self,
-        search_stop_flag: &Arc<AtomicBool>,
-        search_handle: &mut Option<JoinHandle<()>>,
-    ) {
+    fn uci_stop(&self, search_stop_flag: &Arc<AtomicBool>, search_handle: &mut Option<JoinHandle<()>>) {
         if let Some(handle) = search_handle.take() {
             info!("Stopping search...");
             search_stop_flag.store(true, Ordering::Relaxed);
@@ -316,24 +298,21 @@ impl Engine {
     fn play_move_from_opening_book(&self, uci_pos: &uci::UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
             if uci_pos.end_position.full_move_number() <= config::get_max_book_depth() {
-                info!(
-                    "getting opening book move for position: {}",
-                    fen::write(&uci_pos.end_position)
-                );
+                info!("getting opening book move for position: {}", fen::write(&uci_pos.end_position));
                 let opening_move = opening_book.get_opening_move(&uci_pos.end_position);
                 if let Ok(opening_move) = opening_move {
                     debug!("got move {opening_move} from opening book");
                     uci::send_to_gui(format!("bestmove {opening_move}").as_str());
                     return true;
                 } else {
-                    info!(
-                        "Failed to retrieve opening book move: {}",
-                        opening_move.err().unwrap()
-                    );
+                    info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
                 }
             } else {
-                info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
-                    uci_pos.end_position.full_move_number(), config::get_max_book_depth());
+                info!(
+                    "Not playing move from opening book because the full move number {} exceeds the maximum allowed {}",
+                    uci_pos.end_position.full_move_number(),
+                    config::get_max_book_depth()
+                );
             }
         }
         false

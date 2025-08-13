@@ -163,87 +163,24 @@ mod tests {
     fn test_score_board_material_balance() {
         let position = Position::new_game();
         let board = position.board();
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::White),
-            (-147, -193)
-        );
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::Black),
-            (-147, -193)
-        );
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-147, -193));
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::Black), (-147, -193));
 
         let mut board = Board::new();
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::White),
-            (0, 0)
-        );
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::Black),
-            (0, 0)
-        );
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (0, 0));
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::Black), (0, 0));
 
-        board.put_piece(
-            sq!("a2"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Pawn,
-            },
-        );
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::White),
-            (-35, 13)
-        );
+        board.put_piece(sq!("a2"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Pawn });
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-35, 13));
 
-        board.put_piece(
-            sq!("b2"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Queen,
-            },
-        );
-        board.put_piece(
-            sq!("b3"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Queen,
-            },
-        );
-        board.put_piece(
-            sq!("b4"),
-            Piece {
-                piece_color: PieceColor::White,
-                piece_type: PieceType::Queen,
-            },
-        );
-        board.put_piece(
-            sq!("b5"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Queen,
-            },
-        );
-        board.put_piece(
-            sq!("b6"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Queen,
-            },
-        );
-        board.put_piece(
-            sq!("b7"),
-            Piece {
-                piece_color: PieceColor::Black,
-                piece_type: PieceType::Queen,
-            },
-        );
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::White),
-            (-67, -9)
-        );
+        board.put_piece(sq!("b2"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b3"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b4"), Piece { piece_color: PieceColor::White, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b5"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b6"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        board.put_piece(sq!("b7"), Piece { piece_color: PieceColor::Black, piece_type: PieceType::Queen });
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-67, -9));
         board.remove_piece(sq!("b2"));
-        assert_eq!(
-            score_board_psq_values_for_color(&board, PieceColor::White),
-            (-59, 14)
-        );
+        assert_eq!(score_board_psq_values_for_color(&board, PieceColor::White), (-59, 14));
     }
 }

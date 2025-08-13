@@ -46,10 +46,7 @@ pub struct MoveFormatter {
 }
 
 pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER
-        .format_move_list(position, &search_results.pv)
-        .unwrap()
-        .join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
 }
 
 impl FormatMove for MoveFormatter {
@@ -71,17 +68,9 @@ impl MoveFormatter {
         MoveFormatter { move_format }
     }
 
-    fn format_move_internal(
-        &self,
-        position: &Position,
-        mov: &Move,
-        next_position: &Position,
-    ) -> String {
+    fn format_move_internal(&self, position: &Position, mov: &Move, next_position: &Position) -> String {
         match mov {
-            Move::Castling {
-                base_move: _,
-                board_side,
-            } => {
+            Move::Castling { base_move: _, board_side } => {
                 if *board_side == KingSide {
                     "0-0".to_string()
                 } else {
@@ -117,11 +106,7 @@ impl MoveFormatter {
             let piece = self.get_moved_piece(position, mov);
             if piece.piece_type == Pawn {
                 if mov.get_base_move().capture {
-                    util::format_square(mov.get_base_move().from as usize)
-                        .chars()
-                        .nth(0)
-                        .unwrap()
-                        .to_string()
+                    util::format_square(mov.get_base_move().from as usize).chars().nth(0).unwrap().to_string()
                 } else {
                     "".to_string()
                 }
@@ -148,14 +133,8 @@ impl MoveFormatter {
 
     fn get_promotion_piece(&self, position: &Position, mov: &Move) -> String {
         match mov {
-            Move::Promotion {
-                base_move: _,
-                promote_to,
-            } => PIECE_CHAR_TO_UNICODE[&Piece {
-                piece_color: position.side_to_move(),
-                piece_type: *promote_to,
-            }
-            .to_char()]
+            Move::Promotion { base_move: _, promote_to } => PIECE_CHAR_TO_UNICODE
+                [&Piece { piece_color: position.side_to_move(), piece_type: *promote_to }.to_char()]
                 .to_string(),
             _ => String::new(),
         }
@@ -163,10 +142,7 @@ impl MoveFormatter {
 
     fn get_en_passant_indicator(&self, mov: &Move) -> String {
         match mov {
-            Move::EnPassant {
-                base_move: _,
-                capture_square: _,
-            } => "ep".to_string(),
+            Move::EnPassant { base_move: _, capture_square: _ } => "ep".to_string(),
             _ => String::new(),
         }
     }
@@ -174,9 +150,7 @@ impl MoveFormatter {
     fn get_result(&self, next_position: &Position) -> String {
         match evaluation::get_game_status(next_position, &[]) {
             GameStatus::Checkmate => "#".to_string(),
-            _ => "+"
-                .repeat(evaluation::check_count(next_position))
-                .to_string(),
+            _ => "+".repeat(evaluation::check_count(next_position)).to_string(),
         }
     }
 
@@ -198,8 +172,7 @@ impl MoveFormatter {
             if other_moves_to_the_same_square
                 .iter()
                 .filter(|m| {
-                    Board::column(m.get_base_move().from as usize)
-                        == Board::column(mov.get_base_move().from as usize)
+                    Board::column(m.get_base_move().from as usize) == Board::column(mov.get_base_move().from as usize)
                 })
                 .collect::<Vec<_>>()
                 .is_empty()
@@ -208,8 +181,7 @@ impl MoveFormatter {
             } else if other_moves_to_the_same_square
                 .iter()
                 .filter(|m| {
-                    Board::row(m.get_base_move().from as usize)
-                        == Board::row(mov.get_base_move().from as usize)
+                    Board::row(m.get_base_move().from as usize) == Board::row(mov.get_base_move().from as usize)
                 })
                 .collect::<Vec<_>>()
                 .is_empty()
@@ -222,10 +194,7 @@ impl MoveFormatter {
     }
 
     fn get_moved_piece(&self, position: &Position, mov: &Move) -> Piece {
-        position
-            .board()
-            .get_piece(mov.get_base_move().from as usize)
-            .unwrap()
+        position.board().get_piece(mov.get_base_move().from as usize).unwrap()
     }
 }
 
@@ -238,20 +207,8 @@ mod tests {
         let position = Position::new_game();
         let raw_moves_string = "e2e4 e7e5".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "e2-e4,e7-e5"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "e4,e5"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e2-e4,e7-e5");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e4,e5");
     }
 
     #[test]
@@ -259,20 +216,8 @@ mod tests {
         let position = Position::from("4k3/P7/8/8/8/8/8/4K3 w - - 0 1");
         let raw_moves_string = "a7a8n".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "a7-a8\u{2658}"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "a8\u{2658}"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a7-a8\u{2658}");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a8\u{2658}");
     }
 
     #[test]
@@ -280,20 +225,8 @@ mod tests {
         let position = Position::from("4k3/P7/8/8/8/8/p7/4K3 b - - 0 1");
         let raw_moves_string = "a2a1q".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "a2-a1\u{265B}+"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "a1\u{265B}+"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a2-a1\u{265B}+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "a1\u{265B}+");
     }
 
     #[test]
@@ -301,20 +234,8 @@ mod tests {
         let position = Position::from("b3k3/8/8/8/8/8/8/4K2R b K - 0 1");
         let raw_moves_string = "a8h1".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{265D}a8xh1"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{265D}xh1"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265D}a8xh1");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265D}xh1");
     }
 
     #[test]
@@ -322,20 +243,8 @@ mod tests {
         let position = Position::from("4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1");
         let raw_moves_string = "e4d3".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "e4xd3ep"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "exd3ep"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e4xd3ep");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "exd3ep");
     }
 
     #[test]
@@ -343,20 +252,8 @@ mod tests {
         let position = Position::from("4k2q/8/8/8/3Pp3/8/8/4K3 b - - 0 1");
         let raw_moves_string = "h8h4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{265B}h8-h4+"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{265B}h4+"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265B}h8-h4+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265B}h4+");
     }
 
     #[test]
@@ -364,20 +261,8 @@ mod tests {
         let position = Position::from("4k2q/8/8/3P4/4p3/2n5/1K6/8 b - - 0 1");
         let raw_moves_string = "c3a4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{265E}c3-a4++"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{265E}a4++"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265E}c3-a4++");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{265E}a4++");
     }
 
     #[test]
@@ -385,20 +270,8 @@ mod tests {
         let position = Position::from("8/8/8/8/8/4K3/6R1/4k3 w - - 0 1");
         let raw_moves_string = "g2g1".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2656}g2-g1#"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2656}g1#"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}g2-g1#");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}g1#");
     }
 
     #[test]
@@ -406,20 +279,8 @@ mod tests {
         let position = Position::from("4k3/8/8/8/R6R/8/8/4K3 w - - 0 1");
         let raw_moves_string = "a4e4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2656}a4-e4+"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2656}ae4+"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}a4-e4+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}ae4+");
     }
 
     #[test]
@@ -427,20 +288,8 @@ mod tests {
         let position = Position::from("8/8/8/6R1/k7/6R1/8/4K3 w - - 0 1");
         let raw_moves_string = "g5g4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2656}g5-g4+"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2656}5g4+"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}g5-g4+");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2656}5g4+");
     }
 
     #[test]
@@ -448,19 +297,7 @@ mod tests {
         let position = Position::from("8/8/8/1k6/4Q2Q/8/8/1K5Q w - - 0 1");
         let raw_moves_string = "h4e1".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
-        assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2655}h4-e1"
-        );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "\u{2655}h4e1"
-        );
+        assert_eq!(LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2655}h4-e1");
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "\u{2655}h4e1");
     }
 }

@@ -11,9 +11,8 @@ use std::ops::Add;
 
 include!("generated_macro.rs");
 
-static RAW_MOVE_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap()
-});
+static RAW_MOVE_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(^(?P<from>[a-h][0-8])(?P<to>[a-h][0-8])(?P<promote_to>[nbrq])?$)").unwrap());
 
 pub fn create_color(initial: &str) -> Option<PieceColor> {
     if initial == "w" {
@@ -29,12 +28,7 @@ pub fn parse_square(square: &str) -> Option<usize> {
     if square == "-" {
         None
     } else {
-        let row = square
-            .chars()
-            .nth(1)
-            .expect("Invalid square")
-            .to_digit(10)
-            .expect("Invalid square");
+        let row = square.chars().nth(1).expect("Invalid square").to_digit(10).expect("Invalid square");
         let col_char = square.chars().next().expect("Invalid square");
         let col = col_char as u32 - 'a' as u32;
         Some(((row - 1) * 8 + col).try_into().unwrap())
@@ -43,9 +37,7 @@ pub fn parse_square(square: &str) -> Option<usize> {
 
 pub fn format_square(square_index: usize) -> String {
     if square_index < board::NUMBER_OF_SQUARES {
-        ((b'a' + (square_index % 8) as u8) as char)
-            .to_string()
-            .add(&(square_index / 8 + 1).to_string())
+        ((b'a' + (square_index % 8) as u8) as char).to_string().add(&(square_index / 8 + 1).to_string())
     } else {
         "Invalid square".to_string()
     }
@@ -125,24 +117,15 @@ pub const fn row_bitboard(row: usize) -> u64 {
 }
 
 pub fn filter_moves_by_from_square(moves: Vec<Move>, from_square: usize) -> Vec<Move> {
-    moves
-        .into_iter()
-        .filter(|mov| mov.get_base_move().from == from_square as u8)
-        .collect::<Vec<Move>>()
+    moves.into_iter().filter(|mov| mov.get_base_move().from == from_square as u8).collect::<Vec<Move>>()
 }
 
 pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move> {
     moves.into_iter().find(|mov| match mov {
-        Move::Basic { base_move }
-        | Move::EnPassant { base_move, .. }
-        | Move::Castling { base_move, .. } => {
+        Move::Basic { base_move } | Move::EnPassant { base_move, .. } | Move::Castling { base_move, .. } => {
             base_move.from == raw_move.from && base_move.to == raw_move.to
         }
-        Move::Promotion {
-            base_move,
-            promote_to,
-            ..
-        } => {
+        Move::Promotion { base_move, promote_to, .. } => {
             base_move.from == raw_move.from
                 && base_move.to == raw_move.to
                 && Some(promote_to) == raw_move.promote_to.as_ref()
@@ -150,10 +133,7 @@ pub fn find_generated_move(moves: Vec<Move>, raw_move: &RawMove) -> Option<Move>
     })
 }
 
-pub fn replay_move_string(
-    position: &Position,
-    raw_moves_string: String,
-) -> Option<Vec<(Position, Move)>> {
+pub fn replay_move_string(position: &Position, raw_moves_string: String) -> Option<Vec<(Position, Move)>> {
     replay_raw_moves(position, &moves_string_to_raw_moves(raw_moves_string)?)
 }
 
@@ -161,65 +141,41 @@ pub fn replay_moves(position: &Position, moves: &[Move]) -> Option<Vec<(Position
     replay_raw_moves(position, &r#move::convert_moves_to_raw(moves))
 }
 
-pub fn replay_raw_moves(
-    position: &Position,
-    raw_moves: &[RawMove],
-) -> Option<Vec<(Position, Move)>> {
-    let result: Option<Vec<(Position, Move)>> = raw_moves.iter().try_fold(
-        Vec::new(),
-        |mut acc: Vec<(Position, Move)>, rm: &RawMove| {
-            let mut current_position = if !acc.is_empty() {
-                acc.last().unwrap().0
-            } else {
-                *position
-            };
+pub fn replay_raw_moves(position: &Position, raw_moves: &[RawMove]) -> Option<Vec<(Position, Move)>> {
+    let result: Option<Vec<(Position, Move)>> =
+        raw_moves.iter().try_fold(Vec::new(), |mut acc: Vec<(Position, Move)>, rm: &RawMove| {
+            let mut current_position = if !acc.is_empty() { acc.last().unwrap().0 } else { *position };
             if let Some(undo_move_info) = current_position.make_raw_move(rm) {
                 acc.push((current_position, undo_move_info.mov));
                 return Some(acc);
             }
             None
-        },
-    );
+        });
     result
 }
 
 pub fn create_move_list(position: &Position, raw_moves_string: String) -> Option<Vec<Move>> {
-    Some(
-        replay_move_string(position, raw_moves_string)?
-            .into_iter()
-            .map(|(_, mov)| mov)
-            .collect::<Vec<Move>>(),
-    )
+    Some(replay_move_string(position, raw_moves_string)?.into_iter().map(|(_, mov)| mov).collect::<Vec<Move>>())
 }
 
-pub fn create_repetition_keys(
-    position: &Position,
-    raw_moves_string: String,
-) -> Option<Vec<RepetitionKey>> {
+pub fn create_repetition_keys(position: &Position, raw_moves_string: String) -> Option<Vec<RepetitionKey>> {
     std::iter::once(RepetitionKey::new(position))
-        .chain(
-            replay_move_string(position, raw_moves_string)?
-                .into_iter()
-                .map(|(pos, _)| RepetitionKey::new(&pos)),
-        )
+        .chain(replay_move_string(position, raw_moves_string)?.into_iter().map(|(pos, _)| RepetitionKey::new(&pos)))
         .collect::<Vec<RepetitionKey>>()
         .into()
 }
 
 pub fn parse_initial_moves(raw_move_strings: Vec<String>) -> Option<Vec<RawMove>> {
     let result: Option<Vec<RawMove>> =
-        raw_move_strings
-            .iter()
-            .try_fold(
-                Vec::new(),
-                |mut acc: Vec<RawMove>, rms: &String| match parse_move(rms.clone()) {
-                    Some(raw_chess_move) => {
-                        acc.push(raw_chess_move);
-                        Some(acc)
-                    }
-                    None => None,
-                },
-            );
+        raw_move_strings.iter().try_fold(Vec::new(), |mut acc: Vec<RawMove>, rms: &String| {
+            match parse_move(rms.clone()) {
+                Some(raw_chess_move) => {
+                    acc.push(raw_chess_move);
+                    Some(acc)
+                }
+                None => None,
+            }
+        });
     result
 }
 
@@ -243,11 +199,7 @@ pub fn parse_move(raw_move_string: String) -> Option<RawMove> {
     })
 }
 
-pub fn is_piece_pinned(
-    position: &Position,
-    blocking_piece_square: isize,
-    attacking_color: PieceColor,
-) -> bool {
+pub fn is_piece_pinned(position: &Position, blocking_piece_square: isize, attacking_color: PieceColor) -> bool {
     is_blocking_attack_to_square(
         position,
         position.board().king_square(!attacking_color) as isize,
@@ -395,20 +347,8 @@ mod tests {
     #[test]
     fn test_print_board() {
         let mut board = Board::new();
-        board.put_piece(
-            0,
-            Piece {
-                piece_color: White,
-                piece_type: PieceType::Rook,
-            },
-        );
-        board.put_piece(
-            63,
-            Piece {
-                piece_color: Black,
-                piece_type: PieceType::Rook,
-            },
-        );
+        board.put_piece(0, Piece { piece_color: White, piece_type: PieceType::Rook });
+        board.put_piece(63, Piece { piece_color: Black, piece_type: PieceType::Rook });
     }
 
     #[test]
@@ -432,101 +372,33 @@ mod tests {
     #[test]
     fn test_find_generated_basic_move() {
         let mut moves: Vec<Move> = vec![];
-        moves.push(Move::Basic {
-            base_move: {
-                BaseMove {
-                    from: 1,
-                    to: 2,
-                    capture: false,
-                }
-            },
-        });
-        moves.push(Move::Basic {
-            base_move: {
-                BaseMove {
-                    from: 3,
-                    to: 4,
-                    capture: false,
-                }
-            },
-        });
+        moves.push(Move::Basic { base_move: { BaseMove { from: 1, to: 2, capture: false } } });
+        moves.push(Move::Basic { base_move: { BaseMove { from: 3, to: 4, capture: false } } });
         let matched_move = find_generated_move(moves, &RawMove::new(1, 2, None));
-        assert_eq!(
-            matched_move.unwrap(),
-            Move::Basic {
-                base_move: BaseMove {
-                    from: 1,
-                    to: 2,
-                    capture: false
-                }
-            }
-        );
+        assert_eq!(matched_move.unwrap(), Move::Basic { base_move: BaseMove { from: 1, to: 2, capture: false } });
     }
 
     #[test]
     fn test_find_generated_promotion_move() {
         let mut moves: Vec<Move> = vec![];
-        moves.push(Move::Basic {
-            base_move: {
-                BaseMove {
-                    from: 1,
-                    to: 2,
-                    capture: false,
-                }
-            },
-        });
-        moves.push(Move::Basic {
-            base_move: {
-                BaseMove {
-                    from: 3,
-                    to: 4,
-                    capture: false,
-                }
-            },
-        });
+        moves.push(Move::Basic { base_move: { BaseMove { from: 1, to: 2, capture: false } } });
+        moves.push(Move::Basic { base_move: { BaseMove { from: 3, to: 4, capture: false } } });
         moves.push(Move::Promotion {
-            base_move: {
-                BaseMove {
-                    from: 3,
-                    to: 9,
-                    capture: false,
-                }
-            },
+            base_move: { BaseMove { from: 3, to: 9, capture: false } },
             promote_to: PieceType::Queen,
         });
         moves.push(Move::Promotion {
-            base_move: {
-                BaseMove {
-                    from: 3,
-                    to: 9,
-                    capture: false,
-                }
-            },
+            base_move: { BaseMove { from: 3, to: 9, capture: false } },
             promote_to: PieceType::Rook,
         });
         moves.push(Move::Promotion {
-            base_move: {
-                BaseMove {
-                    from: 3,
-                    to: 9,
-                    capture: false,
-                }
-            },
+            base_move: { BaseMove { from: 3, to: 9, capture: false } },
             promote_to: PieceType::Knight,
         });
         let matched_move = find_generated_move(moves, &RawMove::new(3, 9, Some(PieceType::Rook)));
         assert_eq!(
             matched_move.unwrap(),
-            Move::Promotion {
-                base_move: {
-                    BaseMove {
-                        from: 3,
-                        to: 9,
-                        capture: false,
-                    }
-                },
-                promote_to: PieceType::Rook
-            }
+            Move::Promotion { base_move: { BaseMove { from: 3, to: 9, capture: false } }, promote_to: PieceType::Rook }
         );
     }
 
@@ -534,75 +406,40 @@ mod tests {
     fn test_parse_initial_moves() {
         assert_eq!(
             parse_initial_moves(vec!("e2e4".to_string())),
-            Some(vec!(RawMove {
-                from: sq!("e2"),
-                to: sq!("e4"),
-                promote_to: None
-            }))
+            Some(vec!(RawMove { from: sq!("e2"), to: sq!("e4"), promote_to: None }))
         );
         assert_eq!(
             parse_initial_moves(vec!("e2e4".to_string(), "e7e5".to_string())),
             Some(vec!(
-                RawMove {
-                    from: sq!("e2"),
-                    to: sq!("e4"),
-                    promote_to: None
-                },
-                RawMove {
-                    from: sq!("e7"),
-                    to: sq!("e5"),
-                    promote_to: None
-                }
+                RawMove { from: sq!("e2"), to: sq!("e4"), promote_to: None },
+                RawMove { from: sq!("e7"), to: sq!("e5"), promote_to: None }
             ))
         );
 
-        assert_eq!(
-            parse_initial_moves(vec!("i2e4".to_string(), "e7e5".to_string())),
-            None
-        );
+        assert_eq!(parse_initial_moves(vec!("i2e4".to_string(), "e7e5".to_string())), None);
     }
 
     #[test]
     fn test_parse_move() {
         assert_eq!(
             parse_move("a1b1".to_string()).unwrap(),
-            RawMove {
-                from: sq!("a1"),
-                to: sq!("b1"),
-                promote_to: None
-            }
+            RawMove { from: sq!("a1"), to: sq!("b1"), promote_to: None }
         );
         assert_eq!(
             parse_move("h8a1n".to_string()).unwrap(),
-            RawMove {
-                from: sq!("h8"),
-                to: sq!("a1"),
-                promote_to: Some(PieceType::Knight)
-            }
+            RawMove { from: sq!("h8"), to: sq!("a1"), promote_to: Some(PieceType::Knight) }
         );
         assert_eq!(
             parse_move("h8a1b".to_string()).unwrap(),
-            RawMove {
-                from: sq!("h8"),
-                to: sq!("a1"),
-                promote_to: Some(PieceType::Bishop)
-            }
+            RawMove { from: sq!("h8"), to: sq!("a1"), promote_to: Some(PieceType::Bishop) }
         );
         assert_eq!(
             parse_move("a1b1r".to_string()).unwrap(),
-            RawMove {
-                from: sq!("a1"),
-                to: sq!("b1"),
-                promote_to: Some(PieceType::Rook)
-            }
+            RawMove { from: sq!("a1"), to: sq!("b1"), promote_to: Some(PieceType::Rook) }
         );
         assert_eq!(
             parse_move("a1b1q".to_string()).unwrap(),
-            RawMove {
-                from: sq!("a1"),
-                to: sq!("b1"),
-                promote_to: Some(PieceType::Queen)
-            }
+            RawMove { from: sq!("a1"), to: sq!("b1"), promote_to: Some(PieceType::Queen) }
         );
 
         assert_eq!(parse_move("a1b1k".to_string()), None);
@@ -620,10 +457,7 @@ mod tests {
         assert_eq!(moves.len(), 2);
         let last_position = moves.last().unwrap().0;
         let fen = fen::write(&last_position);
-        assert_eq!(
-            fen,
-            "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".to_string()
-        );
+        assert_eq!(fen, "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".to_string());
 
         let position = Position::new_game();
         let moves = "e2e4 e6e5".to_string();
@@ -642,14 +476,10 @@ mod tests {
 
         assert_eq!(repetition_keys[0], RepetitionKey::new(&position));
 
-        position
-            .make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None))
-            .unwrap();
+        position.make_raw_move(&RawMove::new(sq!("e2"), sq!("e4"), None)).unwrap();
         assert_eq!(repetition_keys[1], RepetitionKey::new(&position));
 
-        position
-            .make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None))
-            .unwrap();
+        position.make_raw_move(&RawMove::new(sq!("e7"), sq!("e5"), None)).unwrap();
         assert_eq!(repetition_keys[2], RepetitionKey::new(&position));
     }
 
@@ -693,10 +523,7 @@ mod tests {
         fn test_is_piece_pinned() {
             let fen: &str = "R1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("c8"), PieceColor::White),
-                true
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), true);
         }
 
         #[test]
@@ -710,78 +537,51 @@ mod tests {
         fn test_is_piece_pinned3() {
             let fen: &str = "B1n1k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("c8"), PieceColor::White),
-                false
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), false);
         }
 
         #[test]
         fn test_is_piece_pinned4() {
             let fen: &str = "RBn1k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("c8"), PieceColor::White),
-                false
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("c8"), PieceColor::White), false);
         }
 
         #[test]
         fn test_is_piece_pinned5() {
             let fen: &str = "Q2nk3/8/8/8/8/8/8/4K3 w - - 0 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("d8"), PieceColor::White),
-                true
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("d8"), PieceColor::White), true);
         }
 
         #[test]
         fn test_is_piece_pinned6() {
             let fen: &str = "3nk3/8/8/1q6/8/3N4/8/5K2 w - - 0 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("d3"), PieceColor::Black),
-                true
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
         }
 
         #[test]
         fn test_is_piece_pinned7() {
             let fen: &str = "3nk3/8/5r2/1b6/8/3N1R2/8/5K2 w - - 0 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("d3"), PieceColor::Black),
-                true
-            );
-            assert_eq!(
-                is_piece_pinned(&position, sq!("e3"), PieceColor::Black),
-                false
-            );
-            assert_eq!(
-                is_piece_pinned(&position, sq!("f3"), PieceColor::Black),
-                true
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("d3"), PieceColor::Black), true);
+            assert_eq!(is_piece_pinned(&position, sq!("e3"), PieceColor::Black), false);
+            assert_eq!(is_piece_pinned(&position, sq!("f3"), PieceColor::Black), true);
         }
 
         #[test]
         fn test_is_piece_pinned8() {
             let fen: &str = "4k2K/8/8/8/8/8/1R6/b7 b - - 1 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("b2"), PieceColor::Black),
-                true
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("b2"), PieceColor::Black), true);
         }
 
         #[test]
         fn test_is_piece_pinned9() {
             let fen: &str = "4k2K/8/8/8/8/8/1R6/r7 b - - 1 1";
             let position: Position = Position::from(fen);
-            assert_eq!(
-                is_piece_pinned(&position, sq!("b2"), PieceColor::Black),
-                false
-            );
+            assert_eq!(is_piece_pinned(&position, sq!("b2"), PieceColor::Black), false);
         }
     }
 }
