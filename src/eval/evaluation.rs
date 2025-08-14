@@ -27,11 +27,11 @@ pub enum GameStatus {
     Checkmate,
 }
 
-pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 10000];
+pub const PIECE_SCORES: [i32; 6] = [100, 300, 300, 500, 900, 10000];
 
-const PHASE_TOTAL: isize = 24;
+const PHASE_TOTAL: i32 = 24;
 
-const PHASE_WEIGHTS: [isize; 6] = [
+const PHASE_WEIGHTS: [i32; 6] = [
     0, // pawn
     1, // knight
     1, // bishop
@@ -40,23 +40,23 @@ const PHASE_WEIGHTS: [isize; 6] = [
     0, // king
 ];
 
-const BISHOP_PAIR_BONUS: isize = 50;
-const ROOK_ON_OPEN_FILE_BONUS: isize = 30;
-const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 75;
+const BISHOP_PAIR_BONUS: i32 = 50;
+const ROOK_ON_OPEN_FILE_BONUS: i32 = 30;
+const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: i32 = 75;
 
-fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
+fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> i32 {
     let mut phase = PHASE_TOTAL;
 
     for piece_type in [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
         let count = piece_counts[PieceColor::White as usize][piece_type as usize]
             + piece_counts[PieceColor::Black as usize][piece_type as usize];
-        phase -= PHASE_WEIGHTS[piece_type as usize] * count as isize;
+        phase -= PHASE_WEIGHTS[piece_type as usize] * count as i32;
     }
 
     phase.clamp(0, PHASE_TOTAL)
 }
 
-pub fn apply_contempt(score: isize) -> isize {
+pub fn apply_contempt(score: i32) -> i32 {
     if score == 0 {
         -get_contempt()
     } else {
@@ -64,13 +64,16 @@ pub fn apply_contempt(score: isize) -> isize {
     }
 }
 
-pub fn score_position(position: &Position) -> isize {
+pub fn score_position(position: &Position) -> i32 {
     let board = position.board();
     let piece_counts = board.get_piece_counts();
     let phase = calculate_game_phase(piece_counts);
     let piece_material_balance = calculate_material_balance(piece_counts);
-    let material_score =
-        piece_material_balance.iter().enumerate().map(|(idx, &balance)| balance * PIECE_SCORES[idx]).sum::<isize>();
+    let material_score = piece_material_balance
+        .iter()
+        .enumerate()
+        .map(|(idx, &balance)| balance as i32 * PIECE_SCORES[idx])
+        .sum::<i32>();
 
     let (psq_mg, psq_eg) = score_board_psq_values(board);
     let (king_mg, king_eg) = score_kings(position);
@@ -91,11 +94,11 @@ pub fn score_position(position: &Position) -> isize {
     }
 }
 
-pub fn evaluate(position: &Position, depth: usize, repetition_key_stack: &[RepetitionKey]) -> isize {
+pub fn evaluate(position: &Position, depth: u8, repetition_key_stack: &[RepetitionKey]) -> i32 {
     let game_status = get_game_status(position, repetition_key_stack);
     match game_status {
         GameStatus::InProgress => score_position(position),
-        GameStatus::Checkmate => depth as isize - MAXIMUM_SCORE,
+        GameStatus::Checkmate => depth as i32 - MAXIMUM_SCORE,
         _ => apply_contempt(0),
     }
 }
@@ -199,21 +202,21 @@ pub fn check_count(position: &Position) -> usize {
     move_gen::check_count(position)
 }
 
-fn score_bishops(position: &Position) -> isize {
+fn score_bishops(position: &Position) -> i32 {
     let board = position.board();
-    (board.has_bishop_pair(PieceColor::White) as isize - board.has_bishop_pair(PieceColor::Black) as isize)
+    (board.has_bishop_pair(PieceColor::White) as i32 - board.has_bishop_pair(PieceColor::Black) as i32)
         * BISHOP_PAIR_BONUS
 }
 
-fn score_rooks(position: &Position) -> isize {
-    fn score_rooks_for_color(board: &Board, piece_color: PieceColor) -> isize {
+fn score_rooks(position: &Position) -> i32 {
+    fn score_rooks_for_color(board: &Board, piece_color: PieceColor) -> i32 {
         let my_bitboards = board.bitboards_for_color(piece_color);
         let pawns = my_bitboards[PieceType::Pawn as usize];
         let rooks = my_bitboards[PieceType::Rook as usize];
         let queens = my_bitboards[PieceType::Queen as usize];
         let row = if piece_color == PieceColor::White { 6 } else { 1 };
         let seventh_rank_bonus =
-            ((((rooks | queens) & row_bitboard(row)).count_ones()) >= 2) as isize * DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS;
+            ((((rooks | queens) & row_bitboard(row)).count_ones()) >= 2) as i32 * DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS;
         let mut on_open_file_count = 0;
         let rook_iterator = BitboardIterator::new(rooks);
         for rook_index in rook_iterator {
@@ -221,7 +224,7 @@ fn score_rooks(position: &Position) -> isize {
                 on_open_file_count += 1;
             }
         }
-        seventh_rank_bonus + on_open_file_count as isize * ROOK_ON_OPEN_FILE_BONUS
+        seventh_rank_bonus + on_open_file_count * ROOK_ON_OPEN_FILE_BONUS
     }
     let board = position.board();
     score_rooks_for_color(board, PieceColor::White) - score_rooks_for_color(board, PieceColor::Black)

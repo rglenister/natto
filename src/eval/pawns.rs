@@ -44,7 +44,7 @@ const PASSED_PAWNS_RANKS: [[u64; 8]; 2] = [
     ],
 ];
 
-pub fn score_pawns(position: &Position) -> (isize, isize) {
+pub fn score_pawns(position: &Position) -> (i32, i32) {
     let score_mg =
         score_pawn_structure_mg(position, PieceColor::White) - score_pawn_structure_mg(position, PieceColor::Black);
     let score_eg =
@@ -52,11 +52,11 @@ pub fn score_pawns(position: &Position) -> (isize, isize) {
     (score_mg, score_eg)
 }
 
-pub fn score_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> isize {
+pub fn score_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> i32 {
     let board = position.board();
     let pawns = board.bitboard_by_color_and_piece_type(piece_color, PieceType::Pawn);
 
-    let mut score = 0isize;
+    let mut score = 0i32;
 
     BitboardIterator::new(pawns).for_each(|pawn_square| {
         if is_part_of_chain(piece_color, pawn_square, pawns) {
@@ -80,12 +80,12 @@ pub fn is_passed_pawn(square: usize, piece_color: PieceColor, their_pawns: u64) 
     (PASSED_PAWN_COLUMNS[file] & PASSED_PAWNS_RANKS[piece_color as usize][rank as usize] & their_pawns) == 0
 }
 
-fn score_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> isize {
+fn score_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> i32 {
     let board: &Board = position.board();
     let our_pawns = board.bitboard_by_color_and_piece_type(piece_color, PieceType::Pawn);
     let their_pawns = board.bitboard_by_color_and_piece_type(!piece_color, PieceType::Pawn);
 
-    let mut score = 0isize;
+    let mut score = 0i32;
     score += score_passed_pawns(piece_color, our_pawns, their_pawns);
 
     if has_pawn_majority(board, piece_color, BoardSide::KingSide) {
@@ -98,8 +98,8 @@ fn score_pawn_structure_eg(position: &Position, piece_color: PieceColor) -> isiz
     score
 }
 
-fn score_passed_pawns(piece_color: PieceColor, our_pawns: u64, their_pawns: u64) -> isize {
-    let mut score = 0isize;
+fn score_passed_pawns(piece_color: PieceColor, our_pawns: u64, their_pawns: u64) -> i32 {
+    let mut score = 0i32;
     for pawn_square in BitboardIterator::new(our_pawns) {
         if is_passed_pawn(pawn_square, piece_color, their_pawns) {
             score += 20;

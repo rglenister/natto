@@ -9,7 +9,7 @@ use strum::IntoEnumIterator;
 include!("../utils/generated_macro.rs");
 
 #[rustfmt::skip]
-const MG_PST: [[isize; 64]; 6] = [
+const MG_PST: [[i32; 64]; 6] = [
     [ // mg pawns
         0,   0,   0,   0,   0,   0,  0,   0,
         98, 134,  61,  95,  68, 126, 34, -11,
@@ -73,7 +73,7 @@ const MG_PST: [[isize; 64]; 6] = [
 ];
 
 #[rustfmt::skip]
-pub const EG_PST: [[isize; 64]; 6] = [
+pub const EG_PST: [[i32; 64]; 6] = [
     [ // eg pawns
         0,   0,   0,   0,   0,   0,   0,   0,
         178, 173, 158, 134, 147, 132, 165, 187,
@@ -136,14 +136,14 @@ pub const EG_PST: [[isize; 64]; 6] = [
     ],
 ];
 
-pub fn score_board_psq_values(board: &Board) -> (isize, isize) {
+pub fn score_board_psq_values(board: &Board) -> (i32, i32) {
     let (white_mg, white_eg) = score_board_psq_values_for_color(board, PieceColor::White);
     let (black_mg, black_eg) = score_board_psq_values_for_color(board, PieceColor::Black);
     (white_mg - black_mg, white_eg - black_eg)
 }
-fn score_board_psq_values_for_color(board: &Board, color: PieceColor) -> (isize, isize) {
-    let mut mg_score = 0;
-    let mut eg_score = 0;
+fn score_board_psq_values_for_color(board: &Board, color: PieceColor) -> (i32, i32) {
+    let mut mg_score = 0i32;
+    let mut eg_score = 0i32;
     let bitboards = board.bitboards_for_color(color);
     let square_index_xor = if color == PieceColor::White { 56 } else { 0 };
     for piece_type in PieceType::iter() {
