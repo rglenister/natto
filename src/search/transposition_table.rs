@@ -1,7 +1,6 @@
 use crate::core::position::Position;
 use crate::core::r#move::Move;
 use crate::engine::config;
-use log::info;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BoundType {
@@ -25,23 +24,22 @@ pub struct TranspositionTable {
 }
 
 impl TranspositionTable {
-    pub fn new(length: usize) -> TranspositionTable {
-        let table = vec![TTEntry::default(); length].into_boxed_slice();
-        Self { table }
-    }
-
-    pub fn new_using_config() -> Self {
-        let requested_size_in_mb = config::get_hash_size();
-        let requested_num_entries = requested_size_in_mb * 1024 * 1024 / size_of::<TTEntry>();
-        let actual_num_entries = Self::round_up_to_nearest_power_of_two(requested_num_entries);
-        let table_size_in_bytes = actual_num_entries * size_of::<TTEntry>();
-        println!("Creating transposition table with size {actual_num_entries} ({actual_num_entries:#X})");
-        println!(
+    pub fn new(size_in_mb: usize) -> Self {
+        let requested_num_entries = size_in_mb * 1024 * 1024 / size_of::<TTEntry>();
+        let rounded_num_entries = Self::prev_power_of_two(requested_num_entries);
+        let table_size_in_bytes = rounded_num_entries * size_of::<TTEntry>();
+        log::info!("Creating transposition table with size {rounded_num_entries} ({rounded_num_entries:#X}) from a requested maximum size of {} Mib", size_in_mb);
+        log::info!(
             "Transposition table created. Total memory used is {} MiB ({:.2} GiB)",
             table_size_in_bytes / (1024 * 1024),
             Self::bytes_to_gib(table_size_in_bytes)
         );
-        TranspositionTable::new(actual_num_entries)
+        let table = vec![TTEntry::default(); rounded_num_entries].into_boxed_slice();
+        Self { table }
+    }
+
+    pub fn new_using_config() -> Self {
+        Self::new(config::get_hash_size())
     }
 
     pub fn insert(&mut self, position: &Position, depth: u8, alpha: i32, beta: i32, score: i32, mov: Option<Move>) {
@@ -111,12 +109,12 @@ impl TranspositionTable {
         count
     }
 
-    fn round_up_to_nearest_power_of_two(configured_hash_size: usize) -> usize {
-        let rounded_up_hash_size = configured_hash_size.next_power_of_two();
-        if rounded_up_hash_size != configured_hash_size {
-            info!("Hash size rounded up from {configured_hash_size} {configured_hash_size:#X} to {rounded_up_hash_size} {rounded_up_hash_size:#X}");
+    pub fn prev_power_of_two(configured_hash_size: usize) -> usize {
+        if configured_hash_size == 0 {
+            return 0;
         }
-        rounded_up_hash_size
+        let msb_pos = usize::BITS - 1 - configured_hash_size.leading_zeros();
+        1usize << msb_pos
     }
 
     fn bytes_to_gib(bytes: usize) -> f64 {
@@ -133,20 +131,27 @@ mod tests {
     #[test]
     fn test_small_table_creation() {
         let table = TranspositionTable::new(1 << 1);
-        assert_eq!(table.table.len(), 2);
+        assert_eq!(table.table.len(), 65536);
     }
     #[test]
     fn test_large_table_creation() {
         assert_eq!(1 << 25, 33_554_432);
-        let table = TranspositionTable::new(1 << 25);
-        assert_eq!(table.table.len(), 1 << 25);
-        assert_eq!(1 << 29, 536_870_912);
+        let table = TranspositionTable::new(2048);
+        assert_eq!(table.table.len(), 67108864);
+        assert_eq!(table.table.len(), 0x4000000);
+        assert!(table.table.len().is_power_of_two());
+
+        let memory_used = table.table.len() * size_of::<TTEntry>();
+        assert_eq!(memory_used, 1610612736);
+        let memory_used_mb = memory_used / 1024 / 1024;
+        assert_eq!(memory_used_mb, 1536);
+        assert!(memory_used / 1024 / 1024 < 2048);
     }
 
     #[test]
     fn test_do_stuff_with_table() {
         let mut table = TranspositionTable::new(1 << 1);
-        assert_eq!(table.table.len(), 2);
+        assert_eq!(table.table.len(), 65536);
 
         let position = Position::new_game();
         table.store(
@@ -166,7 +171,7 @@ mod tests {
     #[test]
     fn test_item_count() {
         let mut table = TranspositionTable::new(1 << 2);
-        assert_eq!(table.table.len(), 4);
+        assert_eq!(table.table.len(), 131072);
         assert_eq!(table.item_count(), 0);
         let position = Position::new_game();
         table.store(
@@ -184,10 +189,10 @@ mod tests {
     #[test]
     fn test_new_using_config() {
         let mut ttable = TranspositionTable::new_using_config();
-        assert_eq!(config::get_hash_size(), 512);
-        assert_eq!(ttable.table.len(), 33554432);
+        assert_eq!(config::get_hash_size(), 1);
+        assert_eq!(ttable.table.len(), 32768);
         assert_eq!(size_of::<TTEntry>(), 24);
-        assert_eq!(ttable.table.len() * size_of::<TTEntry>(), 33554432 * 24);
+        assert_eq!(ttable.table.len() * size_of::<TTEntry>(), 786432);
         assert_eq!(ttable.item_count(), 0);
         let position = Position::new_game();
         ttable.store(
@@ -200,5 +205,24 @@ mod tests {
         assert_eq!(ttable.item_count(), 1);
         ttable._clear();
         assert_eq!(ttable.item_count(), 0);
+    }
+
+    #[test]
+    fn test_prev_power_of_two() {
+        assert_eq!(TranspositionTable::prev_power_of_two(0), 0);
+        assert_eq!(TranspositionTable::prev_power_of_two(1), 1);
+        assert_eq!(TranspositionTable::prev_power_of_two(2), 2);
+        assert_eq!(TranspositionTable::prev_power_of_two(3), 2);
+        assert_eq!(TranspositionTable::prev_power_of_two(4), 4);
+        assert_eq!(TranspositionTable::prev_power_of_two(500), 256);
+        assert_eq!(TranspositionTable::prev_power_of_two(2048), 2048);
+        assert_eq!(TranspositionTable::prev_power_of_two(2050), 2048);
+    }
+
+    #[test]
+    fn test_bytes_to_gib() {
+        assert_eq!(format!("{:.2}", TranspositionTable::bytes_to_gib(1_000_000_000)), "0.93");
+        assert_eq!(format!("{:.2}", TranspositionTable::bytes_to_gib(100_000_000)), "0.09");
+        assert_eq!(format!("{:.2}", TranspositionTable::bytes_to_gib(10_000_000_000)), "9.31");
     }
 }
