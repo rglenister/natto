@@ -226,8 +226,7 @@ impl MoveOrderer {
         let base_move = mov.get_base_move();
         if !base_move.capture {
             if let Move::Promotion { promote_to, .. } = mov {
-                return (PIECE_SCORES[*promote_to as usize] - PIECE_SCORES[PieceType::Pawn as usize])
-                    / 100;
+                return (PIECE_SCORES[*promote_to as usize] - PIECE_SCORES[PieceType::Pawn as usize]) / 100;
             }
             return 0;
         }

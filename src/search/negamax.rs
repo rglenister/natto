@@ -145,16 +145,16 @@ pub fn increment_node_counter() -> NodeCountStats {
 
 pub fn iterative_deepening(
     position: &mut Position,
+    transposition_table: &mut TranspositionTable,
     search_params: &SearchParams,
     stop_flag: Arc<AtomicBool>,
     repetition_keys: &[RepetitionKey],
 ) -> SearchResults {
     reset_node_counter();
-    let mut transposition_table = TranspositionTable::new_using_config();
     let mut search_results: Option<SearchResults> = None;
-    for iteration_max_depth in 1..=search_params.max_depth {
+    for iteration_max_depth in 0..=search_params.max_depth {
         let mut search_context = SearchContext::new(
-            &mut transposition_table,
+            transposition_table,
             search_params,
             stop_flag.clone(),
             Vec::from(repetition_keys),
@@ -439,6 +439,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams { allocated_time_millis: usize::MAX, max_depth: 1, max_nodes: usize::MAX },
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -455,13 +456,14 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
         assert_eq!(
             search_results,
-            SearchResults { position, score: -100_000, depth: 1, pv: vec![], game_status: GameStatus::Checkmate }
+            SearchResults { position, score: -100_000, depth: 0, pv: vec![], game_status: GameStatus::Checkmate }
         );
     }
 
@@ -472,13 +474,14 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
         assert_eq!(
             search_results,
-            SearchResults { position, score: 0, depth: 1, pv: vec![], game_status: GameStatus::Stalemate }
+            SearchResults { position, score: 0, depth: 0, pv: vec![], game_status: GameStatus::Stalemate }
         );
     }
 
@@ -489,6 +492,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -513,6 +517,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(3),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -537,6 +542,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(3),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -561,6 +567,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(5),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -588,6 +595,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(7),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -612,6 +620,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(5),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -639,6 +648,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(2),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -653,6 +663,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(5),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -667,6 +678,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -683,6 +695,7 @@ mod tests {
         let mut in_progress_position: Position = original_position.clone();
         let in_progress_search_results = iterative_deepening(
             &mut in_progress_position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -703,6 +716,7 @@ mod tests {
         drawn_position.make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
         let drawn_position_search_results = iterative_deepening(
             &mut drawn_position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -929,6 +943,7 @@ mod tests {
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
             &mut position,
+            &mut TranspositionTable::new(1),
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
@@ -956,4 +971,3 @@ mod tests {
     //
     // }
 }
-

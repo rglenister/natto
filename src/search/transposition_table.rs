@@ -28,7 +28,7 @@ impl TranspositionTable {
         let requested_num_entries = size_in_mb * 1024 * 1024 / size_of::<TTEntry>();
         let rounded_num_entries = Self::prev_power_of_two(requested_num_entries);
         let table_size_in_bytes = rounded_num_entries * size_of::<TTEntry>();
-        log::info!("Creating transposition table with size {rounded_num_entries} ({rounded_num_entries:#X}) from a requested maximum size of {} Mib", size_in_mb);
+        log::info!("Creating transposition table with size {rounded_num_entries} ({rounded_num_entries:#X}) from a requested maximum size of {size_in_mb} Mib");
         log::info!(
             "Transposition table created. Total memory used is {} MiB ({:.2} GiB)",
             table_size_in_bytes / (1024 * 1024),
@@ -125,9 +125,9 @@ impl TranspositionTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::transposition_table::BoundType::LowerBound;
     use crate::core::r#move::BaseMove;
-    
+    use crate::search::transposition_table::BoundType::LowerBound;
+
     #[test]
     fn test_small_table_creation() {
         let table = TranspositionTable::new(1 << 1);

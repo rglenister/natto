@@ -3,8 +3,8 @@ use crate::book::opening_book::OpeningBook;
 use crate::core::r#move::convert_move_to_raw;
 use crate::engine::config::{set_contempt, set_hash_size, set_max_book_depth, set_use_book};
 use crate::engine::{config, uci};
-use crate::eval::evaluation::GameStatus::{Checkmate, Stalemate};
-use crate::search::negamax::iterative_deepening;
+use crate::search::negamax::{iterative_deepening, MAXIMUM_SCORE};
+use crate::search::transposition_table::TranspositionTable;
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
@@ -173,6 +173,7 @@ impl Engine {
                     *search_handle = Some(thread::spawn(move || {
                         let search_results = iterative_deepening(
                             &mut uci_pos_clone.end_position.clone(),
+                            &mut TranspositionTable::new_using_config(),
                             &search_params,
                             stop_flag,
                             &uci_pos_clone.repetition_keys,
@@ -181,16 +182,16 @@ impl Engine {
                         let best_move = search_results.pv.first().map(convert_move_to_raw);
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {best_move}").as_str());
-                        } else {
-                            match search_results.game_status {
-                                Checkmate => {
-                                    uci::send_to_gui("info score mate 0");
-                                }
-                                Stalemate => {
-                                    uci::send_to_gui("info score 0");
-                                }
-                                _ => (),
+                        } else if search_results.depth == 0 {
+                            if search_results.score.abs() == MAXIMUM_SCORE {
+                                uci::send_to_gui("info score mate 0");
+                            } else if search_results.score == 0 {
+                                uci::send_to_gui("info score 0");
+                            } else {
+                                error!("Search results should have a terminal score if the maximum depth reached by the search is zero - search result={search_results}");
                             }
+                        } else {
+                            error!("Seaech results contains no best move at non zero depth - search result={search_results}");
                         }
                     }));
                 }

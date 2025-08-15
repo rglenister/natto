@@ -24,7 +24,7 @@ pub fn quiescence_search(
         return 0;
     }
     increment_node_counter();
-    
+
     if is_drawn_by_agreement(position, &search_context.repetition_key_stack) {
         return DRAW_SCORE;
     }

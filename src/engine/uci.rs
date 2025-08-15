@@ -3,6 +3,7 @@ use crate::core::position::Position;
 use crate::core::r#move::{Move, RawMove};
 use crate::search;
 use crate::search::negamax::{RepetitionKey, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
+use crate::search::transposition_table::TranspositionTable;
 use crate::utils::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -165,6 +166,7 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
     let search_params = create_search_params(&uci_go_options, &uci_position);
     search::negamax::iterative_deepening(
         &mut uci_position.end_position.clone(),
+        &mut TranspositionTable::new_using_config(),
         &search_params,
         Arc::new(AtomicBool::new(false)),
         &uci_position.repetition_keys,
