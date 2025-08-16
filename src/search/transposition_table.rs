@@ -10,7 +10,7 @@ pub enum BoundType {
     UpperBound,
 }
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone)]
 pub struct TTEntry {
     pub zobrist: u64,
     pub best_move: Option<Move>,
@@ -34,7 +34,13 @@ impl TranspositionTable {
             table_size_in_bytes / (1024 * 1024),
             Self::bytes_to_gib(table_size_in_bytes)
         );
-        let table = vec![TTEntry::default(); rounded_num_entries].into_boxed_slice();
+        let table = vec![TTEntry {
+            zobrist: 0,
+            best_move: None,
+            depth: 0,
+            score: 0,
+            bound_type: BoundType::Exact,
+        }; rounded_num_entries].into_boxed_slice();
         Self { table }
     }
 
@@ -43,7 +49,6 @@ impl TranspositionTable {
     }
 
     pub fn insert(&mut self, position: &Position, depth: u8, alpha: i32, beta: i32, score: i32, mov: Option<Move>) {
-        //        return;
         let bound_type = if score <= alpha {
             BoundType::UpperBound
         } else if score >= beta {
@@ -84,18 +89,20 @@ impl TranspositionTable {
 
     pub fn probe(&self, zobrist: u64) -> Option<TTEntry> {
         let index = (zobrist as usize) % self.table.len();
-        let entry = self.table[index];
+        let entry = &self.table[index];
         if entry.zobrist == zobrist {
-            Some(entry)
+            Some(entry.clone())
         } else {
             None
         }
     }
 
     pub fn _clear(&mut self) {
-        for entry in &mut self.table {
-            entry.zobrist = 0;
-        }
+        self.table.iter_mut().for_each(|entry| entry.zobrist = 0);
+    }
+
+    pub fn _item_count(&self) -> usize {
+        self.table.iter().filter(|entry| entry.zobrist != 0).count()
     }
 
     #[allow(dead_code)]

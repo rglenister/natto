@@ -213,7 +213,7 @@ fn negamax(
         return DRAW_SCORE;
     }
     let t_table_entry = search_context.transposition_table.probe(position.hash_code());
-    if let Some(entry) = t_table_entry {
+    if let Some(ref entry) = t_table_entry {
         if entry.depth >= depth {
             match entry.bound_type {
                 BoundType::Exact => {
