@@ -1,17 +1,16 @@
 use crate::book::lichess_book::LiChessOpeningBook;
 use crate::book::opening_book::OpeningBook;
 use crate::core::r#move::convert_move_to_raw;
-use crate::engine::config::{set_contempt, set_hash_size, set_max_book_depth, set_use_book};
 use crate::engine::{config, uci};
-use crate::eval::evaluation::GameStatus::{Checkmate, Stalemate};
-use crate::search::negamax::iterative_deepening;
-use crate::search::transposition_table::TRANSPOSITION_TABLE;
+use crate::eval::evaluation::GameStatus;
+use crate::search::negamax;
+use crate::search::transposition_table::TranspositionTable;
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
@@ -54,6 +53,7 @@ struct Engine {
     search_stop_flag: Arc<AtomicBool>,
     main_loop_quit_flag: Arc<AtomicBool>,
     opening_book: Option<LiChessOpeningBook>,
+    transposition_table: Arc<Mutex<TranspositionTable>>,
 }
 
 impl Engine {
@@ -63,6 +63,7 @@ impl Engine {
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
             opening_book: Self::create_opening_book(),
+            transposition_table: Arc::new(Mutex::new(TranspositionTable::new_using_config())),
         }
     }
 
@@ -154,7 +155,7 @@ impl Engine {
     fn uci_new_game(&self, uci_position: &mut Option<uci::UciPosition>) {
         info!("UCI new game command received");
         *uci_position = None;
-        TRANSPOSITION_TABLE.clear();
+        self.transposition_table.lock().unwrap().clear();
     }
 
     fn uci_go(
@@ -180,8 +181,10 @@ impl Engine {
 
                     let stop_flag = Arc::clone(search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
+                    let tt_clone = Arc::clone(&self.transposition_table);
                     *search_handle = Some(thread::spawn(move || {
-                        let search_results = iterative_deepening(
+                        let search_results = negamax::iterative_deepening(
+                            &mut tt_clone.lock().unwrap(),
                             &mut uci_pos_clone.end_position.clone(),
                             &search_params,
                             stop_flag,
@@ -193,10 +196,10 @@ impl Engine {
                             uci::send_to_gui(format!("bestmove {best_move}").as_str());
                         } else {
                             match search_results.game_status {
-                                Checkmate => {
+                                GameStatus::Checkmate => {
                                     uci::send_to_gui("info score mate 0");
                                 }
-                                Stalemate => {
+                                GameStatus::Stalemate => {
                                     uci::send_to_gui("info score 0");
                                 }
                                 _ => (),
@@ -245,22 +248,22 @@ impl Engine {
             match name.to_lowercase().as_str() {
                 "hash" => {
                     if let Ok(v) = value.parse::<usize>() {
-                        set_hash_size(v);
+                        config::set_hash_size(v);
                     }
                 }
                 "contempt" => {
                     if let Ok(v) = value.parse::<isize>() {
-                        set_contempt(v);
+                        config::set_contempt(v);
                     }
                 }
                 "usebook" => {
                     if let Ok(v) = value.parse::<bool>() {
-                        set_use_book(v);
+                        config::set_use_book(v);
                     }
                 }
                 "maxbookdepth" => {
                     if let Ok(v) = value.parse::<usize>() {
-                        set_max_book_depth(v);
+                        config::set_max_book_depth(v);
                     }
                 }
                 _ => {

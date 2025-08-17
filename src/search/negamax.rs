@@ -5,7 +5,7 @@ use crate::engine::uci;
 use crate::eval::evaluation;
 use crate::eval::evaluation::{has_three_fold_repetition, GameStatus};
 use crate::search::move_ordering::MoveOrderer;
-use crate::search::transposition_table::{BoundType, TRANSPOSITION_TABLE};
+use crate::search::transposition_table::{BoundType, TranspositionTable};
 use crate::search::{move_ordering, quiescence};
 use crate::utils::move_formatter;
 use crate::utils::move_formatter::FormatMove;
@@ -79,6 +79,7 @@ impl SearchParams {
 }
 pub struct SearchContext<'a> {
     pub node_counter: NodeCounter,
+    transposition_table: &'a mut TranspositionTable,
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
     repetition_key_stack: Vec<RepetitionKey>,
@@ -86,16 +87,18 @@ pub struct SearchContext<'a> {
     max_depth: usize,
 }
 
-impl SearchContext<'_> {
+impl<'a> SearchContext<'a> {
     pub fn new(
-        search_params: &SearchParams,
+        transposition_table: &'a mut TranspositionTable,
+        search_params: &'a SearchParams,
         stop_flag: Arc<AtomicBool>,
         repetition_keys: Vec<RepetitionKey>,
         move_orderer: MoveOrderer,
         max_depth: usize,
-    ) -> SearchContext<'_> {
-        SearchContext {
+    ) -> SearchContext<'a> {
+        Self {
             node_counter: NodeCounter::new(),
+            transposition_table,
             search_params,
             stop_flag,
             repetition_key_stack: repetition_keys,
@@ -138,6 +141,7 @@ impl RepetitionKey {
 }
 
 pub fn iterative_deepening(
+    transposition_table: &mut TranspositionTable,
     position: &mut Position,
     search_params: &SearchParams,
     stop_flag: Arc<AtomicBool>,
@@ -146,6 +150,7 @@ pub fn iterative_deepening(
     let mut search_results: Option<SearchResults> = None;
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(
+            transposition_table,
             search_params,
             stop_flag.clone(),
             Vec::from(repetition_keys),
@@ -183,7 +188,7 @@ pub fn iterative_deepening(
                 || is_mating_score(iteration_search_results.score);
             if is_checkmate {
                 info!("Found mate at depth {iteration_max_depth} - stopping search");
-                TRANSPOSITION_TABLE.clear();
+                search_context.transposition_table.clear();
                 break;
             }
         } else if search_results.is_some() {
@@ -210,7 +215,7 @@ fn negamax(
         search_context.request_stop_search();
         return 0;
     }
-    let ttable_entry = TRANSPOSITION_TABLE.probe(position.hash_code());
+    let ttable_entry = search_context.transposition_table.probe(position.hash_code());
     if let Some(entry) = ttable_entry {
         if entry.depth >= depth {
             match entry.bound_type {
@@ -314,7 +319,7 @@ fn negamax(
         }
         if best_move.is_some() {
             if !search_context.stop_search_requested() {
-                TRANSPOSITION_TABLE.insert(
+                search_context.transposition_table.insert(
                     position,
                     depth,
                     alpha_original,
@@ -327,7 +332,7 @@ fn negamax(
             best_score =
                 evaluation::evaluate(position, ply, search_context.repetition_key_stack.as_ref());
             if !search_context.stop_search_requested() {
-                TRANSPOSITION_TABLE.insert(
+                search_context.transposition_table.insert(
                     position,
                     depth,
                     alpha_original,
@@ -351,7 +356,14 @@ fn negamax(
             );
         }
         if !search_context.stop_search_requested() {
-            TRANSPOSITION_TABLE.insert(position, 0, alpha_original, beta_original, score, None);
+            search_context.transposition_table.insert(
+                position,
+                0,
+                alpha_original,
+                beta_original,
+                score,
+                None,
+            );
         }
         score
     }
@@ -374,7 +386,12 @@ fn create_search_results(
 
     let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(position, pv).unwrap();
     let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth {
-        extend_principal_variation(position, &pv_with_positions, max_depth)
+        extend_principal_variation(
+            search_context.transposition_table,
+            position,
+            &pv_with_positions,
+            max_depth,
+        )
     } else {
         pv_with_positions
     };
@@ -389,6 +406,7 @@ fn create_search_results(
 }
 
 fn extend_principal_variation(
+    transposition_table: &TranspositionTable,
     position: &Position,
     current_pv: &[(Position, Move)],
     max_depth: usize,
@@ -400,7 +418,7 @@ fn extend_principal_variation(
     let mut visited_positions = HashSet::new();
     let mut num_missing_moves = max_depth - current_pv.len();
 
-    while let Some(entry) = TRANSPOSITION_TABLE.probe(current_position.hash_code()) {
+    while let Some(entry) = transposition_table.probe(current_position.hash_code()) {
         if num_missing_moves == 0
             || entry.depth < num_missing_moves
             || entry.bound_type != BoundType::Exact
@@ -526,6 +544,7 @@ mod tests {
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams {
                 allocated_time_millis: usize::MAX,
@@ -549,6 +568,7 @@ mod tests {
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
@@ -572,6 +592,7 @@ mod tests {
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
@@ -595,6 +616,7 @@ mod tests {
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
@@ -619,6 +641,7 @@ mod tests {
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(3),
             Arc::new(AtomicBool::new(false)),
@@ -643,6 +666,7 @@ mod tests {
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(3),
             Arc::new(AtomicBool::new(false)),
@@ -670,6 +694,7 @@ mod tests {
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(5),
             Arc::new(AtomicBool::new(false)),
@@ -691,48 +716,13 @@ mod tests {
         );
     }
 
-    /// Test case for verifying if the search algorithm can correctly identify and handle a checkmate scenario in four moves.
-    ///
-    /// This test is based on a FEN string representing a chess position from which a "mate-in-four" can occur.
-    /// The function runs an iterative deepening search algorithm with a specified depth and validates the resulting move sequence,
-    /// search results, and the correctness of the algorithm's evaluation against the expected values.
-    ///
-    /// # Steps Performed:
-    /// - The given FEN string (`fen`) is used to initialize a `Position` object.
-    /// - The `iterative_deepening` function is invoked to search the position up to a depth of 7, simulating a scenario
-    ///   where the algorithm should identify a "mate-in-four".
-    /// - The sequence of moves leading to the checkmate is compared with the expected output using `assert_eq!`.
-    /// - The full search results, including position, score, depth, principal variation (`pv`), and game status
-    ///   (`Checkmate`), are tested for correctness using `test_eq`.
-    ///
-    /// # Test Parameters:
-    /// - FEN string: `"4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1"`
-    ///     - This represents a position where white has a clear forced checkmate sequence in four moves.
-    ///     - "w" indicates that white is to move.
-    /// - Search Depth: `7`
-    ///     - The test checks the algorithm's capabilities to compute up to seven ply to retain accuracy.
-    ///
-    /// # Validations:
-    /// - The move sequence (`long_format_moves`) leading to the checkmate is expected to be:
-    ///     `"♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,♗f7xg6#"`
-    /// - The search results, encapsulated in the `SearchResults` structure, are expected to match:
-    ///     - Position: Original position object derived from FEN.
-    ///     - Score: `MAXIMUM_SCORE - 7`
-    ///         - Indicates the estimated score for the winning move, adjusted for the number of moves remaining.
-    ///     - Depth: `7`
-    ///         - Confirms the depth to which the position was searched in the test.
-    ///     - Principal Variation (`pv`): Expected to be empty (`vec![]`) in this case.
-    ///     - Game Status: `Checkmate`
-    ///
-    /// # Importance:
-    /// This test ensures that the chess engine's search algorithm can correctly evaluate and play out forced checkmate sequences,
-    /// a critical functionality for any chess evaluation engine. It also confirms robustness across deeper search depths and complex scenarios.
     #[test]
     fn test_mate_in_four() {
         setup();
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(7),
             Arc::new(AtomicBool::new(false)),
@@ -760,6 +750,7 @@ mod tests {
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(5),
             Arc::new(AtomicBool::new(false)),
@@ -787,6 +778,7 @@ mod tests {
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(2),
             Arc::new(AtomicBool::new(false)),
@@ -801,6 +793,7 @@ mod tests {
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(5),
             Arc::new(AtomicBool::new(false)),
@@ -815,6 +808,7 @@ mod tests {
         let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
@@ -831,6 +825,7 @@ mod tests {
 
         let mut in_progress_position: Position = original_position.clone();
         let in_progress_search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut in_progress_position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
@@ -851,6 +846,7 @@ mod tests {
         let mut drawn_position: Position = original_position.clone();
         drawn_position.make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
         let drawn_position_search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut drawn_position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
@@ -920,21 +916,21 @@ mod tests {
             go_options_str,
         );
         let _pv_moves_2 = search_results_2.pv_moves_as_string();
-        assert_eq!(search_results_2.pv_moves_as_string(), "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
+        assert_eq!(search_results_2.pv_moves_as_string(), "a5-e1,b6-d8,g8-g7,d8-f6,g7-g8");
 
         let search_results_3 = uci::run_uci_position(
             &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"),
             go_options_str,
         );
         let pv_moves_3 = search_results_3.pv_moves_as_string();
-        assert_eq!(pv_moves_3, "d5-e4,c2-d1,a5-c3,d1-e2,c3-c2");
+        assert_eq!(pv_moves_3, "d5-e4,c2-d1,e4-f3,d1-c2,a5-e1");
 
         let search_results_4 = uci::run_uci_position(
             &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"),
             go_options_str,
         );
         let pv_moves_4 = search_results_4.pv_moves_as_string();
-        assert_eq!(pv_moves_4, "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
+        assert_eq!(pv_moves_4, "a5-e1,b6-d8,g8-g7,d8-f6,g7-g8");
 
         //TRANSPOSITION_TABLE.clear();
         let search_results_5 = uci::run_uci_position(
@@ -987,8 +983,6 @@ mod tests {
                 game_status: GameStatus::DrawnByThreefoldRepetition,
             },
         );
-
-        TRANSPOSITION_TABLE.clear();
 
         config::set_contempt(1000);
         let drawn_search_results =
@@ -1084,6 +1078,7 @@ mod tests {
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
         let mut position: Position = Position::from(fen);
         let search_results = iterative_deepening(
+            &mut TranspositionTable::new(1),
             &mut position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
