@@ -3,6 +3,7 @@ use crate::core::position::Position;
 use crate::core::r#move::{Move, RawMove};
 use crate::search;
 use crate::search::negamax::{RepetitionKey, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
+use crate::search::transposition_table::TranspositionTable;
 use crate::utils::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -28,17 +29,10 @@ pub struct UciPosition {
 
 impl UciPosition {
     pub fn all_game_positions(&self) -> Vec<Position> {
-        let game_positions: Vec<_> = self
-            .position_move_pairs
-            .iter()
-            .flat_map(|pairs| pairs.iter().map(|pm| pm.0))
-            .collect();
+        let game_positions: Vec<_> =
+            self.position_move_pairs.iter().flat_map(|pairs| pairs.iter().map(|pm| pm.0)).collect();
 
-        [
-            vec![self.given_position].as_slice(),
-            game_positions.as_slice(),
-        ]
-        .concat()
+        [vec![self.given_position].as_slice(), game_positions.as_slice()].concat()
     }
 }
 
@@ -98,22 +92,14 @@ pub(crate) fn parse_position(input: &str) -> Option<UciPosition> {
     fn create_uci_position(position: &Position, captures: &Captures) -> Option<UciPosition> {
         captures
             .get(3)
-            .map_or(Some(vec![]), |m| {
-                util::replay_move_string(position, m.as_str().to_string())
-            })
+            .map_or(Some(vec![]), |m| util::replay_move_string(position, m.as_str().to_string()))
             .map(|moves| UciPosition {
                 given_position: *position,
-                end_position: if !moves.is_empty() {
-                    moves.last().unwrap().0
-                } else {
-                    *position
-                },
+                end_position: if !moves.is_empty() { moves.last().unwrap().0 } else { *position },
                 position_move_pairs: Some(moves),
                 repetition_keys: util::create_repetition_keys(
                     position,
-                    captures
-                        .get(3)
-                        .map_or("".to_string(), |m| m.as_str().to_string()),
+                    captures.get(3).map_or("".to_string(), |m| m.as_str().to_string()),
                 )
                 .unwrap(),
             })
@@ -147,9 +133,8 @@ pub fn create_search_params(
             let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
             let inc_per_move_millis: usize =
                 uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
-            let remaining_number_of_moves_to_go: usize = uci_go_options
-                .moves_to_go
-                .map_or(30, |moves_to_go| moves_to_go);
+            let remaining_number_of_moves_to_go: usize =
+                uci_go_options.moves_to_go.map_or(30, |moves_to_go| moves_to_go);
 
             let base_time = remaining_time_millis / remaining_number_of_moves_to_go;
             // Add a portion of the increment (50% here)
@@ -187,6 +172,7 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);
     search::negamax::iterative_deepening(
+        &mut TranspositionTable::new_using_config(),
         &mut uci_position.end_position.clone(),
         &search_params,
         Arc::new(AtomicBool::new(false)),
@@ -220,10 +206,8 @@ mod tests {
         )
         .is_some());
         assert!(parse_position("position startpos moves e2e4 e7e5").is_some());
-        assert!(
-            parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5")
-                .is_some()
-        );
+        assert!(parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5")
+            .is_some());
         assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
         assert!(parse_position("position startpos moves e2e3 e7e5 b1c3 d7d5 a2a4 f8a3 b2a3 b8c6 f1b5 d8h4 c3d5 h4f2 e1f2    c8g1").is_none());
     }

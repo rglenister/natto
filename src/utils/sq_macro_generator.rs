@@ -5,12 +5,7 @@ fn generate_macros() {
     for row in 0..8 {
         for col in 0..8 {
             let square = row * 8 + col;
-            println!(
-                "    (\"{}{}\") => {{ {} }};",
-                (b'a' + col) as char,
-                row + 1,
-                square
-            );
+            println!("    (\"{}{}\") => {{ {} }};", (b'a' + col) as char, row + 1, square);
         }
     }
     println!("    ($other:expr) => {{");

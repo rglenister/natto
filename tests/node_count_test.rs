@@ -31,11 +31,7 @@ fn test_fens() {
     for test in test_cases {
         let position = fen::parse(test.fen).expect("Failed to parse FEN");
         let node_count_stats = perf_t::count_nodes(&position, test.depth);
-        assert_eq!(
-            node_count_stats.node_count, test.nodes,
-            "Test {}",
-            test_number
-        );
+        assert_eq!(node_count_stats.node_count, test.nodes, "Test {}", test_number);
         test_number += 1;
         println!("{:?}", node_count_stats);
     }

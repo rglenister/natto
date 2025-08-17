@@ -4,12 +4,11 @@ use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
 use crate::engine::config;
 pub use crate::search::negamax::MAXIMUM_SCORE;
-use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
-    TranspositionTable::new_using_config()
-});
+// pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
+//     TranspositionTable::new_using_config()
+// });
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundType {
@@ -33,7 +32,6 @@ pub struct TranspositionTable {
 }
 
 impl TranspositionTable {
-
     pub fn new(size_in_mb: usize) -> Self {
         let entry_size = 2 * size_of::<TTEntry>();
         let requested_num_entries = size_in_mb * 1024 * 1024 / entry_size;
@@ -82,13 +80,7 @@ impl TranspositionTable {
             }
         };
         if do_store {
-            self.store(
-                position.hash_code(),
-                mov,
-                depth as u8,
-                score as i32,
-                bound_type,
-            );
+            self.store(position.hash_code(), mov, depth as u8, score as i32, bound_type);
             //#[cfg(debug_assertions)]
             if cfg!(debug_assertions) {
                 let entry = self.probe(position.hash_code()).unwrap();
@@ -167,18 +159,15 @@ impl TranspositionTable {
 
         match best_move {
             Move::Basic { base_move } => pack_base_move_and_type(base_move, 0),
-            Move::EnPassant {
-                base_move,
-                capture_square,
-            } => pack_base_move_and_type(base_move, 1) | (capture_square as u64 & 0x3f),
-            Move::Promotion {
-                base_move,
-                promote_to,
-            } => pack_base_move_and_type(base_move, 2) | (promote_to as u64 & 0x3f),
-            Move::Castling {
-                base_move,
-                board_side,
-            } => pack_base_move_and_type(base_move, 3) | (board_side as u64 & 0x3f),
+            Move::EnPassant { base_move, capture_square } => {
+                pack_base_move_and_type(base_move, 1) | (capture_square as u64 & 0x3f)
+            }
+            Move::Promotion { base_move, promote_to } => {
+                pack_base_move_and_type(base_move, 2) | (promote_to as u64 & 0x3f)
+            }
+            Move::Castling { base_move, board_side } => {
+                pack_base_move_and_type(base_move, 3) | (board_side as u64 & 0x3f)
+            }
         }
     }
 
@@ -190,26 +179,14 @@ impl TranspositionTable {
 
         match move_type {
             0 => Move::Basic {
-                base_move: BaseMove {
-                    from: from as u8,
-                    to: to as u8,
-                    capture: is_capture,
-                },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
             },
             1 => Move::EnPassant {
-                base_move: BaseMove {
-                    from: from as u8,
-                    to: to as u8,
-                    capture: is_capture,
-                },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 capture_square: (move_packed & 0x3F) as u8,
             },
             2 => Move::Promotion {
-                base_move: BaseMove {
-                    from: from as u8,
-                    to: to as u8,
-                    capture: is_capture,
-                },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 promote_to: match move_packed & 0x3F {
                     1 => PieceType::Knight,
                     2 => PieceType::Bishop,
@@ -219,11 +196,7 @@ impl TranspositionTable {
                 },
             },
             3 => Move::Castling {
-                base_move: BaseMove {
-                    from: from as u8,
-                    to: to as u8,
-                    capture: is_capture,
-                },
+                base_move: BaseMove { from: from as u8, to: to as u8, capture: is_capture },
                 board_side: match move_packed & 0x3F {
                     0 => BoardSide::KingSide,
                     1 => BoardSide::QueenSide,
@@ -242,11 +215,8 @@ impl TranspositionTable {
         bound: BoundType,
     ) -> (u64, u64) {
         let packed1 = zobrist;
-        let packed2 = if let Some(best_move) = best_move {
-            Self::pack_move(best_move)
-        } else {
-            0
-        } | ((depth as u64) << 21)
+        let packed2 = if let Some(best_move) = best_move { Self::pack_move(best_move) } else { 0 }
+            | ((depth as u64) << 21)
             | (((score + MAXIMUM_SCORE as i32) as u64 & 0x0FFFFFFF) << 29)
             | ((bound as u64) << 57);
         (packed1, packed2)
@@ -255,11 +225,7 @@ impl TranspositionTable {
     fn unpack_entry(packed1: u64, packed2: u64) -> Option<TTEntry> {
         let zobrist = packed1;
         let has_move = (packed2 & 0x1fffff) != 0;
-        let best_move = if has_move {
-            Some(Self::unpack_mv(packed2))
-        } else {
-            None
-        };
+        let best_move = if has_move { Some(Self::unpack_mv(packed2)) } else { None };
         let depth = ((packed2 >> 21) & 0xFF) as u8;
         let score = ((packed2 >> 29) & 0x0FFFFFFF) as i32 - MAXIMUM_SCORE as i32;
         let bound = match (packed2 >> 57) & 0x0F {
@@ -304,13 +270,7 @@ mod tests {
         let position = Position::new_game();
         ttable.store(
             position.hash_code(),
-            Option::from(Move::Basic {
-                base_move: BaseMove {
-                    from: 63,
-                    to: 0,
-                    capture: true,
-                },
-            }),
+            Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }),
             8,
             -100,
             LowerBound,
@@ -319,13 +279,7 @@ mod tests {
         assert_eq!(entry.zobrist, position.hash_code());
         assert_eq!(
             entry.best_move,
-            Some(Move::Basic {
-                base_move: BaseMove {
-                    from: 63,
-                    to: 0,
-                    capture: true
-                }
-            })
+            Some(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } })
         );
         assert_eq!(entry.depth, 8);
         assert_eq!(entry.score, -100);
@@ -338,13 +292,7 @@ mod tests {
         let position = Position::new_game();
         ttable.store(
             position.hash_code(),
-            Option::from(Move::Basic {
-                base_move: BaseMove {
-                    from: 63,
-                    to: 0,
-                    capture: true,
-                },
-            }),
+            Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }),
             8,
             -100,
             LowerBound,
@@ -384,11 +332,7 @@ mod tests {
             let packed = TranspositionTable::pack_entry(
                 packed1,
                 Option::from(Move::Basic {
-                    base_move: BaseMove {
-                        from: 12,
-                        to: 16,
-                        capture: true,
-                    },
+                    base_move: BaseMove { from: 12, to: 16, capture: true },
                 }),
                 2,
                 21,
@@ -398,13 +342,7 @@ mod tests {
             assert_eq!(unpacked.zobrist, packed1);
             assert_eq!(
                 unpacked.best_move,
-                Some(Move::Basic {
-                    base_move: BaseMove {
-                        from: 12,
-                        to: 16,
-                        capture: true
-                    }
-                })
+                Some(Move::Basic { base_move: BaseMove { from: 12, to: 16, capture: true } })
             );
             assert_eq!(unpacked.depth, 2);
             assert_eq!(unpacked.score, 21);
@@ -430,13 +368,8 @@ mod tests {
             use crate::core::r#move::Move::{Castling, EnPassant, Promotion};
             #[test]
             fn test_basic_move() {
-                let basic_move = Move::Basic {
-                    base_move: BaseMove {
-                        from: 63,
-                        to: 0,
-                        capture: false,
-                    },
-                };
+                let basic_move =
+                    Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: false } };
                 let packed = TranspositionTable::pack_move(basic_move);
                 let unpacked = TranspositionTable::unpack_mv(packed);
                 assert_eq!(basic_move, unpacked);
@@ -444,11 +377,7 @@ mod tests {
             #[test]
             fn test_en_passant_move() {
                 let en_passant_move = EnPassant {
-                    base_move: BaseMove {
-                        from: 63,
-                        to: 0,
-                        capture: true,
-                    },
+                    base_move: BaseMove { from: 63, to: 0, capture: true },
                     capture_square: 40,
                 };
                 let packed = TranspositionTable::pack_move(en_passant_move);
@@ -458,11 +387,7 @@ mod tests {
             #[test]
             fn test_promotion_move() {
                 let promotion_move = Promotion {
-                    base_move: BaseMove {
-                        from: 63,
-                        to: 0,
-                        capture: false,
-                    },
+                    base_move: BaseMove { from: 63, to: 0, capture: false },
                     promote_to: Rook,
                 };
                 let packed = TranspositionTable::pack_move(promotion_move);
@@ -473,11 +398,7 @@ mod tests {
             fn test_castling_move() {
                 // capture must be set to false otherwise the test will fail - castling never captures
                 let castling_move = Castling {
-                    base_move: BaseMove {
-                        from: 63,
-                        to: 0,
-                        capture: false,
-                    },
+                    base_move: BaseMove { from: 63, to: 0, capture: false },
                     board_side: KingSide,
                 };
                 let packed = TranspositionTable::pack_move(castling_move);
