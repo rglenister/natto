@@ -6,9 +6,6 @@ use crate::engine::config;
 pub use crate::search::negamax::MAXIMUM_SCORE;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-// pub static TRANSPOSITION_TABLE: Lazy<TranspositionTable> = Lazy::new(|| {
-//     TranspositionTable::new_using_config()
-// });
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundType {
@@ -33,7 +30,7 @@ pub struct TranspositionTable {
 
 impl TranspositionTable {
     pub fn new(size_in_mb: usize) -> Self {
-        let entry_size = 2 * size_of::<TTEntry>();
+        let entry_size = 2 * size_of::<AtomicU64>();
         let requested_num_entries = size_in_mb * 1024 * 1024 / entry_size;
         let actual_num_entries = Self::prev_power_of_two(requested_num_entries);
         let table_size_in_bytes = actual_num_entries * entry_size;
