@@ -56,22 +56,15 @@ fn fetch_opening_moves(fen: &str) -> Result<Vec<LiChessMoveData>, ErrorKind> {
     let url = format!("https://explorer.lichess.ovh/masters?fen={fen}");
 
     let response: LiChessOpeningResponse = reqwest::blocking::get(&url)
-        .map_err(|e| ErrorKind::CommunicationsFailed {
-            message: e.to_string(),
-        })?
+        .map_err(|e| ErrorKind::CommunicationsFailed { message: e.to_string() })?
         .json()
-        .map_err(|e| ErrorKind::CommunicationsFailed {
-            message: e.to_string(),
-        })?;
+        .map_err(|e| ErrorKind::CommunicationsFailed { message: e.to_string() })?;
 
     Ok(response.moves)
 }
 
 fn weighted_random_move(moves: &[LiChessMoveData]) -> String {
-    let total_games: u32 = moves
-        .iter()
-        .map(|m| (m.white + m.black + m.draws) as u32)
-        .sum();
+    let total_games: u32 = moves.iter().map(|m| (m.white + m.black + m.draws) as u32).sum();
 
     let mut rng = rng();
     let mut pick = rng.random_range(0..total_games);
@@ -87,11 +80,7 @@ fn weighted_random_move(moves: &[LiChessMoveData]) -> String {
 }
 fn map_castling_move_to_uci_format<'a>(move_string: &'a str, position: &Position) -> &'a str {
     let king_on_home_square = |square_index: usize, piece_color: PieceColor| -> bool {
-        position.board().get_piece(square_index)
-            == Some(Piece {
-                piece_color,
-                piece_type: King,
-            })
+        position.board().get_piece(square_index) == Some(Piece { piece_color, piece_type: King })
     };
     let white_king_on_home_square = king_on_home_square(sq!("e1"), White);
     let black_king_on_home_square = king_on_home_square(sq!("e8"), Black);
@@ -105,9 +94,8 @@ fn map_castling_move_to_uci_format<'a>(move_string: &'a str, position: &Position
 }
 
 fn parse_move(move_string: &str) -> Result<RawMove, ErrorKind> {
-    util::parse_move(move_string.to_string()).ok_or(ErrorKind::InvalidMoveString {
-        move_string: move_string.to_string(),
-    })
+    util::parse_move(move_string.to_string())
+        .ok_or(ErrorKind::InvalidMoveString { move_string: move_string.to_string() })
 }
 
 fn validate_move(position: &Position, raw_chess_move: RawMove) -> Result<Move, ErrorKind> {

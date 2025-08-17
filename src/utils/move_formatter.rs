@@ -46,10 +46,7 @@ pub struct MoveFormatter {
 }
 
 pub fn format_move_list(position: &Position, search_results: &SearchResults) -> String {
-    LONG_FORMATTER
-        .format_move_list(position, &search_results.pv)
-        .unwrap()
-        .join(",")
+    LONG_FORMATTER.format_move_list(position, &search_results.pv).unwrap().join(",")
 }
 
 impl FormatMove for MoveFormatter {
@@ -78,10 +75,7 @@ impl MoveFormatter {
         next_position: &Position,
     ) -> String {
         match mov {
-            Move::Castling {
-                base_move: _,
-                board_side,
-            } => {
+            Move::Castling { base_move: _, board_side } => {
                 if *board_side == KingSide {
                     "0-0".to_string()
                 } else {
@@ -148,10 +142,7 @@ impl MoveFormatter {
 
     fn get_promotion_piece(&self, position: &Position, mov: &Move) -> String {
         match mov {
-            Move::Promotion {
-                base_move: _,
-                promote_to,
-            } => PIECE_CHAR_TO_UNICODE[&Piece {
+            Move::Promotion { base_move: _, promote_to } => PIECE_CHAR_TO_UNICODE[&Piece {
                 piece_color: position.side_to_move(),
                 piece_type: *promote_to,
             }
@@ -163,10 +154,7 @@ impl MoveFormatter {
 
     fn get_en_passant_indicator(&self, mov: &Move) -> String {
         match mov {
-            Move::EnPassant {
-                base_move: _,
-                capture_square: _,
-            } => "ep".to_string(),
+            Move::EnPassant { base_move: _, capture_square: _ } => "ep".to_string(),
             _ => String::new(),
         }
     }
@@ -174,9 +162,7 @@ impl MoveFormatter {
     fn get_result(&self, next_position: &Position) -> String {
         match evaluation::get_game_status(next_position, &[]) {
             GameStatus::Checkmate => "#".to_string(),
-            _ => "+"
-                .repeat(evaluation::check_count(next_position))
-                .to_string(),
+            _ => "+".repeat(evaluation::check_count(next_position)).to_string(),
         }
     }
 
@@ -222,10 +208,7 @@ impl MoveFormatter {
     }
 
     fn get_moved_piece(&self, position: &Position, mov: &Move) -> Piece {
-        position
-            .board()
-            .get_piece(mov.get_base_move().from as usize)
-            .unwrap()
+        position.board().get_piece(mov.get_base_move().from as usize).unwrap()
     }
 }
 
@@ -239,19 +222,10 @@ mod tests {
         let raw_moves_string = "e2e4 e7e5".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "e2-e4,e7-e5"
         );
-        assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
-            "e4,e5"
-        );
+        assert_eq!(SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","), "e4,e5");
     }
 
     #[test]
@@ -260,17 +234,11 @@ mod tests {
         let raw_moves_string = "a7a8n".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "a7-a8\u{2658}"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "a8\u{2658}"
         );
     }
@@ -281,17 +249,11 @@ mod tests {
         let raw_moves_string = "a2a1q".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "a2-a1\u{265B}+"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "a1\u{265B}+"
         );
     }
@@ -302,17 +264,11 @@ mod tests {
         let raw_moves_string = "a8h1".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{265D}a8xh1"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{265D}xh1"
         );
     }
@@ -323,17 +279,11 @@ mod tests {
         let raw_moves_string = "e4d3".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "e4xd3ep"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "exd3ep"
         );
     }
@@ -344,17 +294,11 @@ mod tests {
         let raw_moves_string = "h8h4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{265B}h8-h4+"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{265B}h4+"
         );
     }
@@ -365,17 +309,11 @@ mod tests {
         let raw_moves_string = "c3a4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{265E}c3-a4++"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{265E}a4++"
         );
     }
@@ -386,17 +324,11 @@ mod tests {
         let raw_moves_string = "g2g1".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2656}g2-g1#"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2656}g1#"
         );
     }
@@ -407,17 +339,11 @@ mod tests {
         let raw_moves_string = "a4e4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2656}a4-e4+"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2656}ae4+"
         );
     }
@@ -428,17 +354,11 @@ mod tests {
         let raw_moves_string = "g5g4".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2656}g5-g4+"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2656}5g4+"
         );
     }
@@ -449,17 +369,11 @@ mod tests {
         let raw_moves_string = "h4e1".to_string();
         let moves = util::create_move_list(&position, raw_moves_string).unwrap();
         assert_eq!(
-            LONG_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            LONG_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2655}h4-e1"
         );
         assert_eq!(
-            SHORT_FORMATTER
-                .format_move_list(&position, &moves)
-                .unwrap()
-                .join(","),
+            SHORT_FORMATTER.format_move_list(&position, &moves).unwrap().join(","),
             "\u{2655}h4e1"
         );
     }

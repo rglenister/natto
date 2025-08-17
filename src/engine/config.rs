@@ -21,11 +21,7 @@ pub fn get_uci_commands() -> Option<Vec<String>> {
 }
 
 pub fn get_use_book() -> bool {
-    RUNTIME_CONFIG
-        .use_book
-        .read()
-        .unwrap()
-        .unwrap_or(CONFIG.use_book)
+    RUNTIME_CONFIG.use_book.read().unwrap().unwrap_or(CONFIG.use_book)
 }
 
 pub fn set_use_book(use_book: bool) {
@@ -33,11 +29,7 @@ pub fn set_use_book(use_book: bool) {
 }
 
 pub fn get_max_book_depth() -> usize {
-    RUNTIME_CONFIG
-        .max_book_depth
-        .read()
-        .unwrap()
-        .unwrap_or(CONFIG.max_book_depth)
+    RUNTIME_CONFIG.max_book_depth.read().unwrap().unwrap_or(CONFIG.max_book_depth)
 }
 
 pub fn set_max_book_depth(max_book_depth: usize) {
@@ -53,11 +45,7 @@ pub fn set_contempt(contempt: isize) {
 }
 
 pub fn get_hash_size() -> usize {
-    RUNTIME_CONFIG
-        .hash_size
-        .read()
-        .unwrap()
-        .unwrap_or(CONFIG.hash_size)
+    RUNTIME_CONFIG.hash_size.read().unwrap().unwrap_or(CONFIG.hash_size)
 }
 
 pub fn set_hash_size(hash_size: usize) {
@@ -239,7 +227,7 @@ pub mod tests {
             log_level: LevelFilter::Info,
             use_book: true,
             max_book_depth: 10,
-            hash_size: 1048576,
+            hash_size: 100,
             perft: false,
             uci_commands: None,
         }
@@ -283,10 +271,10 @@ pub mod tests {
 
     #[test]
     fn test_read_write_hash_size() {
-        assert_eq!(get_hash_size(), 1048576);
-        set_hash_size(1048577);
-        assert_eq!(get_hash_size(), 1048577);
-        set_hash_size(1048576);
+        assert_eq!(get_hash_size(), 100);
+        set_hash_size(2);
+        assert_eq!(get_hash_size(), 2);
+        set_hash_size(100);
     }
 
     #[test]
