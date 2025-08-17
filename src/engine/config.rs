@@ -239,7 +239,7 @@ pub mod tests {
             log_level: LevelFilter::Info,
             use_book: true,
             max_book_depth: 10,
-            hash_size: 1048576,
+            hash_size: 100,
             perft: false,
             uci_commands: None,
         }
@@ -283,10 +283,10 @@ pub mod tests {
 
     #[test]
     fn test_read_write_hash_size() {
-        assert_eq!(get_hash_size(), 1048576);
-        set_hash_size(1048577);
-        assert_eq!(get_hash_size(), 1048577);
-        set_hash_size(1048576);
+        assert_eq!(get_hash_size(), 100);
+        set_hash_size(2);
+        assert_eq!(get_hash_size(), 2);
+        set_hash_size(100);
     }
 
     #[test]

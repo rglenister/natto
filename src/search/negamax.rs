@@ -101,7 +101,7 @@ impl SearchContext<'_> {
         repetition_keys: Vec<RepetitionKey>,
         move_orderer: MoveOrderer,
         max_depth: usize,
-    ) -> SearchContext {
+    ) -> SearchContext<'_> {
         SearchContext {
             search_params,
             stop_flag,
