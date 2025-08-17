@@ -17,14 +17,9 @@ use log::{debug, error, info};
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::Arc;
 
 include!("../utils/generated_macro.rs");
-
-static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
-    let node_counter = NodeCounter::new();
-    RwLock::new(node_counter)
-});
 
 pub const MAXIMUM_SEARCH_DEPTH: usize = 63;
 
@@ -83,6 +78,7 @@ impl SearchParams {
     }
 }
 pub struct SearchContext<'a> {
+    pub node_counter: NodeCounter,
     transposition_table: &'a mut TranspositionTable,
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
@@ -101,6 +97,7 @@ impl<'a> SearchContext<'a> {
         max_depth: usize,
     ) -> SearchContext<'a> {
         Self {
+            node_counter: NodeCounter::new(),
             transposition_table,
             search_params,
             stop_flag,
@@ -116,6 +113,11 @@ impl<'a> SearchContext<'a> {
 
     fn request_stop_search(&self) {
         self.stop_flag.store(true, Ordering::Relaxed);
+    }
+
+    fn used_allocated_move_time(&self) -> bool {
+        self.node_counter.stats().elapsed_time.as_millis()
+            > self.search_params.allocated_time_millis as u128
     }
 }
 
@@ -138,12 +140,6 @@ impl RepetitionKey {
     }
 }
 
-pub fn increment_node_counter() -> NodeCountStats {
-    let node_counter = NODE_COUNTER.read().unwrap();
-    node_counter.increment();
-    node_counter_stats()
-}
-
 pub fn iterative_deepening(
     transposition_table: &mut TranspositionTable,
     position: &mut Position,
@@ -151,7 +147,6 @@ pub fn iterative_deepening(
     stop_flag: Arc<AtomicBool>,
     repetition_keys: &[RepetitionKey],
 ) -> SearchResults {
-    reset_node_counter();
     let mut search_results: Option<SearchResults> = None;
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(
@@ -182,8 +177,12 @@ pub fn iterative_deepening(
                 iteration_search_results.clone()
             );
             uci::send_to_gui(
-                format_uci_info(position, &iteration_search_results, &node_counter_stats())
-                    .as_str(),
+                format_uci_info(
+                    position,
+                    &iteration_search_results,
+                    &search_context.node_counter.stats(),
+                )
+                .as_str(),
             );
             let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate
                 || is_mating_score(iteration_search_results.score);
@@ -208,11 +207,11 @@ fn negamax(
     mut alpha: isize,
     mut beta: isize,
 ) -> isize {
-    increment_node_counter();
+    search_context.node_counter.increment();
     let ply = search_context.max_depth - depth;
     let alpha_original = alpha;
     let beta_original = beta;
-    if used_allocated_move_time(search_context.search_params) {
+    if search_context.used_allocated_move_time() {
         search_context.request_stop_search();
         return 0;
     }
@@ -348,7 +347,13 @@ fn negamax(
         let mut score =
             evaluation::evaluate(position, ply, search_context.repetition_key_stack.as_ref());
         if !is_terminal_score(score) {
-            score = quiescence::quiescence_search(position, (ply + 1) as isize, alpha, beta);
+            score = quiescence::quiescence_search(
+                position,
+                (ply + 1) as isize,
+                search_context,
+                alpha,
+                beta,
+            );
         }
         if !search_context.stop_search_requested() {
             search_context.transposition_table.insert(
@@ -509,19 +514,6 @@ fn is_drawing_score(score: isize) -> bool {
 
 fn is_terminal_score(score: isize) -> bool {
     is_mating_score(score) || is_drawing_score(score)
-}
-
-fn used_allocated_move_time(search_params: &SearchParams) -> bool {
-    let stats = node_counter_stats();
-    stats.elapsed_time.as_millis() > search_params.allocated_time_millis.try_into().unwrap()
-}
-
-fn reset_node_counter() {
-    NODE_COUNTER.write().unwrap().reset();
-}
-
-fn node_counter_stats() -> NodeCountStats {
-    NODE_COUNTER.read().unwrap().stats()
 }
 
 #[cfg(test)]

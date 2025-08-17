@@ -4,7 +4,7 @@ use crate::core::position::Position;
 use crate::core::r#move::Move;
 use crate::eval::evaluation::{score_position, PIECE_SCORES};
 use crate::search::move_ordering::order_quiescence_moves;
-use crate::search::negamax::{increment_node_counter, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{SearchContext, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::utils::util;
 use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
@@ -13,17 +13,23 @@ include!("../utils/generated_macro.rs");
 
 pub const QUIESCENCE_MAXIMUM_SCORE: isize = MAXIMUM_SCORE / 2;
 
-pub fn quiescence_search(position: &mut Position, ply: isize, alpha: isize, beta: isize) -> isize {
+pub fn quiescence_search(
+    position: &mut Position,
+    ply: isize,
+    search_context: &SearchContext,
+    alpha: isize,
+    beta: isize,
+) -> isize {
     if ply > 100 {
         return 0;
     }
-    increment_node_counter();
+    search_context.node_counter.increment();
     if move_gen::is_check(position) {
         // If in check: must respond with evasions
         let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply;
         for mov in move_gen::generate_moves(position) {
             if let Some(undo_move_info) = position.make_move(&mov) {
-                let score = -quiescence_search(position, ply + 1, -beta, -alpha);
+                let score = -quiescence_search(position, ply + 1, search_context, -beta, -alpha);
                 position.unmake_move(&undo_move_info);
                 best_score = best_score.max(score);
                 if best_score >= beta {
@@ -49,7 +55,7 @@ pub fn quiescence_search(position: &mut Position, ply: isize, alpha: isize, beta
             continue; // Skip bad captures by SEE
         }
         if let Some(undo_move_info) = position.make_move(&mov) {
-            let score = -quiescence_search(position, ply + 1, -beta, -alpha);
+            let score = -quiescence_search(position, ply + 1, search_context, -beta, -alpha);
             position.unmake_move(&undo_move_info);
             if score >= beta {
                 return score;
@@ -397,15 +403,27 @@ mod tests {
     }
 
     mod q_search {
+        use std::sync::Arc;
         use super::*;
         use crate::core::r#move::Move::{Basic, EnPassant, Promotion};
         use crate::search::move_ordering::MoveOrderer;
+        use crate::search::negamax::SearchParams;
 
+        fn create_search_context<'a>() -> SearchContext<'a> {
+            SearchContext::new(
+                &SearchParams { allocated_time_millis: 0, max_depth: 0, max_nodes: 0 },
+                Arc::new(Default::default()),
+                vec![],
+                MoveOrderer::new(),
+                0,
+            )
+        }
+        
         #[test]
         fn test_only_kings() {
             let fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, -1);
         }
 
@@ -413,7 +431,7 @@ mod tests {
         fn test_queening_by_capturing() {
             let fen = "4q3/3P4/8/8/8/7k/8/4K3 w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 903);
         }
 
@@ -421,7 +439,7 @@ mod tests {
         fn test_multiple_capture_options() {
             let fen = "5rk1/2q2pbp/1p2pnp1/pP1pP3/P2P1P2/2N2BN1/6PP/R2Q1RK1 w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 961);
         }
 
@@ -429,7 +447,7 @@ mod tests {
         fn test_white_king_under_attack() {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, -550);
         }
 
@@ -437,7 +455,7 @@ mod tests {
         fn test_no_good_capture() {
             let fen = "r4rk1/pp3ppp/2n1b3/3p4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, -14);
         }
 
@@ -445,7 +463,7 @@ mod tests {
         fn test_good_capture() {
             let fen = "r4rk1/pp3ppp/2n1b3/3q4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
             assert_eq!(score, 788);
         }
 
