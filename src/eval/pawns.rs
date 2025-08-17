@@ -76,12 +76,7 @@ pub fn score_pawn_structure_mg(position: &Position, piece_color: PieceColor) -> 
 
 pub fn is_passed_pawn(square: usize, piece_color: PieceColor, their_pawns: u64) -> bool {
     let file = square % 8;
-    let rank = square as isize / 8
-        + if piece_color == PieceColor::White {
-            1
-        } else {
-            -1
-        };
+    let rank = square as isize / 8 + if piece_color == PieceColor::White { 1 } else { -1 };
     (PASSED_PAWN_COLUMNS[file]
         & PASSED_PAWNS_RANKS[piece_color as usize][rank as usize]
         & their_pawns)
@@ -160,9 +155,8 @@ mod tests {
     fn test_is_doubled_pawn() {
         let fen = "4k3/8/6p1/p2p4/8/2p3p1/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let pawn_bitboard = position
-            .board()
-            .bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
+        let pawn_bitboard =
+            position.board().bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
         assert_eq!(is_doubled_pawn(sq!("a5"), pawn_bitboard), false);
         assert_eq!(is_doubled_pawn(sq!("c3"), pawn_bitboard), false);
         assert_eq!(is_doubled_pawn(sq!("d5"), pawn_bitboard), false);
@@ -173,9 +167,8 @@ mod tests {
     fn test_is_isolated_pawn() {
         let fen = "4k3/8/6p1/p2p4/8/2p3p1/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let pawn_bitboard = position
-            .board()
-            .bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
+        let pawn_bitboard =
+            position.board().bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
         assert_eq!(is_isolated_pawn(sq!("a5"), pawn_bitboard), true);
         assert_eq!(is_isolated_pawn(sq!("c3"), pawn_bitboard), false);
         assert_eq!(is_isolated_pawn(sq!("d5"), pawn_bitboard), false);
@@ -246,51 +239,25 @@ mod tests {
     fn test_is_part_of_chain() {
         let fen = "4k3/1p6/p1p3P1/3P3P/8/8/8/4K3 w - - 0 1";
         let position: Position = Position::from(fen);
-        let white_pawns = position
-            .board()
-            .bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
-        let black_pawns = position
-            .board()
-            .bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
+        let white_pawns =
+            position.board().bitboard_by_color_and_piece_type(PieceColor::White, PieceType::Pawn);
+        let black_pawns =
+            position.board().bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
 
-        assert_eq!(
-            is_part_of_chain(PieceColor::White, sq!("d5"), white_pawns),
-            false
-        );
-        assert_eq!(
-            is_part_of_chain(PieceColor::White, sq!("h5"), white_pawns),
-            true
-        );
-        assert_eq!(
-            is_part_of_chain(PieceColor::White, sq!("g6"), white_pawns),
-            false
-        );
+        assert_eq!(is_part_of_chain(PieceColor::White, sq!("d5"), white_pawns), false);
+        assert_eq!(is_part_of_chain(PieceColor::White, sq!("h5"), white_pawns), true);
+        assert_eq!(is_part_of_chain(PieceColor::White, sq!("g6"), white_pawns), false);
 
-        assert_eq!(
-            is_part_of_chain(PieceColor::Black, sq!("b7"), black_pawns),
-            true
-        );
-        assert_eq!(
-            is_part_of_chain(PieceColor::Black, sq!("a6"), black_pawns),
-            false
-        );
-        assert_eq!(
-            is_part_of_chain(PieceColor::Black, sq!("c6"), black_pawns),
-            false
-        );
+        assert_eq!(is_part_of_chain(PieceColor::Black, sq!("b7"), black_pawns), true);
+        assert_eq!(is_part_of_chain(PieceColor::Black, sq!("a6"), black_pawns), false);
+        assert_eq!(is_part_of_chain(PieceColor::Black, sq!("c6"), black_pawns), false);
     }
 
     #[test]
     fn test_adjacent_file_mask() {
         assert_eq!(adjacent_file_mask(0), column_bitboard(1));
-        assert_eq!(
-            adjacent_file_mask(1),
-            column_bitboard(0) | column_bitboard(2)
-        );
-        assert_eq!(
-            adjacent_file_mask(6),
-            column_bitboard(5) | column_bitboard(7)
-        );
+        assert_eq!(adjacent_file_mask(1), column_bitboard(0) | column_bitboard(2));
+        assert_eq!(adjacent_file_mask(6), column_bitboard(5) | column_bitboard(7));
         assert_eq!(adjacent_file_mask(7), column_bitboard(6));
     }
 
@@ -325,35 +292,14 @@ mod tests {
             let black_pawns = position
                 .board()
                 .bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
-            assert_eq!(
-                is_passed_pawn(sq!("a5"), PieceColor::White, black_pawns),
-                false
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("c3"), PieceColor::White, black_pawns),
-                true
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("d5"), PieceColor::White, black_pawns),
-                true
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("g3"), PieceColor::White, black_pawns),
-                false
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("g6"), PieceColor::White, black_pawns),
-                false
-            );
+            assert_eq!(is_passed_pawn(sq!("a5"), PieceColor::White, black_pawns), false);
+            assert_eq!(is_passed_pawn(sq!("c3"), PieceColor::White, black_pawns), true);
+            assert_eq!(is_passed_pawn(sq!("d5"), PieceColor::White, black_pawns), true);
+            assert_eq!(is_passed_pawn(sq!("g3"), PieceColor::White, black_pawns), false);
+            assert_eq!(is_passed_pawn(sq!("g6"), PieceColor::White, black_pawns), false);
 
-            assert_eq!(
-                is_passed_pawn(sq!("a7"), PieceColor::Black, white_pawns),
-                false
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("h7"), PieceColor::Black, white_pawns),
-                false
-            );
+            assert_eq!(is_passed_pawn(sq!("a7"), PieceColor::Black, white_pawns), false);
+            assert_eq!(is_passed_pawn(sq!("h7"), PieceColor::Black, white_pawns), false);
         }
 
         #[test]
@@ -367,44 +313,17 @@ mod tests {
                 .board()
                 .bitboard_by_color_and_piece_type(PieceColor::Black, PieceType::Pawn);
 
-            assert_eq!(
-                is_passed_pawn(sq!("b5"), PieceColor::White, black_pawns),
-                true
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("c4"), PieceColor::White, black_pawns),
-                true
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("e5"), PieceColor::White, black_pawns),
-                true
-            );
+            assert_eq!(is_passed_pawn(sq!("b5"), PieceColor::White, black_pawns), true);
+            assert_eq!(is_passed_pawn(sq!("c4"), PieceColor::White, black_pawns), true);
+            assert_eq!(is_passed_pawn(sq!("e5"), PieceColor::White, black_pawns), true);
 
-            assert_eq!(
-                is_passed_pawn(sq!("f4"), PieceColor::White, black_pawns),
-                false
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("g4"), PieceColor::White, black_pawns),
-                false
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("h5"), PieceColor::White, black_pawns),
-                false
-            );
+            assert_eq!(is_passed_pawn(sq!("f4"), PieceColor::White, black_pawns), false);
+            assert_eq!(is_passed_pawn(sq!("g4"), PieceColor::White, black_pawns), false);
+            assert_eq!(is_passed_pawn(sq!("h5"), PieceColor::White, black_pawns), false);
 
-            assert_eq!(
-                is_passed_pawn(sq!("d4"), PieceColor::Black, white_pawns),
-                true
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("f5"), PieceColor::Black, white_pawns),
-                false
-            );
-            assert_eq!(
-                is_passed_pawn(sq!("h6"), PieceColor::Black, white_pawns),
-                false
-            );
+            assert_eq!(is_passed_pawn(sq!("d4"), PieceColor::Black, white_pawns), true);
+            assert_eq!(is_passed_pawn(sq!("f5"), PieceColor::Black, white_pawns), false);
+            assert_eq!(is_passed_pawn(sq!("h6"), PieceColor::Black, white_pawns), false);
         }
         #[test]
         fn test_simple_white_passed_pawn() {

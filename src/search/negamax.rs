@@ -17,14 +17,9 @@ use log::{debug, error, info};
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::Arc;
 
 include!("../utils/generated_macro.rs");
-
-static NODE_COUNTER: LazyLock<RwLock<NodeCounter>> = LazyLock::new(|| {
-    let node_counter = NodeCounter::new();
-    RwLock::new(node_counter)
-});
 
 pub const MAXIMUM_SEARCH_DEPTH: usize = 63;
 
@@ -75,11 +70,7 @@ impl SearchParams {
     pub const DEFAULT_NUMBER_OF_MOVES_TO_GO: usize = 30;
 
     pub fn new(allocated_time_millis: usize, max_depth: isize, max_nodes: usize) -> SearchParams {
-        SearchParams {
-            allocated_time_millis,
-            max_depth: max_depth.try_into().unwrap(),
-            max_nodes,
-        }
+        SearchParams { allocated_time_millis, max_depth: max_depth.try_into().unwrap(), max_nodes }
     }
 
     pub fn new_by_depth(max_depth: isize) -> SearchParams {
@@ -87,6 +78,7 @@ impl SearchParams {
     }
 }
 pub struct SearchContext<'a> {
+    pub node_counter: NodeCounter,
     search_params: &'a SearchParams,
     stop_flag: Arc<AtomicBool>,
     repetition_key_stack: Vec<RepetitionKey>,
@@ -101,8 +93,9 @@ impl SearchContext<'_> {
         repetition_keys: Vec<RepetitionKey>,
         move_orderer: MoveOrderer,
         max_depth: usize,
-    ) -> SearchContext {
+    ) -> SearchContext<'_> {
         SearchContext {
+            node_counter: NodeCounter::new(),
             search_params,
             stop_flag,
             repetition_key_stack: repetition_keys,
@@ -117,6 +110,11 @@ impl SearchContext<'_> {
 
     fn request_stop_search(&self) {
         self.stop_flag.store(true, Ordering::Relaxed);
+    }
+
+    fn used_allocated_move_time(&self) -> bool {
+        self.node_counter.stats().elapsed_time.as_millis()
+            > self.search_params.allocated_time_millis as u128
     }
 }
 
@@ -135,17 +133,8 @@ pub struct RepetitionKey {
 
 impl RepetitionKey {
     pub fn new(position: &Position) -> Self {
-        Self {
-            zobrist_hash: position.hash_code(),
-            half_move_clock: position.half_move_clock(),
-        }
+        Self { zobrist_hash: position.hash_code(), half_move_clock: position.half_move_clock() }
     }
-}
-
-pub fn increment_node_counter() -> NodeCountStats {
-    let node_counter = NODE_COUNTER.read().unwrap();
-    node_counter.increment();
-    node_counter_stats()
 }
 
 pub fn iterative_deepening(
@@ -154,7 +143,6 @@ pub fn iterative_deepening(
     stop_flag: Arc<AtomicBool>,
     repetition_keys: &[RepetitionKey],
 ) -> SearchResults {
-    reset_node_counter();
     let mut search_results: Option<SearchResults> = None;
     for iteration_max_depth in 1..=search_params.max_depth {
         let mut search_context = SearchContext::new(
@@ -184,8 +172,12 @@ pub fn iterative_deepening(
                 iteration_search_results.clone()
             );
             uci::send_to_gui(
-                format_uci_info(position, &iteration_search_results, &node_counter_stats())
-                    .as_str(),
+                format_uci_info(
+                    position,
+                    &iteration_search_results,
+                    &search_context.node_counter.stats(),
+                )
+                .as_str(),
             );
             let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate
                 || is_mating_score(iteration_search_results.score);
@@ -210,11 +202,11 @@ fn negamax(
     mut alpha: isize,
     mut beta: isize,
 ) -> isize {
-    increment_node_counter();
+    search_context.node_counter.increment();
     let ply = search_context.max_depth - depth;
     let alpha_original = alpha;
     let beta_original = beta;
-    if used_allocated_move_time(search_context.search_params) {
+    if search_context.used_allocated_move_time() {
         search_context.request_stop_search();
         return 0;
     }
@@ -283,9 +275,7 @@ fn negamax(
                 // there isn't a checkmate or a stalemate
                 let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                 current_line.push(mv);
-                search_context
-                    .repetition_key_stack
-                    .push(RepetitionKey::new(position));
+                search_context.repetition_key_stack.push(RepetitionKey::new(position));
                 let next_score = if position.is_drawn_by_fifty_moves_rule()
                     || has_three_fold_repetition(&search_context.repetition_key_stack)
                 {
@@ -352,7 +342,13 @@ fn negamax(
         let mut score =
             evaluation::evaluate(position, ply, search_context.repetition_key_stack.as_ref());
         if !is_terminal_score(score) {
-            score = quiescence::quiescence_search(position, (ply + 1) as isize, alpha, beta);
+            score = quiescence::quiescence_search(
+                position,
+                (ply + 1) as isize,
+                search_context,
+                alpha,
+                beta,
+            );
         }
         if !search_context.stop_search_requested() {
             TRANSPOSITION_TABLE.insert(position, 0, alpha_original, beta_original, score, None);
@@ -383,24 +379,13 @@ fn create_search_results(
         pv_with_positions
     };
     let last_position = final_pv.last().map_or(position, |(p, _)| p);
-    let pv_repetition_keys: Vec<RepetitionKey> = final_pv
-        .iter()
-        .map(|(p, _)| RepetitionKey::new(p))
-        .collect();
-    let repetition_keys = [
-        search_context.repetition_key_stack.clone(),
-        pv_repetition_keys,
-    ]
-    .concat();
+    let pv_repetition_keys: Vec<RepetitionKey> =
+        final_pv.iter().map(|(p, _)| RepetitionKey::new(p)).collect();
+    let repetition_keys =
+        [search_context.repetition_key_stack.clone(), pv_repetition_keys].concat();
     let game_status = get_game_status(last_position, &repetition_keys);
     let (_, moves): (Vec<Position>, Vec<Move>) = final_pv.into_iter().unzip();
-    SearchResults {
-        position: *position,
-        score,
-        depth: max_depth,
-        pv: moves,
-        game_status,
-    }
+    SearchResults { position: *position, score, depth: max_depth, pv: moves, game_status }
 }
 
 fn extend_principal_variation(
@@ -438,11 +423,7 @@ fn extend_principal_variation(
             break;
         }
     }
-    debug!(
-        "PV extended from length {} to length {}",
-        current_pv.len(),
-        result_pv.len()
-    );
+    debug!("PV extended from length {} to length {}", current_pv.len(), result_pv.len());
     result_pv
 }
 
@@ -515,19 +496,6 @@ fn is_drawing_score(score: isize) -> bool {
 
 fn is_terminal_score(score: isize) -> bool {
     is_mating_score(score) || is_drawing_score(score)
-}
-
-fn used_allocated_move_time(search_params: &SearchParams) -> bool {
-    let stats = node_counter_stats();
-    stats.elapsed_time.as_millis() > search_params.allocated_time_millis.try_into().unwrap()
-}
-
-fn reset_node_counter() {
-    NODE_COUNTER.write().unwrap().reset();
-}
-
-fn node_counter_stats() -> NodeCountStats {
-    NODE_COUNTER.read().unwrap().stats()
 }
 
 #[cfg(test)]
@@ -632,10 +600,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
-        assert_eq!(
-            move_formatter::format_move_list(&position, &search_results),
-            "♕f3xf7#"
-        );
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -659,10 +624,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
-        assert_eq!(
-            move_formatter::format_move_list(&position, &search_results),
-            "♕f3xf7#"
-        );
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
             &SearchResults {
@@ -858,10 +820,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
-        assert_eq!(
-            move_formatter::format_move_list(&position, &search_results),
-            "♛c8-c2"
-        );
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛c8-c2");
     }
 
     #[test]
@@ -877,10 +836,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
-        assert_eq!(
-            in_progress_search_results.pv_moves_as_string(),
-            "h5-f4".to_string()
-        );
+        assert_eq!(in_progress_search_results.pv_moves_as_string(), "h5-f4".to_string());
         test_eq(
             &in_progress_search_results,
             &SearchResults {
@@ -893,19 +849,14 @@ mod tests {
         );
 
         let mut drawn_position: Position = original_position.clone();
-        drawn_position
-            .make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None))
-            .unwrap();
+        drawn_position.make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
         let drawn_position_search_results = iterative_deepening(
             &mut drawn_position,
             &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
-        assert_eq!(
-            drawn_position_search_results.pv_moves_as_string(),
-            "e1-d1".to_string()
-        );
+        assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
             &drawn_position_search_results,
             &SearchResults {
@@ -962,36 +913,24 @@ mod tests {
         let go_options_str = "depth 5";
         let search_results_1 = uci::run_uci_position(&uci_initial_position_str, go_options_str);
         let _pv_moves_1 = search_results_1.pv_moves_as_string();
-        assert_eq!(
-            search_results_1.pv_moves_as_string(),
-            "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2"
-        );
+        assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
 
         let search_results_2 = uci::run_uci_position(
             &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3"),
             go_options_str,
         );
         let _pv_moves_2 = search_results_2.pv_moves_as_string();
-        assert_eq!(
-            search_results_2.pv_moves_as_string(),
-            "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3"
-        );
+        assert_eq!(search_results_2.pv_moves_as_string(), "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
 
         let search_results_3 = uci::run_uci_position(
-            &format!(
-                "{} {}",
-                uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"
-            ),
+            &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"),
             go_options_str,
         );
         let pv_moves_3 = search_results_3.pv_moves_as_string();
         assert_eq!(pv_moves_3, "d5-e4,c2-d1,a5-c3,d1-e2,c3-c2");
 
         let search_results_4 = uci::run_uci_position(
-            &format!(
-                "{} {}",
-                uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"
-            ),
+            &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"),
             go_options_str,
         );
         let pv_moves_4 = search_results_4.pv_moves_as_string();
@@ -1091,10 +1030,7 @@ mod tests {
         setup();
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
         let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 4");
-        assert_eq!(
-            search_results.pv_moves_as_string(),
-            "g6-f8,h7-h8,f8-g6,h8-h7".to_string()
-        );
+        assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,
             &SearchResults {
@@ -1153,39 +1089,21 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             &vec![],
         );
-        assert_eq!(
-            move_formatter::format_move_list(&position, &search_results),
-            "♛g7xh6"
-        );
+        assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛g7xh6");
     }
 
     #[test]
     fn test_get_repetition_count() {
         assert_eq!(get_repeat_position_count(&vec!()), 0);
 
-        let k1 = || RepetitionKey {
-            zobrist_hash: 1,
-            half_move_clock: 100,
-        };
-        let k2 = || RepetitionKey {
-            zobrist_hash: 2,
-            half_move_clock: 100,
-        };
+        let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
+        let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
         assert_eq!(get_repeat_position_count(&vec![k1()]), 0);
         assert_eq!(get_repeat_position_count(&vec![k2(), k1()]), 0);
         assert_eq!(get_repeat_position_count(&vec![k2(), k2(), k1()]), 0);
         assert_eq!(get_repeat_position_count(&vec![k2(), k2(), k2(), k1()]), 0);
-        assert_eq!(
-            get_repeat_position_count(&vec![k1(), k2(), k2(), k2(), k1()]),
-            1
-        );
-        assert_eq!(
-            get_repeat_position_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]),
-            1
-        );
-        assert_eq!(
-            get_repeat_position_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
-            2
-        );
+        assert_eq!(get_repeat_position_count(&vec![k1(), k2(), k2(), k2(), k1()]), 1);
+        assert_eq!(get_repeat_position_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 1);
+        assert_eq!(get_repeat_position_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]), 2);
     }
 }

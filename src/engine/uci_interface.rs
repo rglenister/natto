@@ -130,12 +130,9 @@ impl Engine {
                 self.uci_set_position(&input.to_string(), uci_position)
             }
             UciCommand::None => self.uci_none(input.to_string()),
-            UciCommand::Go(_go_options_string) => self.uci_go(
-                &&self.search_stop_flag,
-                search_handle,
-                input.to_string(),
-                uci_position,
-            ),
+            UciCommand::Go(_go_options_string) => {
+                self.uci_go(&&self.search_stop_flag, search_handle, input.to_string(), uci_position)
+            }
         }
     }
 
@@ -190,10 +187,7 @@ impl Engine {
                             stop_flag,
                             &uci_pos_clone.repetition_keys,
                         );
-                        debug!(
-                            "score: {} depth {}",
-                            search_results.score, search_results.depth
-                        );
+                        debug!("score: {} depth {}", search_results.score, search_results.depth);
                         let best_move = search_results.pv.first().map(convert_move_to_raw);
                         if let Some(best_move) = best_move {
                             uci::send_to_gui(format!("bestmove {best_move}").as_str());
@@ -326,10 +320,7 @@ impl Engine {
                     uci::send_to_gui(format!("bestmove {opening_move}").as_str());
                     return true;
                 } else {
-                    info!(
-                        "Failed to retrieve opening book move: {}",
-                        opening_move.err().unwrap()
-                    );
+                    info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 

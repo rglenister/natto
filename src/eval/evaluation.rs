@@ -48,12 +48,7 @@ const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 75;
 fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
     let mut phase = PHASE_TOTAL;
 
-    for piece_type in [
-        PieceType::Knight,
-        PieceType::Bishop,
-        PieceType::Rook,
-        PieceType::Queen,
-    ] {
+    for piece_type in [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
         let count = piece_counts[PieceColor::White as usize][piece_type as usize]
             + piece_counts[PieceColor::Black as usize][piece_type as usize];
         phase -= PHASE_WEIGHTS[piece_type as usize] * count as isize;
@@ -201,11 +196,7 @@ fn score_rooks(position: &Position) -> isize {
         let pawns = my_bitboards[PieceType::Pawn as usize];
         let rooks = my_bitboards[PieceType::Rook as usize];
         let queens = my_bitboards[PieceType::Queen as usize];
-        let row = if piece_color == PieceColor::White {
-            6
-        } else {
-            1
-        };
+        let row = if piece_color == PieceColor::White { 6 } else { 1 };
         let seventh_rank_bonus = ((((rooks | queens) & row_bitboard(row)).count_ones()) >= 2)
             as isize
             * DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS;
@@ -275,10 +266,7 @@ mod tests {
     #[test]
     fn test_calculate_empty_board_game_phase() {
         let position: Position = Position::from("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
-        assert_eq!(
-            calculate_game_phase(position.board().get_piece_counts()),
-            24
-        );
+        assert_eq!(calculate_game_phase(position.board().get_piece_counts()), 24);
     }
 
     #[test]
