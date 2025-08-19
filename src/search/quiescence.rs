@@ -410,7 +410,9 @@ mod tests {
         use crate::search::transposition_table::TranspositionTable;
         use std::sync::Arc;
 
-        fn create_search_context(transposition_table: &mut TranspositionTable) -> SearchContext<'_> {
+        fn create_search_context(
+            transposition_table: &mut TranspositionTable,
+        ) -> SearchContext<'_> {
             SearchContext::new(
                 transposition_table,
                 &SearchParams { allocated_time_millis: 0, max_depth: 0, max_nodes: 0 },

@@ -147,11 +147,9 @@ static PIECE_INCREMENTS_TABLE: Lazy<[Vec<isize>; 6]> = Lazy::new(|| {
     table[PieceType::Knight as usize] = vec![10, 17, 15, 6, -10, -17, -15, -6];
     table[PieceType::Bishop as usize] = vec![9, 7, -9, -7];
     table[PieceType::Rook as usize] = vec![1, 8, -1, -8];
-    table[PieceType::Queen as usize] = table[PieceType::Bishop as usize]
-        .iter()
-        .chain(&table[PieceType::Rook as usize])
-        .cloned()
-        .collect();
+    table[PieceType::Queen as usize] =
+        [table[PieceType::Bishop as usize].clone(), table[PieceType::Rook as usize].clone()]
+            .concat();
     table[PieceType::King as usize] = table[PieceType::Queen as usize].clone();
     table
 });
@@ -353,7 +351,7 @@ impl<P: MoveProcessor + std::any::Any> MoveGeneratorImpl<P> {
                     &mut self.move_processor,
                 );
             }
-            PieceType::Bishop|PieceType::Rook => {
+            PieceType::Bishop | PieceType::Rook => {
                 get_sliding_moves_by_piece_type(
                     piece_type,
                     bitboard,

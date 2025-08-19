@@ -6,7 +6,6 @@ use crate::engine::config;
 pub use crate::search::negamax::MAXIMUM_SCORE;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundType {
     Exact,
@@ -255,7 +254,7 @@ mod tests {
     #[test]
     fn test_large_table_creation() {
         let t_table = TranspositionTable::new(1024);
-        assert_eq!(t_table.table.len(), 134217728    );
+        assert_eq!(t_table.table.len(), 134217728);
         assert_eq!(t_table.size, 134217728 / 2);
         assert_eq!(size_of::<AtomicU64>(), 8);
     }
