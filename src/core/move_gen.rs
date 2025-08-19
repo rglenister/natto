@@ -353,18 +353,9 @@ impl<P: MoveProcessor + std::any::Any> MoveGeneratorImpl<P> {
                     &mut self.move_processor,
                 );
             }
-            PieceType::Bishop => {
+            PieceType::Bishop|PieceType::Rook => {
                 get_sliding_moves_by_piece_type(
-                    PieceType::Bishop,
-                    bitboard,
-                    self.occupied_squares,
-                    self.friendly_squares,
-                    &mut self.move_processor,
-                );
-            }
-            PieceType::Rook => {
-                get_sliding_moves_by_piece_type(
-                    PieceType::Rook,
+                    piece_type,
                     bitboard,
                     self.occupied_squares,
                     self.friendly_squares,
@@ -372,20 +363,15 @@ impl<P: MoveProcessor + std::any::Any> MoveGeneratorImpl<P> {
                 );
             }
             PieceType::Queen => {
-                get_sliding_moves_by_piece_type(
-                    PieceType::Bishop,
-                    bitboard,
-                    self.occupied_squares,
-                    self.friendly_squares,
-                    &mut self.move_processor,
-                );
-                get_sliding_moves_by_piece_type(
-                    PieceType::Rook,
-                    bitboard,
-                    self.occupied_squares,
-                    self.friendly_squares,
-                    &mut self.move_processor,
-                );
+                for piece_type in [PieceType::Bishop, PieceType::Rook] {
+                    get_sliding_moves_by_piece_type(
+                        piece_type,
+                        bitboard,
+                        self.occupied_squares,
+                        self.friendly_squares,
+                        &mut self.move_processor,
+                    );
+                }
             }
             PieceType::King => {
                 generate_king_moves::<<P as MoveProcessor>::Output>(

@@ -403,14 +403,16 @@ mod tests {
     }
 
     mod q_search {
-        use std::sync::Arc;
         use super::*;
         use crate::core::r#move::Move::{Basic, EnPassant, Promotion};
         use crate::search::move_ordering::MoveOrderer;
         use crate::search::negamax::SearchParams;
+        use crate::search::transposition_table::TranspositionTable;
+        use std::sync::Arc;
 
-        fn create_search_context<'a>() -> SearchContext<'a> {
+        fn create_search_context(transposition_table: &mut TranspositionTable) -> SearchContext<'_> {
             SearchContext::new(
+                transposition_table,
                 &SearchParams { allocated_time_millis: 0, max_depth: 0, max_nodes: 0 },
                 Arc::new(Default::default()),
                 vec![],
@@ -418,12 +420,18 @@ mod tests {
                 0,
             )
         }
-        
+
         #[test]
         fn test_only_kings() {
             let fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(
+                &mut position,
+                0,
+                &create_search_context(&mut TranspositionTable::new_using_config()),
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, -1);
         }
 
@@ -431,7 +439,13 @@ mod tests {
         fn test_queening_by_capturing() {
             let fen = "4q3/3P4/8/8/8/7k/8/4K3 w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(
+                &mut position,
+                0,
+                &create_search_context(&mut TranspositionTable::new_using_config()),
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, 903);
         }
 
@@ -439,7 +453,13 @@ mod tests {
         fn test_multiple_capture_options() {
             let fen = "5rk1/2q2pbp/1p2pnp1/pP1pP3/P2P1P2/2N2BN1/6PP/R2Q1RK1 w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(
+                &mut position,
+                0,
+                &create_search_context(&mut TranspositionTable::new_using_config()),
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, 961);
         }
 
@@ -447,7 +467,13 @@ mod tests {
         fn test_white_king_under_attack() {
             let fen = "8/8/8/8/4k3/8/8/4K2r w - - 0 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(
+                &mut position,
+                0,
+                &create_search_context(&mut TranspositionTable::new_using_config()),
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, -550);
         }
 
@@ -455,7 +481,13 @@ mod tests {
         fn test_no_good_capture() {
             let fen = "r4rk1/pp3ppp/2n1b3/3p4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(
+                &mut position,
+                0,
+                &create_search_context(&mut TranspositionTable::new_using_config()),
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, -14);
         }
 
@@ -463,7 +495,13 @@ mod tests {
         fn test_good_capture() {
             let fen = "r4rk1/pp3ppp/2n1b3/3q4/3P4/2N5/PP2BPPP/3R1RK1 b - - 1 1";
             let mut position: Position = Position::from(fen);
-            let score = quiescence_search(&mut position, 0, &create_search_context(), -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = quiescence_search(
+                &mut position,
+                0,
+                &create_search_context(&mut TranspositionTable::new_using_config()),
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, 788);
         }
 

@@ -248,31 +248,31 @@ mod tests {
 
     #[test]
     fn test_small_table_creation() {
-        let ttable = TranspositionTable::new(1);
-        assert_eq!(ttable.table.len(), 32768);
-        assert_eq!(ttable.size, 16384);
+        let t_table = TranspositionTable::new(1);
+        assert_eq!(t_table.table.len(), 131072);
+        assert_eq!(t_table.size, 131072 / 2);
     }
     #[test]
     fn test_large_table_creation() {
-        let ttable = TranspositionTable::new(1024);
-        assert_eq!(ttable.table.len(), 33554432);
-        assert_eq!(ttable.size, 33554432 / 2);
+        let t_table = TranspositionTable::new(1024);
+        assert_eq!(t_table.table.len(), 134217728    );
+        assert_eq!(t_table.size, 134217728 / 2);
         assert_eq!(size_of::<AtomicU64>(), 8);
     }
 
     #[test]
     fn test_do_stuff_with_table() {
-        let ttable = TranspositionTable::new(1 << 1);
+        let t_table = TranspositionTable::new(1 << 1);
 
         let position = Position::new_game();
-        ttable.store(
+        t_table.store(
             position.hash_code(),
             Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }),
             8,
             -100,
             LowerBound,
         );
-        let entry = ttable.probe(position.hash_code()).unwrap();
+        let entry = t_table.probe(position.hash_code()).unwrap();
         assert_eq!(entry.zobrist, position.hash_code());
         assert_eq!(
             entry.best_move,
@@ -285,18 +285,18 @@ mod tests {
 
     #[test]
     fn test_item_count() {
-        let ttable = TranspositionTable::new(1);
+        let t_table = TranspositionTable::new(1);
         let position = Position::new_game();
-        ttable.store(
+        t_table.store(
             position.hash_code(),
             Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }),
             8,
             -100,
             LowerBound,
         );
-        assert_eq!(ttable.item_count(), 1);
-        ttable.clear();
-        assert_eq!(ttable.item_count(), 0);
+        assert_eq!(t_table.item_count(), 1);
+        t_table.clear();
+        assert_eq!(t_table.item_count(), 0);
     }
 
     #[test]
