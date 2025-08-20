@@ -833,42 +833,47 @@ mod tests {
     // https://lichess.org/YKQcIIfi/black#97
     #[test]
     fn test_li_chess_draws_problem() {
-        // setup();
-        // let fen = "6k1/5p1p/1Q4p1/q1P1P3/3P4/4Pb2/2K5/8 b - - 0 45";
-        // let uci_initial_position_str = format!("position fen {}", fen);
-        //
-        // let go_options_str = "depth 5";
-        // let search_results_1 = uci::run_uci_position(&uci_initial_position_str, go_options_str);
-        // let _pv_moves_1 = search_results_1.pv_moves_as_string();
-        // assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
-        //
-        // let search_results_2 =
-        //     uci::run_uci_position(&format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3"), go_options_str);
-        // let _pv_moves_2 = search_results_2.pv_moves_as_string();
-        // assert_eq!(search_results_2.pv_moves_as_string(), "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
-        //
-        // let search_results_3 = uci::run_uci_position(
-        //     &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"),
-        //     go_options_str,
-        // );
-        // let pv_moves_3 = search_results_3.pv_moves_as_string();
-        // assert_eq!(pv_moves_3, "d5-e4,c2-d1,a5-c3,d1-e2,c3-c2");
-        //
-        // let search_results_4 = uci::run_uci_position(
-        //     &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"),
-        //     go_options_str,
-        // );
-        // let pv_moves_4 = search_results_4.pv_moves_as_string();
-        // assert_eq!(pv_moves_4, "e4-d5,b3-c2,d5-e4,c2-d1,a5-c3");
-        //
-        // //TRANSPOSITION_TABLE.clear();
-        // let search_results_5 = uci::run_uci_position(
-        //     &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3 e4d5 b3c2"),
-        //     go_options_str,
-        // );
-        // let pv_moves_5 = search_results_5.pv_moves_as_string();
-        // assert_eq!(pv_moves_5, "d5-e4,c2-d1,a5-c3,d1-e2,c3-c2");
-        //
+        setup();
+        let fen = "6k1/5p1p/1Q4p1/q1P1P3/3P4/4Pb2/2K5/8 b - - 0 45";
+        let uci_initial_position_str = format!("position fen {}", fen);
+
+        let go_options_str = "depth 5";
+        let search_results_1 = uci::run_uci_position(&uci_initial_position_str, go_options_str);
+        let _pv_moves_1 = search_results_1.pv_moves_as_string();
+        assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
+
+        let search_results_2 = uci::run_uci_position(
+            &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3"),
+            go_options_str,
+        );
+        let _pv_moves_2 = search_results_2.pv_moves_as_string();
+        assert_eq!(search_results_2.pv_moves_as_string(), "a5-e1,b6-d8,g8-g7,d8-f6,g7-g8");
+
+        let search_results_3 = uci::run_uci_position(
+            &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"),
+            go_options_str,
+        );
+        let pv_moves_3 = search_results_3.pv_moves_as_string();
+        assert_eq!(pv_moves_3, "d5-e4,c2-d1,e4-f3,d1-c2,a5-e1");
+
+        let search_results_4 = uci::run_uci_position(
+            &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"),
+            go_options_str,
+        );
+        let pv_moves_4 = search_results_4.pv_moves_as_string();
+        assert_eq!(pv_moves_4, "a5-e1,b6-d8,g8-g7,d8-f6,g7-g8");
+
+        //TRANSPOSITION_TABLE.clear();
+        let search_results_5 = uci::run_uci_position(
+            &format!(
+                "{} {}",
+                uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3 e4d5 b3c2"
+            ),
+            go_options_str,
+        );
+        let pv_moves_5 = search_results_5.pv_moves_as_string();
+        assert_eq!(pv_moves_5, "a5-a2,c2-d3,a2-c4,d3-d2,g8-g7");
+
         //
         //
         //
@@ -891,41 +896,41 @@ mod tests {
         // TRANSPOSITION_TABLE.clear();
     }
 
-    // #[test]
-    // fn test_black_avoids_draw_using_contempt() {
-    //     setup();
-    //     let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
-    //     let go_options_str = "depth 1";
-    //     let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
-    //     assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
-    //     test_eq(
-    //         &drawn_search_results,
-    //         &SearchResults {
-    //             position: drawn_search_results.position,
-    //             score: 0,
-    //             depth: 1,
-    //             pv: vec![],
-    //             game_status: GameStatus::DrawnByThreefoldRepetition,
-    //         },
-    //     );
-    //
-    //     TRANSPOSITION_TABLE.clear();
-    //
-    //     config::set_contempt(1000);
-    //     let drawn_search_results = uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
-    //     assert_eq!(drawn_search_results.pv_moves_as_string(), "e7-e6");
-    //     test_eq(
-    //         &drawn_search_results,
-    //         &SearchResults {
-    //             position: drawn_search_results.position,
-    //             score: -826,
-    //             depth: 1,
-    //             pv: vec![],
-    //             game_status: GameStatus::InProgress,
-    //         },
-    //     );
-    //     config::set_contempt(0);
-    // }
+    #[test]
+    fn test_black_avoids_draw_using_contempt() {
+        setup();
+        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+        let go_options_str = "depth 1";
+        let drawn_search_results =
+            uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+        assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
+        test_eq(
+            &drawn_search_results,
+            &SearchResults {
+                position: drawn_search_results.position,
+                score: 0,
+                depth: 1,
+                pv: vec![],
+                game_status: GameStatus::DrawnByThreefoldRepetition,
+            },
+        );
+
+        config::set_contempt(1000);
+        let drawn_search_results =
+            uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+        assert_eq!(drawn_search_results.pv_moves_as_string(), "e7-e6");
+        test_eq(
+            &drawn_search_results,
+            &SearchResults {
+                position: drawn_search_results.position,
+                score: -826,
+                depth: 1,
+                pv: vec![],
+                game_status: GameStatus::InProgress,
+            },
+        );
+        config::set_contempt(0);
+    }
     #[test]
     fn test_li_chess_game() {
         setup();
@@ -1007,7 +1012,7 @@ mod tests {
         let search_results = create_search(
             &mut position,
             &mut TranspositionTable::new(1),
-            &SearchParams::new_by_depth(2),
+            &SearchParams::new_by_depth(1),
             Arc::new(AtomicBool::new(false)),
             &vec![],
         ).iterative_deepening();
@@ -1026,14 +1031,14 @@ mod tests {
         assert_ne!(search_results.score, 0);
     }
 
-    // #[test]
-    // fn test_draw_avoidance_2() {
-    //        setup();
-    //     // position after moves - 8/5b2/3k4/R4Q2/3q4/1P6/5PKP/8 w - - 2 106
-    //     let uci_str = "position startpos moves d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 e8g8 g1e2 d7d5 c4d5 e6d5 g2g3 c7c6 f1g2 f8e8 e1g1 b8d7 c1d2 d7b6 b2b3 c8f5 e2f4 a8c8 f1e1 c6c5 c3e2 b4d2 d1d2 f6e4 d2a5 g7g5 f4d3 c5d4 e2d4 f5g6 g2e4 d5e4 d3c5 d8e7 a1c1 c8a8 e1d1 b6d5 a5b5 d5b6 a2a4 a8b8 a4a5 b6d5 c5d7 b8d8 b5d5 e7d7 d5g5 d7d6 g5g4 h7h5 g4e2 d6e7 a5a6 b7a6 c1c6 a6a5 c6a6 d8d5 e2d2 e7d7 a6a5 d5a5 d2a5 h5h4 d1a1 e8c8 a5g5 h4h3 g5h4 c8c3 g3g4 a7a5 a1f1 d7d5 h4f6 c3c5 f6h4 c5c3 f1d1 c3d3 d1e1 d5d7 e1f1 d3c3 f1a1 c3d3 a1f1 d3c3 f1b1 c3d3 b1a1 g8g7 h4g3 d7d5 g3c7 g7g8 a1e1 d5g5 c7b8 g8h7 b8g3 h7g8 g3h3 f7f5 e1a1 f5g4 h3g3 g5h5 g3b8 g8h7 d4e6 h5f5 b8c7 g6f7 e6d4 f5h5 c7e7 h5d5 a1c1 d5h5 e7e4 f7g6 c1c7 h7g8 c7c8 g8h7 c8c7 h7g8 e4a8 g6e8 c7c1 g8h7 a8e4 e8g6 e4e6 d3d2 e6d7 g6f7 c1a1 d2d3 d7c8 h5g6 c8b7 g6h5 b7c7 h5g6 a1c1 g6h5 g1f1 d3d2 c1c5 h5g6 c7e7 d2d4 e3d4 g6d3 f1e1 d3b1 e1e2 b1b2 e2f1 b2b1 f1g2 b1g6 e7h4 g6h6 h4g4 h6b6 g4h3 h7g6 h3h5 g6g7 h5g4 g7h7 g4h3 h7g6 h3h5 g6g7 h5e5 g7h7 e5f5 h7g7 f5g5 g7h7 g5h4 h7g7 h4g3 g7f8 c5c8 f8e7 c8c7 e7f8 c7c8 f8e7 g3g5 e7d7 c8c5 b6d6 c5a5 d6d4 g5f5 d7d6";
-    //     let search_results = uci::run_uci_position(uci_str, "depth 10");
-    //     assert_eq!(search_results.pv_moves_as_string(), "a5-a6,d6-e7,f5-g5,e7-d7,g5-b5,d7-e7,b5-g5,e7-d7,g5-f5,d7-e8".to_string());
-    //     assert_ne!(search_results.score, 0);
-    //
-    // }
+    #[test]
+    fn test_draw_avoidance_2() {
+           setup();
+        // position after moves - 8/5b2/3k4/R4Q2/3q4/1P6/5PKP/8 w - - 2 106
+        let uci_str = "position startpos moves d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 e8g8 g1e2 d7d5 c4d5 e6d5 g2g3 c7c6 f1g2 f8e8 e1g1 b8d7 c1d2 d7b6 b2b3 c8f5 e2f4 a8c8 f1e1 c6c5 c3e2 b4d2 d1d2 f6e4 d2a5 g7g5 f4d3 c5d4 e2d4 f5g6 g2e4 d5e4 d3c5 d8e7 a1c1 c8a8 e1d1 b6d5 a5b5 d5b6 a2a4 a8b8 a4a5 b6d5 c5d7 b8d8 b5d5 e7d7 d5g5 d7d6 g5g4 h7h5 g4e2 d6e7 a5a6 b7a6 c1c6 a6a5 c6a6 d8d5 e2d2 e7d7 a6a5 d5a5 d2a5 h5h4 d1a1 e8c8 a5g5 h4h3 g5h4 c8c3 g3g4 a7a5 a1f1 d7d5 h4f6 c3c5 f6h4 c5c3 f1d1 c3d3 d1e1 d5d7 e1f1 d3c3 f1a1 c3d3 a1f1 d3c3 f1b1 c3d3 b1a1 g8g7 h4g3 d7d5 g3c7 g7g8 a1e1 d5g5 c7b8 g8h7 b8g3 h7g8 g3h3 f7f5 e1a1 f5g4 h3g3 g5h5 g3b8 g8h7 d4e6 h5f5 b8c7 g6f7 e6d4 f5h5 c7e7 h5d5 a1c1 d5h5 e7e4 f7g6 c1c7 h7g8 c7c8 g8h7 c8c7 h7g8 e4a8 g6e8 c7c1 g8h7 a8e4 e8g6 e4e6 d3d2 e6d7 g6f7 c1a1 d2d3 d7c8 h5g6 c8b7 g6h5 b7c7 h5g6 a1c1 g6h5 g1f1 d3d2 c1c5 h5g6 c7e7 d2d4 e3d4 g6d3 f1e1 d3b1 e1e2 b1b2 e2f1 b2b1 f1g2 b1g6 e7h4 g6h6 h4g4 h6b6 g4h3 h7g6 h3h5 g6g7 h5g4 g7h7 g4h3 h7g6 h3h5 g6g7 h5e5 g7h7 e5f5 h7g7 f5g5 g7h7 g5h4 h7g7 h4g3 g7f8 c5c8 f8e7 c8c7 e7f8 c7c8 f8e7 g3g5 e7d7 c8c5 b6d6 c5a5 d6d4 g5f5 d7d6";
+        let search_results = uci::run_uci_position(uci_str, "depth 10");
+        assert_eq!(search_results.pv_moves_as_string(), "a5-a6,d6-e7,f5-g5,e7-d7,g5-b5,d7-e7,b5-g5,e7-d7,g5-f5,d7-e8".to_string());
+        assert_ne!(search_results.score, 0);
+
+    }
 }
