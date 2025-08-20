@@ -2,12 +2,15 @@ use crate::core::piece::PieceColor::{Black, White};
 use crate::core::position::Position;
 use crate::core::r#move::{Move, RawMove};
 use crate::search;
-use crate::search::negamax::{RepetitionKey, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
+use crate::search::negamax::{
+    RepetitionKey, Search, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH,
+};
 use crate::search::transposition_table::TranspositionTable;
 use crate::utils::util;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
+use search::move_ordering;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -41,9 +44,9 @@ pub struct UciGoOptions {
     pub time: [Option<usize>; 2],
     pub inc: [Option<usize>; 2],
     pub moves_to_go: Option<usize>,
-    pub depth: Option<usize>,
+    pub depth: Option<u8>,
     pub nodes: Option<usize>,
-    pub mate: Option<usize>,
+    pub mate: Option<u8>,
     pub move_time: Option<usize>,
     pub ponder: bool,
     pub infinite: bool,
@@ -66,9 +69,9 @@ pub(crate) fn parse_uci_go_options(options_string: Option<String>) -> UciGoOptio
         uci_go_options.inc[White as usize] = params.get("winc").copied();
         uci_go_options.inc[Black as usize] = params.get("binc").copied();
         uci_go_options.moves_to_go = params.get("movestogo").copied();
-        uci_go_options.depth = params.get("depth").copied();
+        uci_go_options.depth = params.get("depth").map(|d| *d as u8);
         uci_go_options.nodes = params.get("nodes").copied();
-        uci_go_options.mate = params.get("mate").copied();
+        uci_go_options.mate = params.get("mate").map(|d| *d as u8);
         uci_go_options.move_time = params.get("movetime").copied();
 
         let re_flag_options = Regex::new(r"(infinite|ponder)").unwrap();
@@ -148,9 +151,9 @@ pub fn create_search_params(
         }
     };
 
-    let allocate_max_depth = || -> usize {
+    let allocate_max_depth = || -> u8 {
         let depth = uci_go_options.depth.max(uci_go_options.mate);
-        MAXIMUM_SEARCH_DEPTH.min(depth.map_or(usize::MAX, |d| d))
+        MAXIMUM_SEARCH_DEPTH.min(depth.map_or(u8::MAX.into(), |d| d.into())) as u8
     };
 
     let allocate_max_nodes = || -> usize { uci_go_options.nodes.map_or(usize::MAX, |nodes| nodes) };
@@ -169,15 +172,19 @@ pub fn send_to_gui(data: &str) {
 
 pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
     let uci_position = parse_position(uci_position_str).unwrap();
+    let position = &mut uci_position.end_position.clone();
+    let transposition_table = &mut TranspositionTable::new_using_config();
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);
-    search::negamax::iterative_deepening(
-        &mut TranspositionTable::new_using_config(),
-        &mut uci_position.end_position.clone(),
+    let mut search = Search::new(
+        position,
+        transposition_table,
         &search_params,
         Arc::new(AtomicBool::new(false)),
-        &uci_position.repetition_keys,
-    )
+        uci_position.repetition_keys,
+        move_ordering::MoveOrderer::new(),
+    );
+    search.iterative_deepening()
 }
 
 #[cfg(test)]
@@ -209,7 +216,10 @@ mod tests {
         assert!(parse_position("position fen 8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1 moves f1c4 e4e5")
             .is_some());
         assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
-        assert!(parse_position("position startpos moves e2e3 e7e5 b1c3 d7d5 a2a4 f8a3 b2a3 b8c6 f1b5 d8h4 c3d5 h4f2 e1f2    c8g1").is_none());
+        assert!(parse_position(
+            "position startpos moves e2e3 e7e5 b1c3 d7d5 a2a4 f8a3 b2a3 b8c6 f1b5 d8h4 c3d5 h4f2 e1f2    c8g1"
+        )
+        .is_none());
     }
 
     #[test]
@@ -242,7 +252,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, usize::MAX);
-        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
+        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH as u8);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
 
@@ -252,7 +262,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, 133);
-        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
+        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH as u8);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -261,7 +271,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(Black));
         assert_eq!(search_params.allocated_time_millis, 236);
-        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
+        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH as u8);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -270,7 +280,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, 1100);
-        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
+        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH as u8);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -279,7 +289,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, 1234);
-        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
+        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH as u8);
         assert_eq!(search_params.max_nodes, usize::MAX);
     }
     #[test]
@@ -313,7 +323,7 @@ mod tests {
         let uci_go_options = parse_uci_go_options(Some(command));
         let search_params = create_search_params(&uci_go_options, &create_uci_position(White));
         assert_eq!(search_params.allocated_time_millis, usize::MAX);
-        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH);
+        assert_eq!(search_params.max_depth, MAXIMUM_SEARCH_DEPTH as u8);
         assert_eq!(search_params.max_nodes, 1001);
     }
 }

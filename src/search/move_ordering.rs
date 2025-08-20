@@ -47,28 +47,28 @@ impl MoveOrderer {
         self.counter_moves = [[None; 64]; 12];
     }
 
-    pub fn add_killer_move(&mut self, mov: Move, ply: usize) {
+    pub fn add_killer_move(&mut self, mov: Move, ply: u8) {
         // Don't add capturing moves or promotions as killers
         if mov.get_base_move().capture || matches!(mov, Move::Promotion { .. }) {
             return;
         }
 
         // Don't add if already present as the first killer
-        if let Some(first_killer) = self.killer_moves[ply][0] {
+        if let Some(first_killer) = self.killer_moves[ply as usize][0] {
             if first_killer == mov {
                 return;
             }
         }
 
         // Shift existing killer to second slot and add new one to first slot
-        self.killer_moves[ply][1] = self.killer_moves[ply][0];
-        self.killer_moves[ply][0] = Some(mov);
+        self.killer_moves[ply as usize][1] = self.killer_moves[ply as usize][0];
+        self.killer_moves[ply as usize][0] = Some(mov);
     }
 
     #[allow(dead_code)]
-    pub fn is_killer_move(&self, mov: &Move, ply: usize) -> bool {
+    pub fn is_killer_move(&self, mov: &Move, ply: u8) -> bool {
         for slot in 0..MAX_KILLER_MOVES {
-            if let Some(killer) = self.killer_moves[ply][slot] {
+            if let Some(killer) = self.killer_moves[ply as usize][slot] {
                 if killer == *mov {
                     return true;
                 }
@@ -132,7 +132,7 @@ impl MoveOrderer {
         position: &Position,
         hash_move: Option<Move>,
         moves: &mut T,
-        ply: usize,
+        ply: u8,
         last_move: Option<&Move>,
     ) where
         T: AsMut<[(Move, i32)]>,
@@ -150,7 +150,7 @@ impl MoveOrderer {
         position: &Position,
         mov: &Move,
         hash_move: Option<Move>,
-        ply: usize,
+        ply: u8,
         countermove: Option<Move>,
     ) -> i32 {
         // Hash move gets highest priority
@@ -175,7 +175,7 @@ impl MoveOrderer {
 
                     // MVV-LVA = victim value - aggressor value/100
                     // This ensures higher value victims are prioritized, then lowest value attackers
-                    score += victim_value as i32 - (aggressor_value as i32) / 100;
+                    score += victim_value - (aggressor_value) / 100;
                 }
             }
 
@@ -184,17 +184,17 @@ impl MoveOrderer {
 
         // Check for promotions (non-capturing)
         if let Move::Promotion { promote_to, .. } = mov {
-            return PROMOTION_SCORE + PIECE_SCORES[*promote_to as usize] as i32;
+            return PROMOTION_SCORE + PIECE_SCORES[*promote_to as usize];
         }
 
         // Check if move is a killer move
-        if let Some(killer1) = self.killer_moves[ply][0] {
+        if let Some(killer1) = self.killer_moves[ply as usize][0] {
             if killer1 == *mov {
                 return KILLER_FIRST_SLOT_SCORE;
             }
         }
 
-        if let Some(killer2) = self.killer_moves[ply][1] {
+        if let Some(killer2) = self.killer_moves[ply as usize][1] {
             if killer2 == *mov {
                 return KILLER_SECOND_SLOT_SCORE;
             }
@@ -231,8 +231,8 @@ impl MoveOrderer {
         let base_move = mov.get_base_move();
         if !base_move.capture {
             if let Move::Promotion { promote_to, .. } = mov {
-                return (PIECE_SCORES[*promote_to as usize] as i32
-                    - PIECE_SCORES[PieceType::Pawn as usize] as i32)
+                return (PIECE_SCORES[*promote_to as usize]
+                    - PIECE_SCORES[PieceType::Pawn as usize])
                     / 100;
             }
             return 0;
@@ -243,9 +243,9 @@ impl MoveOrderer {
 
             if let Some(aggressor) = position.board().get_piece(base_move.from as usize) {
                 let aggressor_value = PIECE_SCORES[aggressor.piece_type as usize];
-                let difference_value = victim_value as i32 - (aggressor_value as i32);
+                let difference_value = victim_value - (aggressor_value);
                 if let Move::Promotion { promote_to, .. } = mov {
-                    return (PIECE_SCORES[*promote_to as usize] as i32 + difference_value) / 100;
+                    return (PIECE_SCORES[*promote_to as usize] + difference_value) / 100;
                 } else {
                     return difference_value / 100;
                 }
@@ -261,7 +261,7 @@ pub fn order_moves(
     position: &Position,
     moves: &mut Vec<Move>,
     move_orderer: &MoveOrderer,
-    ply: usize,
+    ply: u8,
     hash_move: Option<Move>,
     last_move: &Option<Move>,
 ) {
@@ -314,23 +314,23 @@ mod tests {
         let killer_move2 = Move::Basic { base_move: BaseMove { from: 11, to: 27, capture: false } };
 
         move_orderer.add_killer_move(killer_move1, ply);
-        assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move1));
-        assert_eq!(move_orderer.killer_moves[ply][1], None);
+        assert_eq!(move_orderer.killer_moves[ply as usize][0], Some(killer_move1));
+        assert_eq!(move_orderer.killer_moves[ply as usize][1], None);
 
         move_orderer.add_killer_move(killer_move2, ply);
-        assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move2));
-        assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
+        assert_eq!(move_orderer.killer_moves[ply as usize][0], Some(killer_move2));
+        assert_eq!(move_orderer.killer_moves[ply as usize][1], Some(killer_move1));
 
         // Adding the same killer should not change anything
         move_orderer.add_killer_move(killer_move2, ply);
-        assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move2));
-        assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
+        assert_eq!(move_orderer.killer_moves[ply as usize][0], Some(killer_move2));
+        assert_eq!(move_orderer.killer_moves[ply as usize][1], Some(killer_move1));
 
         // Capturing moves should not be added as killers
         let capture_move = Move::Basic { base_move: BaseMove { from: 10, to: 26, capture: true } };
         move_orderer.add_killer_move(capture_move, ply);
-        assert_eq!(move_orderer.killer_moves[ply][0], Some(killer_move2));
-        assert_eq!(move_orderer.killer_moves[ply][1], Some(killer_move1));
+        assert_eq!(move_orderer.killer_moves[ply as usize][0], Some(killer_move2));
+        assert_eq!(move_orderer.killer_moves[ply as usize][1], Some(killer_move1));
     }
 
     #[test]

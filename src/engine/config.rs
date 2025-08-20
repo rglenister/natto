@@ -36,11 +36,11 @@ pub fn set_max_book_depth(max_book_depth: usize) {
     *RUNTIME_CONFIG.max_book_depth.write().unwrap() = Some(max_book_depth);
 }
 
-pub fn get_contempt() -> isize {
+pub fn get_contempt() -> i32 {
     RUNTIME_CONFIG.contempt.read().unwrap().unwrap_or(0)
 }
 
-pub fn set_contempt(contempt: isize) {
+pub fn set_contempt(contempt: i32) {
     *RUNTIME_CONFIG.contempt.write().unwrap() = Some(contempt);
 }
 
@@ -61,7 +61,7 @@ pub fn get_config_as_string() -> String {
         use_book: bool,
         max_book_depth: usize,
         hash_size: usize,
-        contempt: isize,
+        contempt: i32,
     }
     let configuration = DynamicConfig {
         log_file: get_log_file(),
@@ -90,7 +90,7 @@ struct RuntimeConfig {
     pub use_book: RwLock<Option<bool>>,
     pub max_book_depth: RwLock<Option<usize>>,
     pub hash_size: RwLock<Option<usize>>,
-    pub contempt: RwLock<Option<isize>>,
+    pub contempt: RwLock<Option<i32>>,
 }
 
 impl RuntimeConfig {

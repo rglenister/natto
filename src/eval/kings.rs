@@ -18,7 +18,7 @@ const ENEMY_PIECE_NEAR_KING_PENALTIES: [isize; 6] = [
     0,  // king
 ];
 
-pub fn score_kings(position: &Position) -> (isize, isize) {
+pub fn score_kings(position: &Position) -> (i32, i32) {
     let score_mg =
         score_king_mg(position, PieceColor::White) - score_king_mg(position, PieceColor::Black);
     let score_eg =
@@ -26,8 +26,8 @@ pub fn score_kings(position: &Position) -> (isize, isize) {
     (score_mg, score_eg)
 }
 
-fn score_king_mg(position: &Position, piece_color: PieceColor) -> isize {
-    let mut score = 0isize;
+fn score_king_mg(position: &Position, piece_color: PieceColor) -> i32 {
+    let mut score = 0i32;
 
     let king_square = position.board().king_square(piece_color);
     let king_file = king_square % 8;
@@ -48,19 +48,19 @@ fn score_king_mg(position: &Position, piece_color: PieceColor) -> isize {
     }
 
     let attackers_near_king = count_attackers(position, piece_color);
-    score -= 20 * attackers_near_king as isize;
+    score -= 20 * attackers_near_king as i32;
 
-    score -= score_enemy_pieces_near_king(position, piece_color, king_square);
+    score -= score_enemy_pieces_near_king(position, piece_color, king_square) as i32;
 
     score
 }
 
 // End game king safety evaluation
-fn score_king_eg(position: &Position, piece_color: PieceColor) -> isize {
-    let mut score = 0;
+fn score_king_eg(position: &Position, piece_color: PieceColor) -> i32 {
+    let mut score = 0i32;
     let king_square = position.board().king_square(piece_color);
-    score += king_near_passed_pawns(position, piece_color, king_square) * 50;
-    score as isize
+    score += king_near_passed_pawns(position, piece_color, king_square) as i32 * 50;
+    score
 }
 
 fn count_pawns_near_king(
