@@ -6,8 +6,7 @@ use crate::engine::config::get_contempt;
 use crate::eval::kings::score_kings;
 use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;
-use crate::search;
-use crate::search::negamax::{RepetitionKey, MAXIMUM_SCORE};
+use crate::search::negamax::{RepetitionKey, Search, MAXIMUM_SCORE};
 use crate::utils::bitboard_iterator::BitboardIterator;
 use crate::utils::util;
 use crate::utils::util::row_bitboard;
@@ -173,7 +172,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &[RepetitionKe
     }
 }
 pub fn has_three_fold_repetition(repetition_key_stack: &[RepetitionKey]) -> bool {
-    search::negamax::get_repeat_position_count(repetition_key_stack) >= 2
+    Search::get_repeat_position_count(repetition_key_stack) >= 2
 }
 pub fn is_check(position: &Position) -> bool {
     check_count(position) >= 1

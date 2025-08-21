@@ -1,8 +1,10 @@
 use crate::core::piece::PieceColor::{Black, White};
 use crate::core::position::Position;
 use crate::core::r#move::{Move, RawMove};
-use crate::search;
-use crate::search::negamax::{RepetitionKey, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH};
+use crate::search::move_ordering::MoveOrderer;
+use crate::search::negamax::{
+    RepetitionKey, Search, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH,
+};
 use crate::search::transposition_table::TranspositionTable;
 use crate::utils::util;
 use log::{error, info};
@@ -171,13 +173,18 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
     let uci_position = parse_position(uci_position_str).unwrap();
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);
-    search::negamax::iterative_deepening(
-        &mut TranspositionTable::new_using_config(),
-        &mut uci_position.end_position.clone(),
-        &search_params,
+    let position = &mut uci_position.end_position.clone();
+    let transposition_table = TranspositionTable::new_using_config();
+    let mut search = Search::new(
+        position,
+        &transposition_table,
+        search_params,
         Arc::new(AtomicBool::new(false)),
-        &uci_position.repetition_keys,
-    )
+        uci_position.repetition_keys,
+        MoveOrderer::new(),
+        0,
+    );
+    search.iterative_deepening()
 }
 
 #[cfg(test)]

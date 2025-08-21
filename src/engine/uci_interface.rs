@@ -3,14 +3,15 @@ use crate::book::opening_book::OpeningBook;
 use crate::core::r#move::convert_move_to_raw;
 use crate::engine::{config, uci};
 use crate::eval::evaluation::GameStatus;
-use crate::search::negamax;
+use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
+use crate::search::move_ordering;
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
@@ -53,7 +54,7 @@ struct Engine {
     search_stop_flag: Arc<AtomicBool>,
     main_loop_quit_flag: Arc<AtomicBool>,
     opening_book: Option<LiChessOpeningBook>,
-    transposition_table: Arc<Mutex<TranspositionTable>>,
+    transposition_table: Arc<TranspositionTable>,
 }
 
 impl Engine {
@@ -63,7 +64,7 @@ impl Engine {
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
             opening_book: Self::create_opening_book(),
-            transposition_table: Arc::new(Mutex::new(TranspositionTable::new_using_config())),
+            transposition_table: Arc::new(TranspositionTable::new_using_config()),
         }
     }
 
@@ -155,7 +156,7 @@ impl Engine {
     fn uci_new_game(&self, uci_position: &mut Option<uci::UciPosition>) {
         info!("UCI new game command received");
         *uci_position = None;
-        self.transposition_table.lock().unwrap().clear();
+        self.transposition_table.clear();
     }
 
     fn uci_go(
@@ -175,21 +176,25 @@ impl Engine {
 
                     let search_params = uci::create_search_params(&uci_go_options, uci_pos);
 
-                    debug!("search params = {search_params}");
+                    debug!("search params = {search_params:?}");
                     debug!("Starting search...");
                     search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
                     let stop_flag = Arc::clone(search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
-                    let tt_clone = Arc::clone(&self.transposition_table);
+                    let mut position = uci_pos_clone.end_position;
+                    let transposition_table = Arc::clone(&self.transposition_table);
                     *search_handle = Some(thread::spawn(move || {
-                        let search_results = negamax::iterative_deepening(
-                            &mut tt_clone.lock().unwrap(),
-                            &mut uci_pos_clone.end_position.clone(),
-                            &search_params,
+                        let mut search = Search::new(
+                            &mut position,
+                            &transposition_table,
+                            search_params,
                             stop_flag,
-                            &uci_pos_clone.repetition_keys,
+                            uci_pos_clone.repetition_keys,
+                            move_ordering::MoveOrderer::new(),
+                            0,
                         );
+                        let search_results = search.iterative_deepening();
                         debug!("score: {} depth {}", search_results.score, search_results.depth);
                         let best_move = search_results.pv.first().map(convert_move_to_raw);
                         if let Some(best_move) = best_move {
@@ -252,8 +257,8 @@ impl Engine {
                     }
                 }
                 "contempt" => {
-                    if let Ok(v) = value.parse::<isize>() {
-                        config::set_contempt(v);
+                    if let Ok(v) = value.parse::<i32>() {
+                        config::set_contempt(v as isize);
                     }
                 }
                 "usebook" => {
@@ -326,7 +331,7 @@ impl Engine {
                     info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
                 }
             } else {
-                info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
+                info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}",
                     uci_pos.end_position.full_move_number(), config::get_max_book_depth());
             }
         }

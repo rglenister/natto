@@ -77,36 +77,38 @@ impl SearchParams {
         SearchParams::new(usize::MAX, max_depth, usize::MAX)
     }
 }
-pub struct SearchContext<'a> {
+pub struct Search<'a> {
+    pub(crate) position: &'a mut Position,
     pub node_counter: NodeCounter,
-    transposition_table: &'a mut TranspositionTable,
-    search_params: &'a SearchParams,
-    stop_flag: Arc<AtomicBool>,
-    repetition_key_stack: Vec<RepetitionKey>,
+    pub(crate) transposition_table: &'a TranspositionTable,
+    pub(crate) search_params: SearchParams,
+    pub(crate) stop_flag: Arc<AtomicBool>,
+    pub(crate) repetition_key_stack: Vec<RepetitionKey>,
     move_orderer: MoveOrderer,
     max_depth: usize,
 }
 
-impl<'a> SearchContext<'a> {
+impl<'a> Search<'a> {
     pub fn new(
-        transposition_table: &'a mut TranspositionTable,
-        search_params: &'a SearchParams,
+        position: &'a mut Position,
+        transposition_table: &'a TranspositionTable,
+        search_params: SearchParams,
         stop_flag: Arc<AtomicBool>,
         repetition_keys: Vec<RepetitionKey>,
         move_orderer: MoveOrderer,
         max_depth: usize,
-    ) -> SearchContext<'a> {
+    ) -> Search<'a> {
         Self {
-            node_counter: NodeCounter::new(),
+            position,
             transposition_table,
             search_params,
             stop_flag,
             repetition_key_stack: repetition_keys,
+            node_counter: NodeCounter::new(),
             move_orderer,
             max_depth,
         }
     }
-
     fn stop_search_requested(&self) -> bool {
         self.stop_flag.load(Ordering::Relaxed)
     }
@@ -140,382 +142,352 @@ impl RepetitionKey {
     }
 }
 
-pub fn iterative_deepening(
-    transposition_table: &mut TranspositionTable,
-    position: &mut Position,
-    search_params: &SearchParams,
-    stop_flag: Arc<AtomicBool>,
-    repetition_keys: &[RepetitionKey],
-) -> SearchResults {
-    let mut search_results: Option<SearchResults> = None;
-    for iteration_max_depth in 1..=search_params.max_depth {
-        let mut search_context = SearchContext::new(
-            transposition_table,
-            search_params,
-            stop_flag.clone(),
-            Vec::from(repetition_keys),
-            MoveOrderer::new(),
-            iteration_max_depth,
-        );
-        let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-        let score = negamax(
-            position,
-            &mut ArrayVec::new(),
-            &mut pv,
-            iteration_max_depth,
-            &mut search_context,
-            -MAXIMUM_SCORE,
-            MAXIMUM_SCORE,
-        );
-        if !search_context.stop_search_requested() {
-            let iteration_search_results =
-                create_search_results(position, score, iteration_max_depth, &pv, &search_context);
-            search_results = Some(iteration_search_results.clone());
-            debug!(
-                "Search results for depth {}: {}",
+impl Search<'_> {
+    pub fn iterative_deepening(&mut self) -> SearchResults {
+        let mut search_results: Option<SearchResults> = None;
+        for iteration_max_depth in 1..=self.search_params.max_depth {
+            self.move_orderer._clear();
+            self.max_depth = iteration_max_depth;
+            let mut pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+            let score = self.negamax(
+                &mut ArrayVec::new(),
+                &mut pv,
                 iteration_max_depth,
-                iteration_search_results.clone()
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
             );
-            uci::send_to_gui(
-                format_uci_info(
-                    position,
-                    &iteration_search_results,
-                    &search_context.node_counter.stats(),
-                )
-                .as_str(),
-            );
-            let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate
-                || is_mating_score(iteration_search_results.score);
-            if is_checkmate {
-                info!("Found mate at depth {iteration_max_depth} - stopping search");
-                search_context.transposition_table.clear();
+            if !self.stop_search_requested() {
+                let iteration_search_results =
+                    self.create_search_results(self.position, score, iteration_max_depth, &pv);
+                search_results = Some(iteration_search_results.clone());
+                debug!(
+                    "Search results for depth {}: {}",
+                    iteration_max_depth,
+                    iteration_search_results.clone()
+                );
+                uci::send_to_gui(
+                    Search::format_uci_info(
+                        self.position,
+                        &iteration_search_results,
+                        &self.node_counter.stats(),
+                    )
+                    .as_str(),
+                );
+                let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate
+                    || Search::is_mating_score(iteration_search_results.score);
+                if is_checkmate {
+                    info!("Found mate at depth {iteration_max_depth} - stopping search");
+                    self.transposition_table.clear();
+                    break;
+                }
+            } else if search_results.is_some() {
                 break;
             }
-        } else if search_results.is_some() {
-            break;
         }
+        search_results.unwrap()
     }
-    search_results.unwrap()
-}
 
-fn negamax(
-    position: &mut Position,
-    current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
-    pv: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
-    depth: usize,
-    search_context: &mut SearchContext,
-    mut alpha: isize,
-    mut beta: isize,
-) -> isize {
-    search_context.node_counter.increment();
-    let ply = search_context.max_depth - depth;
-    let alpha_original = alpha;
-    let beta_original = beta;
-    if search_context.used_allocated_move_time() {
-        search_context.request_stop_search();
-        return 0;
-    }
-    let ttable_entry = search_context.transposition_table.probe(position.hash_code());
-    if let Some(entry) = ttable_entry {
-        if entry.depth >= depth {
-            match entry.bound_type {
-                BoundType::Exact => {
-                    if let Some(best_move) = entry.best_move {
-                        if let Some(undo_move_info) = position.make_move(&best_move) {
-                            let is_drawn = {
-                                position.is_drawn_by_fifty_moves_rule() || {
-                                    search_context
-                                        .repetition_key_stack
-                                        .push(RepetitionKey::new(position));
-                                    let drawn_by_threefold_repetition = has_three_fold_repetition(
-                                        &search_context.repetition_key_stack,
-                                    );
-                                    search_context.repetition_key_stack.pop();
-                                    drawn_by_threefold_repetition
+    fn negamax(
+        &mut self,
+        current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
+        pv: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
+        depth: usize,
+        mut alpha: isize,
+        mut beta: isize,
+    ) -> isize {
+        self.node_counter.increment();
+        let ply = self.max_depth - depth;
+        let alpha_original = alpha;
+        let beta_original = beta;
+
+        if self.used_allocated_move_time() {
+            self.request_stop_search();
+            return 0;
+        }
+        let ttable_entry = self.transposition_table.probe(self.position.hash_code());
+        if let Some(entry) = ttable_entry {
+            if entry.depth >= depth {
+                match entry.bound_type {
+                    BoundType::Exact => {
+                        if let Some(best_move) = entry.best_move {
+                            if let Some(undo_move_info) = self.position.make_move(&best_move) {
+                                let is_drawn = {
+                                    self.position.is_drawn_by_fifty_moves_rule() || {
+                                        self.repetition_key_stack
+                                            .push(RepetitionKey::new(self.position));
+                                        let drawn_by_threefold_repetition =
+                                            has_three_fold_repetition(&self.repetition_key_stack);
+                                        self.repetition_key_stack.pop();
+                                        drawn_by_threefold_repetition
+                                    }
+                                };
+
+                                if !is_drawn {
+                                    pv.clear();
+                                    pv.push(best_move);
+                                    self.position.unmake_move(&undo_move_info);
+                                    return entry.score;
                                 }
-                            };
-
-                            if !is_drawn {
-                                pv.clear();
-                                pv.push(best_move);
-                                position.unmake_move(&undo_move_info);
-                                return entry.score;
+                                self.position.unmake_move(&undo_move_info);
                             }
-                            position.unmake_move(&undo_move_info);
+                        }
+                    }
+                    BoundType::LowerBound => {
+                        if entry.score > alpha {
+                            alpha = entry.score
+                        }
+                    }
+                    BoundType::UpperBound => {
+                        if entry.score < beta {
+                            beta = entry.score;
                         }
                     }
                 }
-                BoundType::LowerBound => {
-                    if entry.score > alpha {
-                        alpha = entry.score
-                    }
-                }
-                BoundType::UpperBound => {
-                    if entry.score < beta {
-                        beta = entry.score;
-                    }
-                }
-            }
-            if alpha >= beta {
-                return entry.score;
-            }
-        }
-    }
-    if depth > 0 {
-        let mut moves = move_gen::generate_moves(position);
-        let hash_move = ttable_entry.and_then(|entry| entry.best_move);
-        let last_move = &current_line.last().cloned();
-        move_ordering::order_moves(
-            position,
-            &mut moves,
-            &search_context.move_orderer,
-            ply,
-            hash_move,
-            last_move,
-        );
-        let mut best_score = -MAXIMUM_SCORE;
-        let mut best_move = None;
-        for mv in moves {
-            if let Some(undo_move_info) = position.make_move(&mv) {
-                // there isn't a checkmate or a stalemate
-                let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-                current_line.push(mv);
-                search_context.repetition_key_stack.push(RepetitionKey::new(position));
-                let next_score = if position.is_drawn_by_fifty_moves_rule()
-                    || has_three_fold_repetition(&search_context.repetition_key_stack)
-                {
-                    // Apply contempt to repetition-based draws
-                    evaluation::apply_contempt(0)
-                } else {
-                    -negamax(
-                        position,
-                        current_line,
-                        &mut child_pv,
-                        depth - 1,
-                        search_context,
-                        -beta,
-                        -alpha,
-                    )
-                };
-                current_line.pop();
-                search_context.repetition_key_stack.pop();
-                if next_score > best_score || best_move.is_none() {
-                    best_score = next_score;
-                    best_move = Some(mv);
-                    pv.clear();
-                    pv.push(mv);
-                    pv.extend(child_pv);
-                }
-                alpha = alpha.max(next_score);
-                position.unmake_move(&undo_move_info);
                 if alpha >= beta {
-                    search_context.move_orderer.add_killer_move(mv, ply);
-                    break;
-                }
-                if depth >= 2 && search_context.stop_search_requested() {
-                    break;
+                    return entry.score;
                 }
             }
         }
-        if best_move.is_some() {
-            if !search_context.stop_search_requested() {
-                search_context.transposition_table.insert(
-                    position,
-                    depth,
-                    alpha_original,
-                    beta_original,
-                    best_score,
-                    best_move,
-                );
+        if depth > 0 {
+            let mut moves = move_gen::generate_moves(self.position);
+            let hash_move = ttable_entry.and_then(|entry| entry.best_move);
+            let last_move = &current_line.last().cloned();
+            move_ordering::order_moves(
+                self.position,
+                &mut moves,
+                &self.move_orderer,
+                ply,
+                hash_move,
+                last_move,
+            );
+            let mut best_score = -MAXIMUM_SCORE;
+            let mut best_move = None;
+            for mv in moves {
+                if let Some(undo_move_info) = self.position.make_move(&mv) {
+                    // there isn't a checkmate or a stalemate
+                    let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+                    current_line.push(mv);
+                    self.repetition_key_stack.push(RepetitionKey::new(self.position));
+                    let next_score = if self.position.is_drawn_by_fifty_moves_rule()
+                        || has_three_fold_repetition(&self.repetition_key_stack)
+                    {
+                        // Apply contempt to repetition-based draws
+                        evaluation::apply_contempt(0)
+                    } else {
+                        -self.negamax(current_line, &mut child_pv, depth - 1, -beta, -alpha)
+                    };
+                    current_line.pop();
+                    self.repetition_key_stack.pop();
+                    if next_score > best_score || best_move.is_none() {
+                        best_score = next_score;
+                        best_move = Some(mv);
+                        pv.clear();
+                        pv.push(mv);
+                        pv.extend(child_pv);
+                    }
+                    alpha = alpha.max(next_score);
+                    self.position.unmake_move(&undo_move_info);
+                    if alpha >= beta {
+                        self.move_orderer.add_killer_move(mv, ply);
+                        break;
+                    }
+                    if depth >= 2 && self.stop_search_requested() {
+                        break;
+                    }
+                }
             }
+            if best_move.is_some() {
+                if !self.stop_search_requested() {
+                    self.transposition_table.insert(
+                        self.position,
+                        depth,
+                        alpha_original,
+                        beta_original,
+                        best_score,
+                        best_move,
+                    );
+                }
+            } else {
+                best_score =
+                    evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
+                if !self.stop_search_requested() {
+                    self.transposition_table.insert(
+                        self.position,
+                        depth,
+                        alpha_original,
+                        beta_original,
+                        best_score,
+                        None,
+                    );
+                }
+            }
+            best_score
         } else {
-            best_score =
-                evaluation::evaluate(position, ply, search_context.repetition_key_stack.as_ref());
-            if !search_context.stop_search_requested() {
-                search_context.transposition_table.insert(
-                    position,
-                    depth,
+            let mut score =
+                evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
+            if !Search::is_terminal_score(score) {
+                score = quiescence::quiescence_search((ply + 1) as isize, self, alpha, beta);
+            }
+            if !self.stop_search_requested() {
+                self.transposition_table.insert(
+                    self.position,
+                    0,
                     alpha_original,
                     beta_original,
-                    best_score,
+                    score,
                     None,
                 );
             }
+            score
         }
-        best_score
-    } else {
-        let mut score =
-            evaluation::evaluate(position, ply, search_context.repetition_key_stack.as_ref());
-        if !is_terminal_score(score) {
-            score = quiescence::quiescence_search(
-                position,
-                (ply + 1) as isize,
-                search_context,
-                alpha,
-                beta,
-            );
-        }
-        if !search_context.stop_search_requested() {
-            search_context.transposition_table.insert(
-                position,
-                0,
-                alpha_original,
-                beta_original,
-                score,
-                None,
-            );
-        }
-        score
     }
-}
 
-fn create_search_results(
-    position: &Position,
-    score: isize,
-    max_depth: usize,
-    pv: &[Move],
-    search_context: &SearchContext,
-) -> SearchResults {
-    let get_game_status = |last_position, repetition_keys: &Vec<RepetitionKey>| -> GameStatus {
-        let game_status = evaluation::get_game_status(last_position, repetition_keys);
-        match game_status {
-            GameStatus::InProgress if score == 0 => GameStatus::Draw,
-            _ => game_status,
-        }
-    };
+    fn create_search_results(
+        &self,
+        position: &Position,
+        score: isize,
+        max_depth: usize,
+        pv: &[Move],
+    ) -> SearchResults {
+        let get_game_status = |last_position, repetition_keys: &Vec<RepetitionKey>| -> GameStatus {
+            let game_status = evaluation::get_game_status(last_position, repetition_keys);
+            match game_status {
+                GameStatus::InProgress if score == 0 => GameStatus::Draw,
+                _ => game_status,
+            }
+        };
 
-    let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(position, pv).unwrap();
-    let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth {
-        extend_principal_variation(
-            search_context.transposition_table,
-            position,
-            &pv_with_positions,
-            max_depth,
-        )
-    } else {
-        pv_with_positions
-    };
-    let last_position = final_pv.last().map_or(position, |(p, _)| p);
-    let pv_repetition_keys: Vec<RepetitionKey> =
-        final_pv.iter().map(|(p, _)| RepetitionKey::new(p)).collect();
-    let repetition_keys =
-        [search_context.repetition_key_stack.clone(), pv_repetition_keys].concat();
-    let game_status = get_game_status(last_position, &repetition_keys);
-    let (_, moves): (Vec<Position>, Vec<Move>) = final_pv.into_iter().unzip();
-    SearchResults { position: *position, score, depth: max_depth, pv: moves, game_status }
-}
+        let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(position, pv).unwrap();
+        let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth {
+            Search::extend_principal_variation(
+                self.transposition_table,
+                position,
+                &pv_with_positions,
+                max_depth,
+            )
+        } else {
+            pv_with_positions
+        };
+        let last_position = final_pv.last().map_or(position, |(p, _)| p);
+        let pv_repetition_keys: Vec<RepetitionKey> =
+            final_pv.iter().map(|(p, _)| RepetitionKey::new(p)).collect();
+        let repetition_keys = [self.repetition_key_stack.clone(), pv_repetition_keys].concat();
+        let game_status = get_game_status(last_position, &repetition_keys);
+        let (_, moves): (Vec<Position>, Vec<Move>) = final_pv.into_iter().unzip();
+        SearchResults { position: *position, score, depth: max_depth, pv: moves, game_status }
+    }
 
-fn extend_principal_variation(
-    transposition_table: &TranspositionTable,
-    position: &Position,
-    current_pv: &[(Position, Move)],
-    max_depth: usize,
-) -> Vec<(Position, Move)> {
-    let mut result_pv = current_pv.to_owned();
-    let last_position = current_pv.last().map_or(position, |(p, _)| p);
-    let mut current_position = *last_position;
+    fn extend_principal_variation(
+        transposition_table: &TranspositionTable,
+        position: &Position,
+        current_pv: &[(Position, Move)],
+        max_depth: usize,
+    ) -> Vec<(Position, Move)> {
+        let mut result_pv = current_pv.to_owned();
+        let last_position = current_pv.last().map_or(position, |(p, _)| p);
+        let mut current_position = *last_position;
 
-    let mut visited_positions = HashSet::new();
-    let mut num_missing_moves = max_depth - current_pv.len();
+        let mut visited_positions = HashSet::new();
+        let mut num_missing_moves = max_depth - current_pv.len();
 
-    while let Some(entry) = transposition_table.probe(current_position.hash_code()) {
-        if num_missing_moves == 0
-            || entry.depth < num_missing_moves
-            || entry.bound_type != BoundType::Exact
-        {
-            break;
-        }
+        while let Some(entry) = transposition_table.probe(current_position.hash_code()) {
+            if num_missing_moves == 0
+                || entry.depth < num_missing_moves
+                || entry.bound_type != BoundType::Exact
+            {
+                break;
+            }
 
-        if let Some(best_mv) = entry.best_move {
-            if current_position.make_move(&best_mv).is_some() {
-                if visited_positions.contains(&current_position.hash_code()) {
+            if let Some(best_mv) = entry.best_move {
+                if current_position.make_move(&best_mv).is_some() {
+                    if visited_positions.contains(&current_position.hash_code()) {
+                        break;
+                    }
+                    result_pv.push((*last_position, best_mv));
+                    num_missing_moves -= 1;
+                    visited_positions.insert(current_position.hash_code());
+                } else {
                     break;
                 }
-                result_pv.push((*last_position, best_mv));
-                num_missing_moves -= 1;
-                visited_positions.insert(current_position.hash_code());
             } else {
                 break;
             }
-        } else {
-            break;
         }
+        debug!("PV extended from length {} to length {}", current_pv.len(), result_pv.len());
+        result_pv
     }
-    debug!("PV extended from length {} to length {}", current_pv.len(), result_pv.len());
-    result_pv
-}
 
-pub fn get_repeat_position_count(repetition_key_stack: &[RepetitionKey]) -> usize {
-    let mut repetition_count = 0;
-    let length = repetition_key_stack.len();
-    if length >= 5 {
-        let current_key = repetition_key_stack.last().unwrap();
-        if current_key.half_move_clock >= 3 {
-            for i in (0..=length - 5).rev().step_by(2) {
-                let key = repetition_key_stack.get(i).unwrap();
-                if key.zobrist_hash == current_key.zobrist_hash {
-                    repetition_count += 1;
-                }
-                if key.half_move_clock <= 1 {
-                    break;
+    pub fn get_repeat_position_count(repetition_key_stack: &[RepetitionKey]) -> usize {
+        let mut repetition_count = 0;
+        let length = repetition_key_stack.len();
+        if length >= 5 {
+            let current_key = repetition_key_stack.last().unwrap();
+            if current_key.half_move_clock >= 3 {
+                for i in (0..=length - 5).rev().step_by(2) {
+                    let key = repetition_key_stack.get(i).unwrap();
+                    if key.zobrist_hash == current_key.zobrist_hash {
+                        repetition_count += 1;
+                    }
+                    if key.half_move_clock <= 1 {
+                        break;
+                    }
                 }
             }
         }
+        // #[cfg(debug_assertions)]
+        // {
+        //     let last_position_instance_count: usize = repetition_key_stack.last().map_or(0,|last_key| {
+        //         repetition_key_stack.iter().filter(|key| key.zobrist_hash == last_key.zobrist_hash).count() - 1
+        //     });
+        //     assert_eq!(repetition_count, last_position_instance_count);
+        // }
+        repetition_count
     }
-    // #[cfg(debug_assertions)]
-    // {
-    //     let last_position_instance_count: usize = repetition_key_stack.last().map_or(0,|last_key| {
-    //         repetition_key_stack.iter().filter(|key| key.zobrist_hash == last_key.zobrist_hash).count() - 1
-    //     });
-    //     assert_eq!(repetition_count, last_position_instance_count);
-    // }
-    repetition_count
-}
 
-fn format_uci_info(
-    position: &Position,
-    search_results: &SearchResults,
-    node_counter_stats: &NodeCountStats,
-) -> String {
-    let moves_string = search_results
-        .pv
-        .iter()
-        .map(|pos| r#move::convert_move_to_raw(pos).to_string())
-        .collect::<Vec<String>>()
-        .join(" ");
+    fn format_uci_info(
+        position: &Position,
+        search_results: &SearchResults,
+        node_counter_stats: &NodeCountStats,
+    ) -> String {
+        let moves_string = search_results
+            .pv
+            .iter()
+            .map(|pos| r#move::convert_move_to_raw(pos).to_string())
+            .collect::<Vec<String>>()
+            .join(" ");
 
-    let moves = util::replay_move_string(position, moves_string.clone());
-    if moves.is_none() {
-        error!(
-            "Invalid moves for position [{}] being sent to host as UCI info: [{}]",
-            fen::write(position),
+        let moves = util::replay_move_string(position, moves_string.clone());
+        if moves.is_none() {
+            error!(
+                "Invalid moves for position [{}] being sent to host as UCI info: [{}]",
+                fen::write(position),
+                moves_string
+            );
+        }
+
+        format!(
+            "info depth {} score cp {} time {} nodes {} nps {} pv {}",
+            search_results.depth,
+            search_results.score,
+            node_counter_stats.elapsed_time.as_millis(),
+            node_counter_stats.node_count,
+            node_counter_stats.nodes_per_second,
             moves_string
-        );
+        )
     }
 
-    format!(
-        "info depth {} score cp {} time {} nodes {} nps {} pv {}",
-        search_results.depth,
-        search_results.score,
-        node_counter_stats.elapsed_time.as_millis(),
-        node_counter_stats.node_count,
-        node_counter_stats.nodes_per_second,
-        moves_string
-    )
-}
+    fn is_mating_score(score: isize) -> bool {
+        score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize
+    }
 
-fn is_mating_score(score: isize) -> bool {
-    score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize
-}
+    fn is_drawing_score(score: isize) -> bool {
+        score == 0
+    }
 
-fn is_drawing_score(score: isize) -> bool {
-    score == 0
+    fn is_terminal_score(score: isize) -> bool {
+        Search::is_mating_score(score) || Search::is_drawing_score(score)
+    }
 }
-
-fn is_terminal_score(score: isize) -> bool {
-    is_mating_score(score) || is_drawing_score(score)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,22 +510,29 @@ mod tests {
             .join(",")
     }
 
+    fn create_search<'a>(
+        position: &'a mut Position,
+        transposition_table: &'a TranspositionTable,
+        depth: u8,
+    ) -> Search<'a> {
+        Search::new(
+            position,
+            transposition_table,
+            SearchParams::new_by_depth(depth as isize),
+            Arc::new(AtomicBool::new(false)),
+            vec![],
+            MoveOrderer::new(),
+            0,
+        )
+    }
+
     #[test]
     fn test_piece_captured() {
         setup();
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams {
-                allocated_time_millis: usize::MAX,
-                max_depth: 1,
-                max_nodes: usize::MAX,
-            },
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
         assert_eq!(search_results.score, -1020);
         let pv = move_formatter::LONG_FORMATTER
             .format_move_list(&mut position, &search_results.pv)
@@ -567,13 +546,8 @@ mod tests {
         setup();
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
         assert_eq!(
             search_results,
             SearchResults {
@@ -591,13 +565,8 @@ mod tests {
         setup();
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
         assert_eq!(
             search_results,
             SearchResults {
@@ -615,13 +584,8 @@ mod tests {
         setup();
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -640,13 +604,8 @@ mod tests {
         setup();
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(3),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 3).iterative_deepening();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -665,13 +624,8 @@ mod tests {
         setup();
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(3),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 3).iterative_deepening();
         assert_eq!(
             move_formatter::format_move_list(&position, &search_results),
             "♕f5-g6+,h7xg6,♗c2xg6#"
@@ -693,13 +647,8 @@ mod tests {
         setup();
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(5),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 5).iterative_deepening();
         assert_eq!(
             move_formatter::format_move_list(&position, &search_results),
             "♖f6-a6+,f7-f6,♗e5xf6+,♜g8-g7,♖a6xa8#"
@@ -721,13 +670,8 @@ mod tests {
         setup();
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(7),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 7).iterative_deepening();
         assert_eq!(
             long_format_moves(&position, &search_results),
             "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,f5xg6#"
@@ -749,13 +693,8 @@ mod tests {
         setup();
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(5),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 5).iterative_deepening();
         assert_eq!(
             move_formatter::format_move_list(&position, &search_results),
             "♗f1-c4,♚e4-e5,♕d1-d5+,♚e5-f6,♕d5-g5#"
@@ -777,13 +716,8 @@ mod tests {
         setup();
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(2),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 2).iterative_deepening();
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
 
@@ -792,13 +726,8 @@ mod tests {
         setup();
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(5),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 5).iterative_deepening();
         assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
     }
 
@@ -807,13 +736,8 @@ mod tests {
         setup();
         let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛c8-c2");
     }
 
@@ -824,13 +748,9 @@ mod tests {
         let original_position: Position = Position::from(fen);
 
         let mut in_progress_position: Position = original_position.clone();
-        let in_progress_search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut in_progress_position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let in_progress_search_results =
+            create_search(&mut in_progress_position, &TranspositionTable::new(1), 1)
+                .iterative_deepening();
         assert_eq!(in_progress_search_results.pv_moves_as_string(), "h5-f4".to_string());
         test_eq(
             &in_progress_search_results,
@@ -845,13 +765,9 @@ mod tests {
 
         let mut drawn_position: Position = original_position.clone();
         drawn_position.make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
-        let drawn_position_search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut drawn_position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let drawn_position_search_results =
+            create_search(&mut drawn_position, &TranspositionTable::new(1), 1)
+                .iterative_deepening();
         assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
             &drawn_position_search_results,
@@ -1041,35 +957,35 @@ mod tests {
     fn test_is_mating_score() {
         setup();
         let score = MAXIMUM_SCORE;
-        assert!(is_mating_score(score));
+        assert!(Search::is_mating_score(score));
 
         let score = -MAXIMUM_SCORE;
-        assert!(is_mating_score(score));
+        assert!(Search::is_mating_score(score));
 
         let score = MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize;
-        assert!(is_mating_score(score));
+        assert!(Search::is_mating_score(score));
 
         let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize);
-        assert!(is_mating_score(score));
+        assert!(Search::is_mating_score(score));
 
         let score = (MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize) - 1;
-        assert!(!is_mating_score(score));
+        assert!(!Search::is_mating_score(score));
 
         let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize) + 1;
-        assert!(!is_mating_score(score));
+        assert!(!Search::is_mating_score(score));
     }
 
     #[test]
     fn test_is_drawing_score() {
         setup();
         let score = -1;
-        assert!(!is_drawing_score(score));
+        assert!(!Search::is_drawing_score(score));
 
         let score = 1;
-        assert!(!is_drawing_score(score));
+        assert!(!Search::is_drawing_score(score));
 
         let score = 0;
-        assert!(is_drawing_score(score));
+        assert!(Search::is_drawing_score(score));
     }
 
     #[test]
@@ -1077,28 +993,26 @@ mod tests {
         setup();
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results = iterative_deepening(
-            &mut TranspositionTable::new(1),
-            &mut position,
-            &SearchParams::new_by_depth(1),
-            Arc::new(AtomicBool::new(false)),
-            &vec![],
-        );
+        let search_results =
+            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛g7xh6");
     }
 
     #[test]
     fn test_get_repetition_count() {
-        assert_eq!(get_repeat_position_count(&vec!()), 0);
+        assert_eq!(Search::get_repeat_position_count(&vec!()), 0);
 
         let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
         let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
-        assert_eq!(get_repeat_position_count(&vec![k1()]), 0);
-        assert_eq!(get_repeat_position_count(&vec![k2(), k1()]), 0);
-        assert_eq!(get_repeat_position_count(&vec![k2(), k2(), k1()]), 0);
-        assert_eq!(get_repeat_position_count(&vec![k2(), k2(), k2(), k1()]), 0);
-        assert_eq!(get_repeat_position_count(&vec![k1(), k2(), k2(), k2(), k1()]), 1);
-        assert_eq!(get_repeat_position_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 1);
-        assert_eq!(get_repeat_position_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]), 2);
+        assert_eq!(Search::get_repeat_position_count(&vec![k1()]), 0);
+        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k1()]), 0);
+        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k2(), k1()]), 0);
+        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k2(), k2(), k1()]), 0);
+        assert_eq!(Search::get_repeat_position_count(&vec![k1(), k2(), k2(), k2(), k1()]), 1);
+        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 1);
+        assert_eq!(
+            Search::get_repeat_position_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
+            2
+        );
     }
 }
