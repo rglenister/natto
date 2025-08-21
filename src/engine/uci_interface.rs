@@ -3,9 +3,9 @@ use crate::book::opening_book::OpeningBook;
 use crate::core::r#move::convert_move_to_raw;
 use crate::engine::{config, uci};
 use crate::eval::evaluation::GameStatus;
+use crate::search::move_ordering;
 use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
-use crate::search::move_ordering;
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
@@ -258,7 +258,7 @@ impl Engine {
                 }
                 "contempt" => {
                     if let Ok(v) = value.parse::<i32>() {
-                        config::set_contempt(v as isize);
+                        config::set_contempt(v);
                     }
                 }
                 "usebook" => {

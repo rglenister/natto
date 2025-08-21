@@ -3,10 +3,10 @@ use crate::core::r#move::Move;
 use crate::core::{move_gen, r#move};
 use crate::engine::uci;
 use crate::eval::evaluation;
-use crate::eval::evaluation::{has_three_fold_repetition, GameStatus};
+use crate::eval::evaluation::GameStatus;
+use crate::search::move_ordering;
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::transposition_table::{BoundType, TranspositionTable};
-use crate::search::{move_ordering, quiescence};
 use crate::utils::move_formatter;
 use crate::utils::move_formatter::FormatMove;
 use crate::utils::node_counter::{NodeCountStats, NodeCounter};
@@ -23,13 +23,15 @@ include!("../utils/generated_macro.rs");
 
 pub const MAXIMUM_SEARCH_DEPTH: usize = 63;
 
-pub const MAXIMUM_SCORE: isize = 100000;
+pub const MAXIMUM_SCORE: i32 = 100000;
+
+pub const DRAW_SCORE: i32 = 0;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchResults {
     pub position: Position,
-    pub score: isize,
-    pub depth: usize,
+    pub score: i32,
+    pub depth: u8,
     pub pv: Vec<Move>,
     pub game_status: GameStatus,
 }
@@ -53,7 +55,7 @@ impl Display for SearchResults {
 #[derive(Clone, Debug)]
 pub struct SearchParams {
     pub allocated_time_millis: usize,
-    pub max_depth: usize,
+    pub max_depth: u8,
     pub max_nodes: usize,
 }
 
@@ -78,14 +80,14 @@ impl SearchParams {
     }
 }
 pub struct Search<'a> {
-    pub(crate) position: &'a mut Position,
+    pub position: &'a mut Position,
     pub node_counter: NodeCounter,
-    pub(crate) transposition_table: &'a TranspositionTable,
-    pub(crate) search_params: SearchParams,
-    pub(crate) stop_flag: Arc<AtomicBool>,
-    pub(crate) repetition_key_stack: Vec<RepetitionKey>,
+    pub transposition_table: &'a TranspositionTable,
+    pub search_params: SearchParams,
+    pub stop_flag: Arc<AtomicBool>,
+    pub repetition_key_stack: Vec<RepetitionKey>,
     move_orderer: MoveOrderer,
-    max_depth: usize,
+    max_depth: u8,
 }
 
 impl<'a> Search<'a> {
@@ -96,7 +98,7 @@ impl<'a> Search<'a> {
         stop_flag: Arc<AtomicBool>,
         repetition_keys: Vec<RepetitionKey>,
         move_orderer: MoveOrderer,
-        max_depth: usize,
+        max_depth: u8,
     ) -> Search<'a> {
         Self {
             position,
@@ -191,10 +193,10 @@ impl Search<'_> {
         &mut self,
         current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
         pv: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
-        depth: usize,
-        mut alpha: isize,
-        mut beta: isize,
-    ) -> isize {
+        depth: u8,
+        mut alpha: i32,
+        mut beta: i32,
+    ) -> i32 {
         self.node_counter.increment();
         let ply = self.max_depth - depth;
         let alpha_original = alpha;
@@ -216,7 +218,9 @@ impl Search<'_> {
                                         self.repetition_key_stack
                                             .push(RepetitionKey::new(self.position));
                                         let drawn_by_threefold_repetition =
-                                            has_three_fold_repetition(&self.repetition_key_stack);
+                                            Search::position_occurrence_count(
+                                                &self.repetition_key_stack,
+                                            ) >= 3;
                                         self.repetition_key_stack.pop();
                                         drawn_by_threefold_repetition
                                     }
@@ -269,7 +273,7 @@ impl Search<'_> {
                     current_line.push(mv);
                     self.repetition_key_stack.push(RepetitionKey::new(self.position));
                     let next_score = if self.position.is_drawn_by_fifty_moves_rule()
-                        || has_three_fold_repetition(&self.repetition_key_stack)
+                        || Search::position_occurrence_count(&self.repetition_key_stack) >= 3
                     {
                         // Apply contempt to repetition-based draws
                         evaluation::apply_contempt(0)
@@ -326,7 +330,7 @@ impl Search<'_> {
             let mut score =
                 evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
             if !Search::is_terminal_score(score) {
-                score = quiescence::quiescence_search((ply + 1) as isize, self, alpha, beta);
+                score = self.quiescence_search(ply + 1, alpha, beta);
             }
             if !self.stop_search_requested() {
                 self.transposition_table.insert(
@@ -345,8 +349,8 @@ impl Search<'_> {
     fn create_search_results(
         &self,
         position: &Position,
-        score: isize,
-        max_depth: usize,
+        score: i32,
+        max_depth: u8,
         pv: &[Move],
     ) -> SearchResults {
         let get_game_status = |last_position, repetition_keys: &Vec<RepetitionKey>| -> GameStatus {
@@ -358,7 +362,7 @@ impl Search<'_> {
         };
 
         let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(position, pv).unwrap();
-        let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth {
+        let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth as usize {
             Search::extend_principal_variation(
                 self.transposition_table,
                 position,
@@ -381,18 +385,18 @@ impl Search<'_> {
         transposition_table: &TranspositionTable,
         position: &Position,
         current_pv: &[(Position, Move)],
-        max_depth: usize,
+        max_depth: u8,
     ) -> Vec<(Position, Move)> {
         let mut result_pv = current_pv.to_owned();
         let last_position = current_pv.last().map_or(position, |(p, _)| p);
         let mut current_position = *last_position;
 
         let mut visited_positions = HashSet::new();
-        let mut num_missing_moves = max_depth - current_pv.len();
+        let mut num_missing_moves = max_depth as usize - current_pv.len();
 
         while let Some(entry) = transposition_table.probe(current_position.hash_code()) {
             if num_missing_moves == 0
-                || entry.depth < num_missing_moves
+                || (entry.depth as usize) < num_missing_moves
                 || entry.bound_type != BoundType::Exact
             {
                 break;
@@ -415,33 +419,6 @@ impl Search<'_> {
         }
         debug!("PV extended from length {} to length {}", current_pv.len(), result_pv.len());
         result_pv
-    }
-
-    pub fn get_repeat_position_count(repetition_key_stack: &[RepetitionKey]) -> usize {
-        let mut repetition_count = 0;
-        let length = repetition_key_stack.len();
-        if length >= 5 {
-            let current_key = repetition_key_stack.last().unwrap();
-            if current_key.half_move_clock >= 3 {
-                for i in (0..=length - 5).rev().step_by(2) {
-                    let key = repetition_key_stack.get(i).unwrap();
-                    if key.zobrist_hash == current_key.zobrist_hash {
-                        repetition_count += 1;
-                    }
-                    if key.half_move_clock <= 1 {
-                        break;
-                    }
-                }
-            }
-        }
-        // #[cfg(debug_assertions)]
-        // {
-        //     let last_position_instance_count: usize = repetition_key_stack.last().map_or(0,|last_key| {
-        //         repetition_key_stack.iter().filter(|key| key.zobrist_hash == last_key.zobrist_hash).count() - 1
-        //     });
-        //     assert_eq!(repetition_count, last_position_instance_count);
-        // }
-        repetition_count
     }
 
     fn format_uci_info(
@@ -476,15 +453,27 @@ impl Search<'_> {
         )
     }
 
-    fn is_mating_score(score: isize) -> bool {
-        score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize
+    pub fn position_occurrence_count(repetition_key_stack: &[RepetitionKey]) -> usize {
+        let occurrence_count: usize = repetition_key_stack.last().map_or(0, |last_key| {
+            repetition_key_stack
+                .iter()
+                .rev()
+                .take_while(|rk| rk.half_move_clock > 0)
+                .filter(|key| key.zobrist_hash == last_key.zobrist_hash)
+                .count()
+        });
+        occurrence_count
     }
 
-    fn is_drawing_score(score: isize) -> bool {
+    fn is_mating_score(score: i32) -> bool {
+        score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32
+    }
+
+    fn is_drawing_score(score: i32) -> bool {
         score == 0
     }
 
-    fn is_terminal_score(score: isize) -> bool {
+    fn is_terminal_score(score: i32) -> bool {
         Search::is_mating_score(score) || Search::is_drawing_score(score)
     }
 }
@@ -784,8 +773,8 @@ mod tests {
     #[test]
     fn test_losing_side_plays_for_draw() {
         setup();
-        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
-        let go_for_win_uci_position_str = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 10 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+        let go_for_win_uci_position_str = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 10 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_options_str = "depth 1";
         let drawn_search_results =
             uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
@@ -884,7 +873,7 @@ mod tests {
     #[test]
     fn test_black_avoids_draw_using_contempt() {
         setup();
-        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 10 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_options_str = "depth 1";
         let drawn_search_results =
             uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
@@ -938,7 +927,7 @@ mod tests {
     #[test]
     fn test_perpetual_check() {
         setup();
-        let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 0 1 moves g6f8 h7h8 f8g6 h8h7";
+        let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 10 1 moves g6f8 h7h8 f8g6 h8h7";
         let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 4");
         assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
@@ -962,16 +951,16 @@ mod tests {
         let score = -MAXIMUM_SCORE;
         assert!(Search::is_mating_score(score));
 
-        let score = MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize;
+        let score = MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32;
         assert!(Search::is_mating_score(score));
 
-        let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize);
+        let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32);
         assert!(Search::is_mating_score(score));
 
-        let score = (MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize) - 1;
+        let score = (MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32) - 1;
         assert!(!Search::is_mating_score(score));
 
-        let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as isize) + 1;
+        let score = -(MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32) + 1;
         assert!(!Search::is_mating_score(score));
     }
 
@@ -999,20 +988,26 @@ mod tests {
     }
 
     #[test]
-    fn test_get_repetition_count() {
-        assert_eq!(Search::get_repeat_position_count(&vec!()), 0);
+    fn test_position_occurrence_count() {
+        assert_eq!(Search::position_occurrence_count(&vec!()), 0);
 
         let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
         let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
-        assert_eq!(Search::get_repeat_position_count(&vec![k1()]), 0);
-        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k1()]), 0);
-        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k2(), k1()]), 0);
-        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k2(), k2(), k1()]), 0);
-        assert_eq!(Search::get_repeat_position_count(&vec![k1(), k2(), k2(), k2(), k1()]), 1);
-        assert_eq!(Search::get_repeat_position_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 1);
+        let k3 = || RepetitionKey { zobrist_hash: 3, half_move_clock: 0 };
+        assert_eq!(Search::position_occurrence_count(&vec![k1()]), 1);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count(&vec![k1(), k2(), k2(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count(&vec![k1(), k1(), k2(), k2(), k1(), k1()]), 4);
         assert_eq!(
-            Search::get_repeat_position_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
-            2
+            Search::position_occurrence_count(&vec![k1(), k3(), k1(), k2(), k2(), k1(), k1()]),
+            3
+        );
+        assert_eq!(
+            Search::position_occurrence_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
+            3
         );
     }
 }
