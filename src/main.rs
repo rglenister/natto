@@ -3,7 +3,7 @@ pub mod core;
 pub mod eval;
 pub mod utils;
 
-pub mod engine;
+pub mod uci;
 
 mod book;
 mod search;
@@ -13,7 +13,7 @@ use fern::Dispatch;
 use log::error;
 use log::info;
 
-use crate::engine::config;
+use crate::uci::config;
 
 fn main() {
     println!(
@@ -35,8 +35,8 @@ fn main() {
         println!("Running perft test");
         utils::perf_t::perf_t();
     } else {
-        info!("Starting engine");
-        engine::uci_interface::run(&config::get_uci_commands());
+        info!("Starting uci");
+        uci::uci_interface::run(&config::get_uci_commands());
         info!("Engine exited cleanly");
     }
 }

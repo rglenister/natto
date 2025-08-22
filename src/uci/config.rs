@@ -116,7 +116,7 @@ fn load_config() -> Config {
             let matches = Command::new("Chess Engine")
                 .version(env!("CARGO_PKG_VERSION"))
                 .author(env!("CARGO_PKG_AUTHORS"))
-                .about("A UCI chess engine")
+                .about("A UCI chess uci")
                 .help_template(
                     "{bin} {version}\n\
                     {author}\n\n\

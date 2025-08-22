@@ -2,7 +2,7 @@ use crate::core::board::Board;
 use crate::core::move_gen;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
-use crate::engine::config::get_contempt;
+use crate::uci::config::get_contempt;
 use crate::eval::kings::score_kings;
 use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;

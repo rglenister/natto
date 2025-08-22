@@ -2,7 +2,7 @@ use crate::core::board::BoardSide;
 use crate::core::piece::PieceType;
 use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
-use crate::engine::config;
+use crate::uci::config;
 use crate::search::negamax::Search;
 pub use crate::search::negamax::MAXIMUM_SCORE;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -1,7 +1,7 @@
 use crate::core::position::Position;
 use crate::core::r#move::Move;
 use crate::core::{move_gen, r#move};
-use crate::engine::uci;
+use crate::uci::uci_util;
 use crate::eval::evaluation;
 use crate::eval::evaluation::GameStatus;
 use crate::search::move_ordering;
@@ -167,7 +167,7 @@ impl Search<'_> {
                     iteration_max_depth,
                     iteration_search_results.clone()
                 );
-                uci::send_to_gui(
+                uci_util::send_to_gui(
                     Search::format_uci_info(
                         self.position,
                         &iteration_search_results,
@@ -459,7 +459,7 @@ impl Search<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::config;
+    use crate::uci::config;
 
     fn setup() {
         config::tests::initialize_test_config();
@@ -742,7 +742,7 @@ mod tests {
         let go_for_win_uci_position_str = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 10 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
         let go_options_str = "depth 1";
         let drawn_search_results =
-            uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+            uci_util::run_uci_position(go_for_draw_uci_position_str, go_options_str);
         assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
         test_eq(
             &drawn_search_results,
@@ -755,7 +755,7 @@ mod tests {
             },
         );
 
-        let win_search_results = uci::run_uci_position(go_for_win_uci_position_str, go_options_str);
+        let win_search_results = uci_util::run_uci_position(go_for_win_uci_position_str, go_options_str);
         assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6".to_string());
         test_eq(
             &win_search_results,
@@ -777,25 +777,25 @@ mod tests {
         let uci_initial_position_str = format!("position fen {}", fen);
 
         let go_options_str = "depth 5";
-        let search_results_1 = uci::run_uci_position(&uci_initial_position_str, go_options_str);
+        let search_results_1 = uci_util::run_uci_position(&uci_initial_position_str, go_options_str);
         let _pv_moves_1 = search_results_1.pv_moves_as_string();
         assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
 
-        let search_results_2 = uci::run_uci_position(
+        let search_results_2 = uci_util::run_uci_position(
             &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3"),
             go_options_str,
         );
         let _pv_moves_2 = search_results_2.pv_moves_as_string();
         assert_eq!(search_results_2.pv_moves_as_string(), "a5-e1,b6-d8,g8-g7,d8-f6,g7-g8");
 
-        let search_results_3 = uci::run_uci_position(
+        let search_results_3 = uci_util::run_uci_position(
             &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2"),
             go_options_str,
         );
         let pv_moves_3 = search_results_3.pv_moves_as_string();
         assert_eq!(pv_moves_3, "d5-e4,c2-d1,e4-f3,d1-c2,a5-e1");
 
-        let search_results_4 = uci::run_uci_position(
+        let search_results_4 = uci_util::run_uci_position(
             &format!("{} {}", uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3"),
             go_options_str,
         );
@@ -803,7 +803,7 @@ mod tests {
         assert_eq!(pv_moves_4, "a5-e1,b6-d8,g8-g7,d8-f6,g7-g8");
 
         //TRANSPOSITION_TABLE.clear();
-        let search_results_5 = uci::run_uci_position(
+        let search_results_5 = uci_util::run_uci_position(
             &format!(
                 "{} {}",
                 uci_initial_position_str, " moves f3e4 c2b3 e4d5 b3c2 d5e4 c2b3 e4d5 b3c2"
@@ -876,7 +876,7 @@ mod tests {
         setup();
         // https://lichess.org/RZTYaEbP#87
         let uci_position_str = "position fen 4kb1Q/p4p2/2pp4/5Q2/P4PK1/4P3/3q4/4n3 b - - 10 40 moves d2g2 g4h5 g2h2 h5g4 h2g2 g4h5 g2h2 h5g4 h2h8";
-        let drawn_search_results = uci::run_uci_position(uci_position_str, "depth 2");
+        let drawn_search_results = uci_util::run_uci_position(uci_position_str, "depth 2");
         assert_eq!(drawn_search_results.pv_moves_as_string(), "f5-c8,e8-e7");
         test_eq(
             &drawn_search_results,
@@ -894,7 +894,7 @@ mod tests {
     fn test_perpetual_check() {
         setup();
         let go_for_draw_uci_position_str = "position fen r1b5/ppp2Bpk/3p2Np/4p3/4P2q/3P1n1P/PPP2bP1/R1B4K w - - 10 1 moves g6f8 h7h8 f8g6 h8h7";
-        let search_results = uci::run_uci_position(go_for_draw_uci_position_str, "depth 4");
+        let search_results = uci_util::run_uci_position(go_for_draw_uci_position_str, "depth 4");
         assert_eq!(search_results.pv_moves_as_string(), "g6-f8,h7-h8,f8-g6,h8-h7".to_string());
         test_eq(
             &search_results,

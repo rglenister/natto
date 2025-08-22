@@ -4,4 +4,4 @@ pub mod eval;
 mod search;
 pub mod utils;
 
-pub mod engine;
+pub mod uci;
