@@ -16,7 +16,7 @@ use log::info;
 use crate::engine::config;
 
 fn main() {
-    //    println!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
+    println!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
     dotenv().ok();
     eprintln!("{}", config::get_config_as_string());
     setup_logging()

@@ -458,7 +458,7 @@ impl Search<'_> {
             repetition_key_stack
                 .iter()
                 .rev()
-                .take_while(|rk| rk.half_move_clock > 0)
+                .take_while_inclusive(|rk| rk.half_move_clock > 0)
                 .filter(|key| key.zobrist_hash == last_key.zobrist_hash)
                 .count()
         });

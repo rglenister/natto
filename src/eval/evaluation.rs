@@ -254,16 +254,15 @@ mod tests {
 
         let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
         let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
+        let k3 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 0 };
+        assert_eq!(Search::position_occurrence_count(&vec![]), 0);
         assert_eq!(Search::position_occurrence_count(&vec![k1()]), 1);
         assert_eq!(Search::position_occurrence_count(&vec![k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k1(), k2(), k2(), k2(), k1()]), 2);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 2);
-        assert_eq!(
-            Search::position_occurrence_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
-            3
-        );
+        assert_eq!(Search::position_occurrence_count(&vec![k1(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k3(), k1(), k2()]), 2);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k3(), k1(), k3()]), 1);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k2(), k2(), k2()]), 5);
+        assert_eq!(Search::position_occurrence_count(&vec![k2(), k3(), k2(), k2(), k2()]), 4);
     }
 
     #[test]
