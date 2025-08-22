@@ -184,7 +184,7 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
         MoveOrderer::new(),
         0,
     );
-    search.iterative_deepening()
+    search.go()
 }
 
 #[cfg(test)]

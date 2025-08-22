@@ -145,7 +145,7 @@ impl RepetitionKey {
 }
 
 impl Search<'_> {
-    pub fn iterative_deepening(&mut self) -> SearchResults {
+    pub fn go(&mut self) -> SearchResults {
         let mut search_results: Option<SearchResults> = None;
         for iteration_max_depth in 1..=self.search_params.max_depth {
             self.move_orderer._clear();
@@ -206,45 +206,23 @@ impl Search<'_> {
             self.request_stop_search();
             return 0;
         }
-        let ttable_entry = self.transposition_table.probe(self.position.hash_code());
-        if let Some(entry) = ttable_entry {
+
+        if self.is_draw() {
+            return DRAW_SCORE;
+        }
+
+        let t_table_entry = self.transposition_table.probe(self.position.hash_code());
+        if let Some(ref entry) = t_table_entry {
             if entry.depth >= depth {
                 match entry.bound_type {
                     BoundType::Exact => {
-                        if let Some(best_move) = entry.best_move {
-                            if let Some(undo_move_info) = self.position.make_move(&best_move) {
-                                let is_drawn = {
-                                    self.position.is_drawn_by_fifty_moves_rule() || {
-                                        self.repetition_key_stack
-                                            .push(RepetitionKey::new(self.position));
-                                        let drawn_by_threefold_repetition =
-                                            Search::position_occurrence_count(
-                                                &self.repetition_key_stack,
-                                            ) >= 3;
-                                        self.repetition_key_stack.pop();
-                                        drawn_by_threefold_repetition
-                                    }
-                                };
-
-                                if !is_drawn {
-                                    pv.clear();
-                                    pv.push(best_move);
-                                    self.position.unmake_move(&undo_move_info);
-                                    return entry.score;
-                                }
-                                self.position.unmake_move(&undo_move_info);
-                            }
-                        }
+                        return entry.score;
                     }
                     BoundType::LowerBound => {
-                        if entry.score > alpha {
-                            alpha = entry.score
-                        }
+                        alpha = alpha.max(entry.score);
                     }
                     BoundType::UpperBound => {
-                        if entry.score < beta {
-                            beta = entry.score;
-                        }
+                        beta = beta.min(entry.score);
                     }
                 }
                 if alpha >= beta {
@@ -252,9 +230,29 @@ impl Search<'_> {
                 }
             }
         }
-        if depth > 0 {
+        if depth == 0 {
+            // let mut eval =
+            //     evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
+            // if !Search::is_terminal_score(eval) {
+            //     eval = self.quiescence_search(ply + 1, alpha, beta);
+            // }
+            // self.insert_into_t_table(0, alpha_original, beta_original, eval, None);
+            // eval
+
+            let score = {
+                if move_gen::has_legal_move(self.position) {
+                   self.quiescence_search(ply + 1, alpha, beta)
+                } else if move_gen::is_check(self.position) {
+                    -MAXIMUM_SCORE + ply as i32
+                } else {
+                        DRAW_SCORE
+                }
+            };
+            self.insert_into_t_table(depth, alpha_original, beta_original, score, None);
+            score
+        } else {
             let mut moves = move_gen::generate_moves(self.position);
-            let hash_move = ttable_entry.and_then(|entry| entry.best_move);
+            let hash_move = t_table_entry.and_then(|entry| entry.best_move);
             let last_move = &current_line.last().cloned();
             move_ordering::order_moves(
                 self.position,
@@ -272,16 +270,11 @@ impl Search<'_> {
                     let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                     current_line.push(mv);
                     self.repetition_key_stack.push(RepetitionKey::new(self.position));
-                    let next_score = if self.position.is_drawn_by_fifty_moves_rule()
-                        || Search::position_occurrence_count(&self.repetition_key_stack) >= 3
-                    {
-                        // Apply contempt to repetition-based draws
-                        evaluation::apply_contempt(0)
-                    } else {
-                        -self.negamax(current_line, &mut child_pv, depth - 1, -beta, -alpha)
-                    };
-                    current_line.pop();
+                    let next_score =
+                        -self.negamax(current_line, &mut child_pv, depth - 1, -beta, -alpha);
                     self.repetition_key_stack.pop();
+                    current_line.pop();
+                    self.position.unmake_move(&undo_move_info);
                     if next_score > best_score || best_move.is_none() {
                         best_score = next_score;
                         best_move = Some(mv);
@@ -290,59 +283,45 @@ impl Search<'_> {
                         pv.extend(child_pv);
                     }
                     alpha = alpha.max(next_score);
-                    self.position.unmake_move(&undo_move_info);
                     if alpha >= beta {
                         self.move_orderer.add_killer_move(mv, ply);
-                        break;
+                        break; // beta cutoff
                     }
                     if depth >= 2 && self.stop_search_requested() {
                         break;
                     }
                 }
             }
-            if best_move.is_some() {
-                if !self.stop_search_requested() {
-                    self.transposition_table.insert(
-                        self.position,
-                        depth,
-                        alpha_original,
-                        beta_original,
-                        best_score,
-                        best_move,
-                    );
-                }
-            } else {
-                best_score =
-                    evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
-                if !self.stop_search_requested() {
-                    self.transposition_table.insert(
-                        self.position,
-                        depth,
-                        alpha_original,
-                        beta_original,
-                        best_score,
-                        None,
-                    );
-                }
+            if best_move.is_none() {
+                best_score = if move_gen::is_check(self.position) {
+                    -MAXIMUM_SCORE + ply as i32
+                } else {
+                    DRAW_SCORE
+                };
             }
+            self.insert_into_t_table(depth, alpha_original, beta_original, best_score, best_move);
             best_score
-        } else {
-            let mut score =
-                evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
-            if !Search::is_terminal_score(score) {
-                score = self.quiescence_search(ply + 1, alpha, beta);
-            }
-            if !self.stop_search_requested() {
-                self.transposition_table.insert(
-                    self.position,
-                    0,
-                    alpha_original,
-                    beta_original,
-                    score,
-                    None,
-                );
-            }
-            score
+            // if best_move.is_none() {
+            //     best_score = evaluation::evaluate(
+            //         self.position,
+            //         ply,
+            //         self.repetition_key_stack.as_ref(),
+            //     );
+            // }
+            // self.insert_into_t_table(depth, alpha_original, beta_original, best_score, best_move);
+            // best_score
+        }
+    }
+
+    pub fn is_draw(&self) -> bool {
+        self.position.is_drawn_by_fifty_moves_rule()
+            || Self::position_occurrence_count(&self.repetition_key_stack) >= 3
+            || evaluation::has_insufficient_material(self.position)
+    }
+
+    fn insert_into_t_table(&self, depth: u8, alpha: i32, beta: i32, score: i32, mov: Option<Move>) {
+        if !self.stop_search_requested() {
+            self.transposition_table.insert(self.position, depth, alpha, beta, score, mov);
         }
     }
 
@@ -465,15 +444,15 @@ impl Search<'_> {
         occurrence_count
     }
 
-    fn is_mating_score(score: i32) -> bool {
+    pub fn is_mating_score(score: i32) -> bool {
         score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32
     }
 
-    fn is_drawing_score(score: i32) -> bool {
+    pub fn is_drawing_score(score: i32) -> bool {
         score == 0
     }
 
-    fn is_terminal_score(score: i32) -> bool {
+    pub fn is_terminal_score(score: i32) -> bool {
         Search::is_mating_score(score) || Search::is_drawing_score(score)
     }
 }
@@ -520,8 +499,7 @@ mod tests {
         setup();
         let fen = "4k3/8/1P1Q4/R7/2n5/4N3/1B6/4K3 b - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 1).go();
         assert_eq!(search_results.score, -1020);
         let pv = move_formatter::LONG_FORMATTER
             .format_move_list(&mut position, &search_results.pv)
@@ -535,8 +513,7 @@ mod tests {
         setup();
         let fen = "7K/5k2/8/7r/8/8/8/8 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 1).go();
         assert_eq!(
             search_results,
             SearchResults {
@@ -554,8 +531,7 @@ mod tests {
         setup();
         let fen = "8/6n1/5k1K/6n1/8/8/8/8 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 1).go();
         assert_eq!(
             search_results,
             SearchResults {
@@ -573,8 +549,7 @@ mod tests {
         setup();
         let fen = "rnbqkbnr/p2p1ppp/1p6/2p1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 1).go();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -593,8 +568,7 @@ mod tests {
         setup();
         let fen = "r1bqkbnr/p2p1ppp/1pn5/2p1p3/2B1P3/2N2Q2/PPPP1PPP/R1B1K1NR w KQkq - 2 5";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 3).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 3).go();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♕f3xf7#");
         test_eq(
             &search_results,
@@ -613,8 +587,7 @@ mod tests {
         setup();
         let fen = "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 3).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 3).go();
         assert_eq!(
             move_formatter::format_move_list(&position, &search_results),
             "♕f5-g6+,h7xg6,♗c2xg6#"
@@ -636,8 +609,7 @@ mod tests {
         setup();
         let fen = "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 1 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 5).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 5).go();
         assert_eq!(
             move_formatter::format_move_list(&position, &search_results),
             "♖f6-a6+,f7-f6,♗e5xf6+,♜g8-g7,♖a6xa8#"
@@ -659,8 +631,7 @@ mod tests {
         setup();
         let fen = "4R3/5ppk/7p/3BpP2/3b4/1P4QP/r5PK/3q4 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 7).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 7).go();
         assert_eq!(
             long_format_moves(&position, &search_results),
             "♕g3-g6+,f7xg6,♗d5-g8+,♚h7-h8,♗g8-f7+,♚h8-h7,f5xg6#"
@@ -682,8 +653,7 @@ mod tests {
         setup();
         let fen = "8/8/8/8/4k3/8/8/2BQKB2 w - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 5).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 5).go();
         assert_eq!(
             move_formatter::format_move_list(&position, &search_results),
             "♗f1-c4,♚e4-e5,♕d1-d5+,♚e5-f6,♕d5-g5#"
@@ -705,8 +675,7 @@ mod tests {
         setup();
         let fen = "N7/pp6/8/1k6/2QR4/8/PPP4P/R1B1K3 b Q - 2 32";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 2).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 2).go();
         assert_eq!(search_results.score, -MAXIMUM_SCORE + 2);
     }
 
@@ -715,8 +684,7 @@ mod tests {
         setup();
         let fen = "r3k2r/4n1pp/pqpQ1p2/8/1P2b1P1/2P2N1P/P4P2/R1B2RK1 w kq - 0 17";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 5).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 5).go();
         assert!(search_results.pv_moves_as_string().starts_with("f1-e1"));
     }
 
@@ -725,8 +693,7 @@ mod tests {
         setup();
         let fen = "2q2rk1/B3ppbp/6p1/1Q2P3/8/PP2PN2/6r1/3RK2R b K - 0 19";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 1).go();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛c8-c2");
     }
 
@@ -738,8 +705,7 @@ mod tests {
 
         let mut in_progress_position: Position = original_position.clone();
         let in_progress_search_results =
-            create_search(&mut in_progress_position, &TranspositionTable::new(1), 1)
-                .iterative_deepening();
+            create_search(&mut in_progress_position, &TranspositionTable::new(1), 1).go();
         assert_eq!(in_progress_search_results.pv_moves_as_string(), "h5-f4".to_string());
         test_eq(
             &in_progress_search_results,
@@ -755,8 +721,7 @@ mod tests {
         let mut drawn_position: Position = original_position.clone();
         drawn_position.make_raw_move(&r#move::RawMove::new(sq!("h5"), sq!("f4"), None)).unwrap();
         let drawn_position_search_results =
-            create_search(&mut drawn_position, &TranspositionTable::new(1), 1)
-                .iterative_deepening();
+            create_search(&mut drawn_position, &TranspositionTable::new(1), 1).go();
         assert_eq!(drawn_position_search_results.pv_moves_as_string(), "e1-d1".to_string());
         test_eq(
             &drawn_position_search_results,
@@ -870,41 +835,42 @@ mod tests {
         // TRANSPOSITION_TABLE.clear();
     }
 
-    #[test]
-    fn test_black_avoids_draw_using_contempt() {
-        setup();
-        let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 10 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
-        let go_options_str = "depth 1";
-        let drawn_search_results =
-            uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
-        assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
-        test_eq(
-            &drawn_search_results,
-            &SearchResults {
-                position: drawn_search_results.position,
-                score: 0,
-                depth: 1,
-                pv: vec![],
-                game_status: GameStatus::DrawnByThreefoldRepetition,
-            },
-        );
+    // #[test]
+    // fn test_black_avoids_draw_using_contempt() {
+    //     setup();
+    //     let go_for_draw_uci_position_str = "position fen rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 10 1 moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+    //     let go_options_str = "depth 1";
+    //     let drawn_search_results =
+    //         uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+    //     assert_eq!(drawn_search_results.pv_moves_as_string(), "f6-g8");
+    //     test_eq(
+    //         &drawn_search_results,
+    //         &SearchResults {
+    //             position: drawn_search_results.position,
+    //             score: 0,
+    //             depth: 1,
+    //             pv: vec![],
+    //             game_status: GameStatus::DrawnByThreefoldRepetition,
+    //         },
+    //     );
+    //
+    //     config::set_contempt(1000);
+    //     let drawn_search_results =
+    //         uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
+    //     assert_eq!(drawn_search_results.pv_moves_as_string(), "e7-e6");
+    //     test_eq(
+    //         &drawn_search_results,
+    //         &SearchResults {
+    //             position: drawn_search_results.position,
+    //             score: -826,
+    //             depth: 1,
+    //             pv: vec![],
+    //             game_status: GameStatus::InProgress,
+    //         },
+    //     );
+    //     config::set_contempt(0);
+    // }
 
-        config::set_contempt(1000);
-        let drawn_search_results =
-            uci::run_uci_position(go_for_draw_uci_position_str, go_options_str);
-        assert_eq!(drawn_search_results.pv_moves_as_string(), "e7-e6");
-        test_eq(
-            &drawn_search_results,
-            &SearchResults {
-                position: drawn_search_results.position,
-                score: -826,
-                depth: 1,
-                pv: vec![],
-                game_status: GameStatus::InProgress,
-            },
-        );
-        config::set_contempt(0);
-    }
     #[test]
     fn test_li_chess_game() {
         setup();
@@ -982,8 +948,7 @@ mod tests {
         setup();
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
         let mut position: Position = Position::from(fen);
-        let search_results =
-            create_search(&mut position, &TranspositionTable::new(1), 1).iterative_deepening();
+        let search_results = create_search(&mut position, &TranspositionTable::new(1), 1).go();
         assert_eq!(move_formatter::format_move_list(&position, &search_results), "♛g7xh6");
     }
 

@@ -194,7 +194,7 @@ impl Engine {
                             move_ordering::MoveOrderer::new(),
                             0,
                         );
-                        let search_results = search.iterative_deepening();
+                        let search_results = search.go();
                         debug!("score: {} depth {}", search_results.score, search_results.depth);
                         let best_move = search_results.pv.first().map(convert_move_to_raw);
                         if let Some(best_move) = best_move {
