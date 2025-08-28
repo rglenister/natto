@@ -1,12 +1,13 @@
 use crate::core::position::Position;
 use crate::core::r#move::Move;
 use crate::core::{move_gen, r#move};
-use crate::uci::uci_util;
 use crate::eval::evaluation;
 use crate::eval::evaluation::GameStatus;
+use crate::eval::evaluation::GameStatus::DrawnByThreefoldRepetition;
 use crate::search::move_ordering;
 use crate::search::move_ordering::MoveOrderer;
 use crate::search::transposition_table::{BoundType, TranspositionTable};
+use crate::uci::uci_util;
 use crate::utils::move_formatter;
 use crate::utils::move_formatter::FormatMove;
 use crate::utils::node_counter::{NodeCountStats, NodeCounter};
@@ -69,8 +70,6 @@ impl Display for SearchParams {
     }
 }
 impl SearchParams {
-    pub const DEFAULT_NUMBER_OF_MOVES_TO_GO: usize = 30;
-
     pub fn new(allocated_time_millis: usize, max_depth: isize, max_nodes: usize) -> SearchParams {
         SearchParams { allocated_time_millis, max_depth: max_depth.try_into().unwrap(), max_nodes }
     }
@@ -86,6 +85,7 @@ pub struct Search<'a> {
     pub search_params: SearchParams,
     pub stop_flag: Arc<AtomicBool>,
     pub repetition_key_stack: Vec<RepetitionKey>,
+    pub number_of_game_positions: usize,
     move_orderer: MoveOrderer,
     max_depth: u8,
 }
@@ -105,7 +105,8 @@ impl<'a> Search<'a> {
             transposition_table,
             search_params,
             stop_flag,
-            repetition_key_stack: repetition_keys,
+            repetition_key_stack: repetition_keys.clone(),
+            number_of_game_positions: repetition_keys.len(),
             node_counter: NodeCounter::new(),
             move_orderer,
             max_depth,
@@ -175,11 +176,14 @@ impl Search<'_> {
                     )
                     .as_str(),
                 );
-                let is_checkmate = iteration_search_results.game_status == GameStatus::Checkmate
-                    || Search::is_mating_score(iteration_search_results.score);
-                if is_checkmate {
-                    info!("Found mate at depth {iteration_max_depth} - stopping search");
-                    self.transposition_table.clear();
+                if Search::is_mating_score(iteration_search_results.score) {
+                    info!(
+                        "Found checkmate at depth {} with score {} - stopping search",
+                        iteration_max_depth, iteration_search_results.score
+                    );
+                    if Self::is_mating_score(iteration_search_results.score) {
+                        self.transposition_table.clear();
+                    }
                     break;
                 }
             } else if search_results.is_some() {
@@ -207,13 +211,16 @@ impl Search<'_> {
             return 0;
         }
 
-        if self.is_draw() {
+        if self.position.is_drawn_by_fifty_moves_rule() || self.position_occurrence_count() >= 3 {
+            return DRAW_SCORE;
+        } else if evaluation::has_insufficient_material(self.position) {
+            self.insert_into_t_table(depth, alpha_original, beta_original, 0, None);
             return DRAW_SCORE;
         }
 
         let t_table_entry = self.transposition_table.probe(self.position.hash_code());
         if let Some(ref entry) = t_table_entry {
-            if entry.depth >= depth {
+            if entry.depth > depth {
                 match entry.bound_type {
                     BoundType::Exact => {
                         return entry.score;
@@ -231,24 +238,18 @@ impl Search<'_> {
             }
         }
         if depth == 0 {
-            // let mut eval =
-            //     evaluation::evaluate(self.position, ply, self.repetition_key_stack.as_ref());
-            // if !Search::is_terminal_score(eval) {
-            //     eval = self.quiescence_search(ply + 1, alpha, beta);
-            // }
-            // self.insert_into_t_table(0, alpha_original, beta_original, eval, None);
-            // eval
-
             let score = {
                 if move_gen::has_legal_move(self.position) {
-                   self.quiescence_search(ply + 1, alpha, beta)
+                    self.quiescence_search(ply + 1, alpha, beta)
                 } else if move_gen::is_check(self.position) {
                     -MAXIMUM_SCORE + ply as i32
                 } else {
-                        DRAW_SCORE
+                    DRAW_SCORE
                 }
             };
-            self.insert_into_t_table(depth, alpha_original, beta_original, score, None);
+            if score != DRAW_SCORE {
+                self.insert_into_t_table(depth, alpha_original, beta_original, score, None);
+            }
             score
         } else {
             let mut moves = move_gen::generate_moves(self.position);
@@ -266,29 +267,33 @@ impl Search<'_> {
             let mut best_move = None;
             for mv in moves {
                 if let Some(undo_move_info) = self.position.make_move(&mv) {
-                    // there isn't a checkmate or a stalemate
-                    let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
-                    current_line.push(mv);
                     self.repetition_key_stack.push(RepetitionKey::new(self.position));
-                    let next_score =
-                        -self.negamax(current_line, &mut child_pv, depth - 1, -beta, -alpha);
-                    self.repetition_key_stack.pop();
-                    current_line.pop();
+                    if self.search_tree_position_occurance_count() <= 3 {
+                        let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+                        current_line.push(mv);
+                        let next_score =
+                            -self.negamax(current_line, &mut child_pv, depth - 1, -beta, -alpha);
+                        self.repetition_key_stack.pop();
+                        current_line.pop();
                     self.position.unmake_move(&undo_move_info);
-                    if next_score > best_score || best_move.is_none() {
-                        best_score = next_score;
-                        best_move = Some(mv);
-                        pv.clear();
-                        pv.push(mv);
-                        pv.extend(child_pv);
-                    }
-                    alpha = alpha.max(next_score);
-                    if alpha >= beta {
-                        self.move_orderer.add_killer_move(mv, ply);
-                        break; // beta cutoff
-                    }
-                    if depth >= 2 && self.stop_search_requested() {
-                        break;
+                        if next_score > best_score || best_move.is_none() {
+                            best_score = next_score;
+                            best_move = Some(mv);
+                            pv.clear();
+                            pv.push(mv);
+                            pv.extend(child_pv);
+                        }
+                        alpha = alpha.max(next_score);
+                        if alpha >= beta {
+                            self.move_orderer.add_killer_move(mv, ply);
+                            break; // beta cutoff
+                        }
+                        if depth >= 2 && self.stop_search_requested() {
+                            break;
+                        }
+                    } else {
+                        self.position.unmake_move(&undo_move_info);
+                        self.repetition_key_stack.pop();
                     }
                 }
             }
@@ -301,22 +306,7 @@ impl Search<'_> {
             }
             self.insert_into_t_table(depth, alpha_original, beta_original, best_score, best_move);
             best_score
-            // if best_move.is_none() {
-            //     best_score = evaluation::evaluate(
-            //         self.position,
-            //         ply,
-            //         self.repetition_key_stack.as_ref(),
-            //     );
-            // }
-            // self.insert_into_t_table(depth, alpha_original, beta_original, best_score, best_move);
-            // best_score
         }
-    }
-
-    pub fn is_draw(&self) -> bool {
-        self.position.is_drawn_by_fifty_moves_rule()
-            || Self::position_occurrence_count(&self.repetition_key_stack) >= 3
-            || evaluation::has_insufficient_material(self.position)
     }
 
     fn insert_into_t_table(&self, depth: u8, alpha: i32, beta: i32, score: i32, mov: Option<Move>) {
@@ -332,14 +322,6 @@ impl Search<'_> {
         max_depth: u8,
         pv: &[Move],
     ) -> SearchResults {
-        let get_game_status = |last_position, repetition_keys: &Vec<RepetitionKey>| -> GameStatus {
-            let game_status = evaluation::get_game_status(last_position, repetition_keys);
-            match game_status {
-                GameStatus::InProgress if score == 0 => GameStatus::Draw,
-                _ => game_status,
-            }
-        };
-
         let pv_with_positions: Vec<(Position, Move)> = util::replay_moves(position, pv).unwrap();
         let final_pv: Vec<(Position, Move)> = if pv.len() < max_depth as usize {
             Search::extend_principal_variation(
@@ -355,8 +337,10 @@ impl Search<'_> {
         let pv_repetition_keys: Vec<RepetitionKey> =
             final_pv.iter().map(|(p, _)| RepetitionKey::new(p)).collect();
         let repetition_keys = [self.repetition_key_stack.clone(), pv_repetition_keys].concat();
-        let game_status = get_game_status(last_position, &repetition_keys);
+        let game_status = evaluation::get_game_status(last_position, &repetition_keys);
         let (_, moves): (Vec<Position>, Vec<Move>) = final_pv.into_iter().unzip();
+        let is_draw_50 = game_status == DrawnByThreefoldRepetition; // todo
+        let score = if is_draw_50 { 0 } else { score };
         SearchResults { position: *position, score, depth: max_depth, pv: moves, game_status }
     }
 
@@ -408,7 +392,7 @@ impl Search<'_> {
         let moves_string = search_results
             .pv
             .iter()
-            .map(|pos| r#move::convert_move_to_raw(pos).to_string())
+            .map(|pos| r#move::convert_move_to_raw(*pos).to_string())
             .collect::<Vec<String>>()
             .join(" ");
 
@@ -432,28 +416,27 @@ impl Search<'_> {
         )
     }
 
-    pub fn position_occurrence_count(repetition_key_stack: &[RepetitionKey]) -> usize {
-        let occurrence_count: usize = repetition_key_stack.last().map_or(0, |last_key| {
+    pub fn search_tree_position_occurance_count(&self) -> usize {
+        Search::position_occurrence_count_static(&self.repetition_key_stack[self.number_of_game_positions..])
+    }
+
+    pub fn position_occurrence_count(&self) -> usize {
+        Search::position_occurrence_count_static(&self.repetition_key_stack)
+    }
+
+    pub fn position_occurrence_count_static(repetition_key_stack: &[RepetitionKey]) -> usize {
+        repetition_key_stack.last().map_or(0, |last_key| {
             repetition_key_stack
                 .iter()
                 .rev()
                 .take_while_inclusive(|rk| rk.half_move_clock > 0)
                 .filter(|key| key.zobrist_hash == last_key.zobrist_hash)
                 .count()
-        });
-        occurrence_count
+        })
     }
 
     pub fn is_mating_score(score: i32) -> bool {
         score.abs() >= MAXIMUM_SCORE - MAXIMUM_SEARCH_DEPTH as i32
-    }
-
-    pub fn is_drawing_score(score: i32) -> bool {
-        score == 0
-    }
-
-    pub fn is_terminal_score(score: i32) -> bool {
-        Search::is_mating_score(score) || Search::is_drawing_score(score)
     }
 }
 #[cfg(test)]
@@ -908,6 +891,30 @@ mod tests {
         );
     }
 
+    /// https://lichess.org/exHmRrqX/white#36
+    #[test]
+    fn test_ttable_problem() {
+        setup();
+        let uci_command = "position startpos moves";
+        let base_moves = "d2d4 e7e6 e2e4 d7d5 b1c3 d5e4 c3e4 c7c6 g1f3 f7f6 f1d3 g7g5 e1g1 g5g4 f3h4 f6f5 e4g5 f8h6 g5e6 c8e6 d3f5 e6f5 h4f5 h6c1 d1g4 c1b2 a1e1 e8d7 f5g7 d7d6 g4g3 d6d7";
+        let positions =
+            [
+                format!("{} {} {}", uci_command, base_moves, ""),
+                format!("{} {} {}", uci_command, base_moves, "g3g4 d7d6"),
+                format!("{} {} {}", uci_command, base_moves, "g3g4 d7d6 g4g3 d6d7"),
+            ];
+
+        let transposition_table = TranspositionTable::new(500);
+        positions.iter().for_each(|uci_position| {
+            uci_util::run_uci_position_using_t_table(uci_position, "depth 8", &transposition_table);
+        });
+
+        let end_position = positions.last().unwrap();
+
+        let search_results = uci_util::run_uci_position_using_t_table(&end_position, "depth 8", &transposition_table);
+        assert_eq!(search_results.pv_moves_as_string(), "g3-h3,d7-d6,g7-e8,d8xe8,e1xe8,b2xd4,h3-g3,d6-c5".to_string());
+    }
+
     #[test]
     fn test_is_mating_score() {
         setup();
@@ -931,19 +938,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_drawing_score() {
-        setup();
-        let score = -1;
-        assert!(!Search::is_drawing_score(score));
-
-        let score = 1;
-        assert!(!Search::is_drawing_score(score));
-
-        let score = 0;
-        assert!(Search::is_drawing_score(score));
-    }
-
-    #[test]
     fn test_quiescence_search() {
         setup();
         let fen = "3k4/5pq1/5ppP/5b2/4R3/8/4K3/8 b - - 0 1";
@@ -954,24 +948,24 @@ mod tests {
 
     #[test]
     fn test_position_occurrence_count() {
-        assert_eq!(Search::position_occurrence_count(&vec!()), 0);
+        assert_eq!(Search::position_occurrence_count_static(&vec!()), 0);
 
         let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
         let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
         let k3 = || RepetitionKey { zobrist_hash: 3, half_move_clock: 0 };
-        assert_eq!(Search::position_occurrence_count(&vec![k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k1(), k2(), k2(), k2(), k1()]), 2);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 2);
-        assert_eq!(Search::position_occurrence_count(&vec![k1(), k1(), k2(), k2(), k1(), k1()]), 4);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k2(), k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k2(), k2(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k1(), k2(), k2(), k1(), k1()]), 4);
         assert_eq!(
-            Search::position_occurrence_count(&vec![k1(), k3(), k1(), k2(), k2(), k1(), k1()]),
+            Search::position_occurrence_count_static(&vec![k1(), k3(), k1(), k2(), k2(), k1(), k1()]),
             3
         );
         assert_eq!(
-            Search::position_occurrence_count(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
+            Search::position_occurrence_count_static(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
             3
         );
     }

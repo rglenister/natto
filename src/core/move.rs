@@ -103,12 +103,12 @@ impl fmt::Display for RawMove {
 }
 
 pub fn convert_moves_to_raw(moves: &[Move]) -> Vec<RawMove> {
-    moves.iter().map(convert_move_to_raw).collect()
+    moves.iter().map(|m| convert_move_to_raw(*m)).collect()
 }
 
-pub fn convert_move_to_raw(mov: &Move) -> RawMove {
+pub fn convert_move_to_raw(mov: Move) -> RawMove {
     let promote_to: Option<PieceType> = match mov {
-        Promotion { base_move: _base_move, promote_to } => Some(*promote_to),
+        Promotion { base_move: _base_move, promote_to } => Some(promote_to),
         _ => None,
     };
     RawMove::new(mov.get_base_move().from, mov.get_base_move().to, promote_to)

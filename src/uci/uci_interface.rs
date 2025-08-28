@@ -1,11 +1,11 @@
 use crate::book::lichess_book::LiChessOpeningBook;
 use crate::book::opening_book::OpeningBook;
-use crate::core::r#move::convert_move_to_raw;
-use crate::uci::{config, uci_util};
-use crate::eval::evaluation::GameStatus;
-use crate::search::move_ordering;
+use crate::core::move_gen;
+use crate::core::r#move;
 use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
+use crate::search::{move_ordering, negamax};
+use crate::uci::{config, uci_util};
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
@@ -75,7 +75,7 @@ impl Engine {
 
         let mut search_handle: Option<JoinHandle<()>> = None;
         let mut uci_position: Option<uci_util::UciPosition> = None;
-        info!("Chess uci started");
+        info!("UCI started - awaiting commands");
         self.main_loop(rx, &mut search_handle, &mut uci_position, uci_commands);
         if let Some(handle) = search_handle {
             handle.join().unwrap();
@@ -110,7 +110,7 @@ impl Engine {
                 }
             }
         }
-        debug!("main loop quit flag is set");
+        debug!("the main loop quit flag is set");
     }
 
     fn run_uci_command(
@@ -190,27 +190,32 @@ impl Engine {
                             &transposition_table,
                             search_params,
                             stop_flag,
-                            uci_pos_clone.repetition_keys,
+                            uci_pos_clone.repetition_keys.clone(),
                             move_ordering::MoveOrderer::new(),
                             0,
                         );
                         let search_results = search.go();
                         debug!("score: {} depth {}", search_results.score, search_results.depth);
-                        let best_move = search_results.pv.first().map(convert_move_to_raw);
-                        if let Some(best_move) = best_move {
-                            uci_util::send_to_gui(format!("bestmove {best_move}").as_str());
-                        } else {
-                            match search_results.game_status {
-                                GameStatus::Checkmate => {
-                                    uci_util::send_to_gui("info score mate 0");
-                                }
-                                GameStatus::Stalemate => {
-                                    uci_util::send_to_gui("info score 0");
-                                }
-                                _ => (),
-                            }
-                        }
-                    }));
+
+                        let best_move = search_results
+                            .pv
+                            .first()
+                            .copied()
+                            .or(uci_pos_clone.previous_move_from_position())
+                            .or(move_gen::get_first_legal_move(&position));
+
+                        if search_results.score == negamax::MAXIMUM_SCORE.abs() {
+                            uci_util::send_to_gui("info score mate 0");
+                        } else if search_results.score == negamax::DRAW_SCORE {
+                            uci_util::send_to_gui("info score cp 0");
+                        };
+
+                        let best_move_str = best_move
+                            .map(r#move::convert_move_to_raw)
+                            .map(|rm| rm.to_string())
+                            .unwrap_or_else(|| "none".to_string());
+                        uci_util::send_to_gui(format!("bestmove {best_move_str}").as_str());
+                    }))
                 }
             } else {
                 error!("Cannot initiate search because the position is already being searched");

@@ -2,11 +2,11 @@ use crate::core::board::Board;
 use crate::core::move_gen;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
-use crate::uci::config::get_contempt;
 use crate::eval::kings::score_kings;
 use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;
 use crate::search::negamax::{RepetitionKey, Search, MAXIMUM_SCORE};
+use crate::uci::config::get_contempt;
 use crate::utils::bitboard_iterator::BitboardIterator;
 use crate::utils::util;
 use crate::utils::util::row_bitboard;
@@ -23,7 +23,6 @@ pub enum GameStatus {
     DrawnByThreefoldRepetition,
     DrawnByInsufficientMaterial,
     Stalemate,
-    Draw, // Fallback for unknown draws
     Checkmate,
 }
 
@@ -162,7 +161,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &[RepetitionKe
         _ => {
             if position.half_move_clock() >= 100 {
                 GameStatus::DrawnByFiftyMoveRule
-            } else if Search::position_occurrence_count(repetition_key_stack) >= 3 {
+            } else if Search::position_occurrence_count_static(repetition_key_stack) >= 3 {
                 GameStatus::DrawnByThreefoldRepetition
             } else if has_insufficient_material(position) {
                 GameStatus::DrawnByInsufficientMaterial
@@ -250,19 +249,19 @@ mod tests {
 
     #[test]
     fn test_get_repetition_count() {
-        assert_eq!(Search::position_occurrence_count(&vec!()), 0);
+        assert_eq!(Search::position_occurrence_count_static(&vec!()), 0);
 
         let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
         let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
         let k3 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 0 };
-        assert_eq!(Search::position_occurrence_count(&vec![]), 0);
-        assert_eq!(Search::position_occurrence_count(&vec![k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k1(), k2(), k1()]), 2);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k3(), k1(), k2()]), 2);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k3(), k1(), k3()]), 1);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k2(), k2(), k2(), k2()]), 5);
-        assert_eq!(Search::position_occurrence_count(&vec![k2(), k3(), k2(), k2(), k2()]), 4);
+        assert_eq!(Search::position_occurrence_count_static(&vec![]), 0);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k1(), k2()]), 2);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k1(), k3()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k2(), k2(), k2(), k2()]), 5);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k2(), k2(), k2()]), 4);
     }
 
     #[test]

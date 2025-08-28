@@ -16,6 +16,8 @@ use std::sync::Arc;
 
 include!("../utils/generated_macro.rs");
 
+const DEFAULT_NUMBER_OF_MOVES_TO_GO: usize = 30;
+
 static UCI_POSITION_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^position\s+(startpos|fen\s+([^\s]+(?:\s+[^\s]+){5}))(?:\s+moves\s+([\s\w]+))?$")
         .unwrap()
@@ -35,6 +37,12 @@ impl UciPosition {
             self.position_move_pairs.iter().flat_map(|pairs| pairs.iter().map(|pm| pm.0)).collect();
 
         [vec![self.given_position].as_slice(), game_positions.as_slice()].concat()
+    }
+
+    pub fn previous_move_from_position(&self) -> Option<Move> {
+        let position_move_pairs = self.position_move_pairs.as_ref()?;
+        let (last, rest) = position_move_pairs.as_slice().split_last()?;
+        rest.windows(2).rev().find(|w| w[0].0.hash_code().eq(&last.0.hash_code())).map(|w| w[1].1)
     }
 }
 
@@ -135,8 +143,9 @@ pub fn create_search_params(
             let remaining_time_millis: usize = uci_go_options.time[side_to_move as usize]?;
             let inc_per_move_millis: usize =
                 uci_go_options.inc[side_to_move as usize].map_or(0, |inc| inc);
-            let remaining_number_of_moves_to_go: usize =
-                uci_go_options.moves_to_go.map_or(30, |moves_to_go| moves_to_go);
+            let remaining_number_of_moves_to_go: usize = uci_go_options
+                .moves_to_go
+                .map_or(DEFAULT_NUMBER_OF_MOVES_TO_GO, |moves_to_go| moves_to_go);
 
             let base_time = remaining_time_millis / remaining_number_of_moves_to_go;
             // Add a portion of the increment (50% here)
@@ -170,14 +179,17 @@ pub fn send_to_gui(data: &str) {
 }
 
 pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchResults {
+    run_uci_position_using_t_table(uci_position_str, go_options_str, &TranspositionTable::new(500))
+}
+
+pub fn run_uci_position_using_t_table(uci_position_str: &str, go_options_str: &str, transposition_table: &TranspositionTable) -> SearchResults {
     let uci_position = parse_position(uci_position_str).unwrap();
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);
     let position = &mut uci_position.end_position.clone();
-    let transposition_table = TranspositionTable::new_using_config();
     let mut search = Search::new(
         position,
-        &transposition_table,
+        transposition_table,
         search_params,
         Arc::new(AtomicBool::new(false)),
         uci_position.repetition_keys,
@@ -192,6 +204,8 @@ mod tests {
     use super::*;
     use crate::core::piece::PieceColor;
     use crate::core::piece::PieceColor::{Black, White};
+    use crate::core::r#move::BaseMove;
+
     fn create_uci_position(side_to_move: PieceColor) -> UciPosition {
         let mut position = Position::new_game();
         if side_to_move == Black {
@@ -217,6 +231,24 @@ mod tests {
             .is_some());
         assert!(parse_position("position startpos moves e2e4 e7e4").is_none());
         assert!(parse_position("position startpos moves e2e3 e7e5 b1c3 d7d5 a2a4 f8a3 b2a3 b8c6 f1b5 d8h4 c3d5 h4f2 e1f2    c8g1").is_none());
+    }
+
+    #[test]
+    fn test_previous_move_from_position() {
+        let uci_position = parse_position("position startpos").unwrap();
+        assert!(uci_position.previous_move_from_position().is_none());
+
+        let uci_position = parse_position("position startpos moves e2e4 e7e5").unwrap();
+        assert!(uci_position.previous_move_from_position().is_none());
+
+        let uci_position =
+            parse_position("position startpos moves b1c3 b8c6 c3b1 c6b8 b1c3").unwrap();
+        assert_eq!(
+            uci_position.previous_move_from_position(),
+            Some(Move::Basic {
+                base_move: BaseMove { from: sq!("b8"), to: sq!("c6"), capture: false }
+            })
+        );
     }
 
     #[test]

@@ -2,9 +2,8 @@ use crate::core::board::BoardSide;
 use crate::core::piece::PieceType;
 use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
-use crate::uci::config;
-use crate::search::negamax::Search;
 pub use crate::search::negamax::MAXIMUM_SCORE;
+use crate::uci::config;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,9 +56,7 @@ impl TranspositionTable {
         score: i32,
         mov: Option<Move>,
     ) {
-        let bound_type = if Search::is_terminal_score(score) {
-            BoundType::Exact
-        } else if score <= alpha {
+        let bound_type = if score <= alpha {
             BoundType::UpperBound
         } else if score >= beta {
             BoundType::LowerBound
