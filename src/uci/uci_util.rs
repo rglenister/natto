@@ -182,7 +182,11 @@ pub fn run_uci_position(uci_position_str: &str, go_options_str: &str) -> SearchR
     run_uci_position_using_t_table(uci_position_str, go_options_str, &TranspositionTable::new(500))
 }
 
-pub fn run_uci_position_using_t_table(uci_position_str: &str, go_options_str: &str, transposition_table: &TranspositionTable) -> SearchResults {
+pub fn run_uci_position_using_t_table(
+    uci_position_str: &str,
+    go_options_str: &str,
+    transposition_table: &TranspositionTable,
+) -> SearchResults {
     let uci_position = parse_position(uci_position_str).unwrap();
     let uci_go_options = parse_uci_go_options(Some(go_options_str.to_string()));
     let search_params = create_search_params(&uci_go_options, &uci_position);

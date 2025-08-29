@@ -260,8 +260,14 @@ mod tests {
         assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k2(), k1()]), 2);
         assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k1(), k2()]), 2);
         assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k1(), k3()]), 1);
-        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k2(), k2(), k2(), k2()]), 5);
-        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k2(), k2(), k2()]), 4);
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![k2(), k2(), k2(), k2(), k2()]),
+            5
+        );
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![k2(), k3(), k2(), k2(), k2()]),
+            4
+        );
     }
 
     #[test]

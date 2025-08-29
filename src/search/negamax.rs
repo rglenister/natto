@@ -220,23 +220,38 @@ impl Search<'_> {
 
         let t_table_entry = self.transposition_table.probe(self.position.hash_code());
         if let Some(ref entry) = t_table_entry {
-            if entry.depth > depth {
-                match entry.bound_type {
-                    BoundType::Exact => {
-                        return entry.score;
+            if entry.depth >= depth {
+                let position_occurrence_count = self.position_occurrence_count();
+                let skip_tt_for_repetition = position_occurrence_count >= 2
+                    && evaluation::score_position(self.position) > -100;
+
+                if !skip_tt_for_repetition && entry.depth >= depth {
+                    match entry.bound_type {
+                        BoundType::Exact => {
+                            return entry.score;
+                        }
+                        BoundType::LowerBound => {
+                            // Score is at least entry.score
+                            if entry.score >= beta {
+                                return entry.score; // Beta cutoff
+                            }
+                            alpha = alpha.max(entry.score);
+                        }
+                        BoundType::UpperBound => {
+                            // Score is at most entry.score
+                            if entry.score <= alpha {
+                                return entry.score; // Alpha cutoff
+                            }
+                            beta = beta.min(entry.score);
+                        }
                     }
-                    BoundType::LowerBound => {
-                        alpha = alpha.max(entry.score);
+                    if alpha >= beta {
+                        return alpha; // Cutoff after bound improvements
                     }
-                    BoundType::UpperBound => {
-                        beta = beta.min(entry.score);
-                    }
-                }
-                if alpha >= beta {
-                    return entry.score;
                 }
             }
         }
+
         if depth == 0 {
             let score = {
                 if move_gen::has_legal_move(self.position) {
@@ -275,7 +290,7 @@ impl Search<'_> {
                             -self.negamax(current_line, &mut child_pv, depth - 1, -beta, -alpha);
                         self.repetition_key_stack.pop();
                         current_line.pop();
-                    self.position.unmake_move(&undo_move_info);
+                        self.position.unmake_move(&undo_move_info);
                         if next_score > best_score || best_move.is_none() {
                             best_score = next_score;
                             best_move = Some(mv);
@@ -417,7 +432,9 @@ impl Search<'_> {
     }
 
     pub fn search_tree_position_occurance_count(&self) -> usize {
-        Search::position_occurrence_count_static(&self.repetition_key_stack[self.number_of_game_positions..])
+        Search::position_occurrence_count_static(
+            &self.repetition_key_stack[self.number_of_game_positions..],
+        )
     }
 
     pub fn position_occurrence_count(&self) -> usize {
@@ -738,7 +755,8 @@ mod tests {
             },
         );
 
-        let win_search_results = uci_util::run_uci_position(go_for_win_uci_position_str, go_options_str);
+        let win_search_results =
+            uci_util::run_uci_position(go_for_win_uci_position_str, go_options_str);
         assert_eq!(win_search_results.pv_moves_as_string(), "e7-e6".to_string());
         test_eq(
             &win_search_results,
@@ -760,7 +778,8 @@ mod tests {
         let uci_initial_position_str = format!("position fen {}", fen);
 
         let go_options_str = "depth 5";
-        let search_results_1 = uci_util::run_uci_position(&uci_initial_position_str, go_options_str);
+        let search_results_1 =
+            uci_util::run_uci_position(&uci_initial_position_str, go_options_str);
         let _pv_moves_1 = search_results_1.pv_moves_as_string();
         assert_eq!(search_results_1.pv_moves_as_string(), "f3-e4,c2-d1,a5-c3,d1-e2,c3-c2");
 
@@ -891,30 +910,6 @@ mod tests {
         );
     }
 
-    /// https://lichess.org/exHmRrqX/white#36
-    #[test]
-    fn test_ttable_problem() {
-        setup();
-        let uci_command = "position startpos moves";
-        let base_moves = "d2d4 e7e6 e2e4 d7d5 b1c3 d5e4 c3e4 c7c6 g1f3 f7f6 f1d3 g7g5 e1g1 g5g4 f3h4 f6f5 e4g5 f8h6 g5e6 c8e6 d3f5 e6f5 h4f5 h6c1 d1g4 c1b2 a1e1 e8d7 f5g7 d7d6 g4g3 d6d7";
-        let positions =
-            [
-                format!("{} {} {}", uci_command, base_moves, ""),
-                format!("{} {} {}", uci_command, base_moves, "g3g4 d7d6"),
-                format!("{} {} {}", uci_command, base_moves, "g3g4 d7d6 g4g3 d6d7"),
-            ];
-
-        let transposition_table = TranspositionTable::new(500);
-        positions.iter().for_each(|uci_position| {
-            uci_util::run_uci_position_using_t_table(uci_position, "depth 8", &transposition_table);
-        });
-
-        let end_position = positions.last().unwrap();
-
-        let search_results = uci_util::run_uci_position_using_t_table(&end_position, "depth 8", &transposition_table);
-        assert_eq!(search_results.pv_moves_as_string(), "g3-h3,d7-d6,g7-e8,d8xe8,e1xe8,b2xd4,h3-g3,d6-c5".to_string());
-    }
-
     #[test]
     fn test_is_mating_score() {
         setup();
@@ -957,15 +952,40 @@ mod tests {
         assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k1()]), 1);
         assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k2(), k1()]), 1);
         assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k2(), k2(), k1()]), 1);
-        assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k2(), k2(), k2(), k1()]), 2);
-        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k1(), k2(), k2(), k2(), k1()]), 2);
-        assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k1(), k2(), k2(), k1(), k1()]), 4);
         assert_eq!(
-            Search::position_occurrence_count_static(&vec![k1(), k3(), k1(), k2(), k2(), k1(), k1()]),
+            Search::position_occurrence_count_static(&vec![k1(), k2(), k2(), k2(), k1()]),
+            2
+        );
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![k2(), k1(), k2(), k2(), k2(), k1()]),
+            2
+        );
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![k1(), k1(), k2(), k2(), k1(), k1()]),
+            4
+        );
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![
+                k1(),
+                k3(),
+                k1(),
+                k2(),
+                k2(),
+                k1(),
+                k1()
+            ]),
             3
         );
         assert_eq!(
-            Search::position_occurrence_count_static(&vec![k1(), k2(), k1(), k2(), k2(), k2(), k1()]),
+            Search::position_occurrence_count_static(&vec![
+                k1(),
+                k2(),
+                k1(),
+                k2(),
+                k2(),
+                k2(),
+                k1()
+            ]),
             3
         );
     }

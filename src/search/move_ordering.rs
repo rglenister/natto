@@ -32,6 +32,12 @@ pub struct MoveOrderer {
     counter_moves: CounterMoveTable,
 }
 
+impl Default for MoveOrderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MoveOrderer {
     pub fn new() -> Self {
         MoveOrderer {
