@@ -2,12 +2,11 @@ use crate::core::board::Board;
 use crate::core::move_gen;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
-use crate::engine::config::get_contempt;
 use crate::eval::kings::score_kings;
 use crate::eval::pawns::score_pawns;
 use crate::eval::psq::score_board_psq_values;
-use crate::search;
-use crate::search::negamax::{RepetitionKey, MAXIMUM_SCORE};
+use crate::search::negamax::{RepetitionKey, Search, MAXIMUM_SCORE};
+use crate::uci::config::get_contempt;
 use crate::utils::bitboard_iterator::BitboardIterator;
 use crate::utils::util;
 use crate::utils::util::row_bitboard;
@@ -24,15 +23,14 @@ pub enum GameStatus {
     DrawnByThreefoldRepetition,
     DrawnByInsufficientMaterial,
     Stalemate,
-    Draw, // Fallback for unknown draws
     Checkmate,
 }
 
-pub const PIECE_SCORES: [isize; 6] = [100, 300, 300, 500, 900, 10000];
+pub const PIECE_SCORES: [i32; 6] = [100, 300, 300, 500, 900, 10000];
 
-const PHASE_TOTAL: isize = 24;
+const PHASE_TOTAL: i32 = 24;
 
-const PHASE_WEIGHTS: [isize; 6] = [
+const PHASE_WEIGHTS: [i32; 6] = [
     0, // pawn
     1, // knight
     1, // bishop
@@ -41,33 +39,31 @@ const PHASE_WEIGHTS: [isize; 6] = [
     0, // king
 ];
 
-const BISHOP_PAIR_BONUS: isize = 50;
-const ROOK_ON_OPEN_FILE_BONUS: isize = 30;
-const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: isize = 75;
+const BISHOP_PAIR_BONUS: i32 = 50;
+const ROOK_ON_OPEN_FILE_BONUS: i32 = 30;
+const DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS: i32 = 75;
 
-fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> isize {
+fn calculate_game_phase(piece_counts: [[usize; 6]; 2]) -> i32 {
     let mut phase = PHASE_TOTAL;
 
     for piece_type in [PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen] {
         let count = piece_counts[PieceColor::White as usize][piece_type as usize]
             + piece_counts[PieceColor::Black as usize][piece_type as usize];
-        phase -= PHASE_WEIGHTS[piece_type as usize] * count as isize;
+        phase -= PHASE_WEIGHTS[piece_type as usize] * count as i32;
     }
 
     phase.clamp(0, PHASE_TOTAL)
 }
 
-pub fn apply_contempt(score: isize) -> isize {
-    let contempt = get_contempt();
-
+pub fn apply_contempt(score: i32) -> i32 {
     if score == 0 {
-        -contempt
+        -get_contempt()
     } else {
         score
     }
 }
 
-pub fn score_position(position: &Position) -> isize {
+pub fn score_position(position: &Position) -> i32 {
     let board = position.board();
     let piece_counts = board.get_piece_counts();
     let phase = calculate_game_phase(piece_counts);
@@ -75,8 +71,8 @@ pub fn score_position(position: &Position) -> isize {
     let material_score = piece_material_balance
         .iter()
         .enumerate()
-        .map(|(idx, &balance)| balance * PIECE_SCORES[idx])
-        .sum::<isize>();
+        .map(|(idx, &balance)| balance as i32 * PIECE_SCORES[idx])
+        .sum::<i32>();
 
     let (psq_mg, psq_eg) = score_board_psq_values(board);
     let (king_mg, king_eg) = score_kings(position);
@@ -98,19 +94,14 @@ pub fn score_position(position: &Position) -> isize {
     }
 }
 
-pub fn evaluate(
-    position: &Position,
-    depth: usize,
-    repetition_key_stack: &[RepetitionKey],
-) -> isize {
+pub fn evaluate(position: &Position, depth: u8, repetition_key_stack: &[RepetitionKey]) -> i32 {
     let game_status = get_game_status(position, repetition_key_stack);
     match game_status {
         GameStatus::InProgress => score_position(position),
-        GameStatus::Checkmate => depth as isize - MAXIMUM_SCORE,
-        _ => apply_contempt(0), // Apply contempt to drawn positions
+        GameStatus::Checkmate => depth as i32 - MAXIMUM_SCORE,
+        _ => apply_contempt(0),
     }
 }
-
 pub fn has_insufficient_material(position: &Position) -> bool {
     let board = position.board();
     let all_bitboards = &board.all_bitboards();
@@ -132,7 +123,7 @@ pub fn has_insufficient_material(position: &Position) -> bool {
         return true;
     }
 
-    let has_sufficient_minor_pieces =
+    let has_insufficient_minor_pieces =
         |piece_color: PieceColor, knight_count: usize, bishop_count: usize| -> bool {
             knight_count == 2
                 || (bishop_count == 2 && board.has_bishops_on_same_color_squares(piece_color))
@@ -140,13 +131,21 @@ pub fn has_insufficient_material(position: &Position) -> bool {
 
     if blacks_minor_piece_count == 0
         && whites_minor_piece_count == 2
-        && has_sufficient_minor_pieces(PieceColor::White, whites_knight_count, whites_bishop_count)
+        && has_insufficient_minor_pieces(
+            PieceColor::White,
+            whites_knight_count,
+            whites_bishop_count,
+        )
     {
         return true;
     }
     if whites_minor_piece_count == 0
         && blacks_minor_piece_count == 2
-        && has_sufficient_minor_pieces(PieceColor::Black, blacks_knight_count, blacks_bishop_count)
+        && has_insufficient_minor_pieces(
+            PieceColor::Black,
+            blacks_knight_count,
+            blacks_bishop_count,
+        )
     {
         return true;
     }
@@ -162,7 +161,7 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &[RepetitionKe
         _ => {
             if position.half_move_clock() >= 100 {
                 GameStatus::DrawnByFiftyMoveRule
-            } else if has_three_fold_repetition(repetition_key_stack) {
+            } else if Search::position_occurrence_count_static(repetition_key_stack) >= 3 {
                 GameStatus::DrawnByThreefoldRepetition
             } else if has_insufficient_material(position) {
                 GameStatus::DrawnByInsufficientMaterial
@@ -172,9 +171,6 @@ pub fn get_game_status(position: &Position, repetition_key_stack: &[RepetitionKe
         }
     }
 }
-pub fn has_three_fold_repetition(repetition_key_stack: &[RepetitionKey]) -> bool {
-    search::negamax::get_repeat_position_count(repetition_key_stack) >= 2
-}
 pub fn is_check(position: &Position) -> bool {
     check_count(position) >= 1
 }
@@ -183,22 +179,22 @@ pub fn check_count(position: &Position) -> usize {
     move_gen::check_count(position)
 }
 
-fn score_bishops(position: &Position) -> isize {
+fn score_bishops(position: &Position) -> i32 {
     let board = position.board();
-    (board.has_bishop_pair(PieceColor::White) as isize
-        - board.has_bishop_pair(PieceColor::Black) as isize)
+    (board.has_bishop_pair(PieceColor::White) as i32
+        - board.has_bishop_pair(PieceColor::Black) as i32)
         * BISHOP_PAIR_BONUS
 }
 
-fn score_rooks(position: &Position) -> isize {
-    fn score_rooks_for_color(board: &Board, piece_color: PieceColor) -> isize {
+fn score_rooks(position: &Position) -> i32 {
+    fn score_rooks_for_color(board: &Board, piece_color: PieceColor) -> i32 {
         let my_bitboards = board.bitboards_for_color(piece_color);
         let pawns = my_bitboards[PieceType::Pawn as usize];
         let rooks = my_bitboards[PieceType::Rook as usize];
         let queens = my_bitboards[PieceType::Queen as usize];
         let row = if piece_color == PieceColor::White { 6 } else { 1 };
         let seventh_rank_bonus = ((((rooks | queens) & row_bitboard(row)).count_ones()) >= 2)
-            as isize
+            as i32
             * DOUBLED_ROOKS_ON_SEVENTH_RANK_BONUS;
         let mut on_open_file_count = 0;
         let rook_iterator = BitboardIterator::new(rooks);
@@ -207,7 +203,7 @@ fn score_rooks(position: &Position) -> isize {
                 on_open_file_count += 1;
             }
         }
-        seventh_rank_bonus + on_open_file_count as isize * ROOK_ON_OPEN_FILE_BONUS
+        seventh_rank_bonus + on_open_file_count * ROOK_ON_OPEN_FILE_BONUS
     }
     let board = position.board();
     score_rooks_for_color(board, PieceColor::White)
@@ -227,6 +223,7 @@ fn calculate_material_balance(piece_counts: [[usize; 6]; 2]) -> [isize; 6] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::negamax::Search;
 
     #[test]
     fn test_score_pieces() {
@@ -248,6 +245,29 @@ mod tests {
         let fen = "3k4/8/8/8/8/8/2p5/4K3 w - - 0 1";
         let black_pawn_on_seventh_rank: Position = Position::from(fen);
         assert_eq!(score_position(&black_pawn_on_seventh_rank), -310);
+    }
+
+    #[test]
+    fn test_get_repetition_count() {
+        assert_eq!(Search::position_occurrence_count_static(&vec!()), 0);
+
+        let k1 = || RepetitionKey { zobrist_hash: 1, half_move_clock: 100 };
+        let k2 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 100 };
+        let k3 = || RepetitionKey { zobrist_hash: 2, half_move_clock: 0 };
+        assert_eq!(Search::position_occurrence_count_static(&vec![]), 0);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k1()]), 1);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k1(), k2(), k1()]), 2);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k1(), k2()]), 2);
+        assert_eq!(Search::position_occurrence_count_static(&vec![k2(), k3(), k1(), k3()]), 1);
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![k2(), k2(), k2(), k2(), k2()]),
+            5
+        );
+        assert_eq!(
+            Search::position_occurrence_count_static(&vec![k2(), k3(), k2(), k2(), k2()]),
+            4
+        );
     }
 
     #[test]

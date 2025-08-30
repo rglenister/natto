@@ -2,8 +2,8 @@ use crate::core::board::BoardSide;
 use crate::core::piece::PieceType;
 use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
-use crate::engine::config;
 pub use crate::search::negamax::MAXIMUM_SCORE;
+use crate::uci::config;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,8 +17,8 @@ pub enum BoundType {
 pub struct TTEntry {
     pub zobrist: u64,
     pub best_move: Option<Move>,
-    pub depth: usize,
-    pub score: isize,
+    pub depth: u8,
+    pub score: i32,
     pub bound_type: BoundType,
 }
 
@@ -50,10 +50,10 @@ impl TranspositionTable {
     pub fn insert(
         &self,
         position: &Position,
-        depth: usize,
-        alpha: isize,
-        beta: isize,
-        score: isize,
+        depth: u8,
+        alpha: i32,
+        beta: i32,
+        score: i32,
         mov: Option<Move>,
     ) {
         let bound_type = if score <= alpha {
@@ -76,7 +76,7 @@ impl TranspositionTable {
             }
         };
         if do_store {
-            self.store(position.hash_code(), mov, depth as u8, score as i32, bound_type);
+            self.store(position.hash_code(), mov, depth, score, bound_type);
             //#[cfg(debug_assertions)]
             if cfg!(debug_assertions) {
                 let entry = self.probe(position.hash_code()).unwrap();
@@ -213,7 +213,7 @@ impl TranspositionTable {
         let packed1 = zobrist;
         let packed2 = if let Some(best_move) = best_move { Self::pack_move(best_move) } else { 0 }
             | ((depth as u64) << 21)
-            | (((score + MAXIMUM_SCORE as i32) as u64 & 0x0FFFFFFF) << 29)
+            | (((score + MAXIMUM_SCORE) as u64 & 0x0FFFFFFF) << 29)
             | ((bound as u64) << 57);
         (packed1, packed2)
     }
@@ -223,20 +223,14 @@ impl TranspositionTable {
         let has_move = (packed2 & 0x1fffff) != 0;
         let best_move = if has_move { Some(Self::unpack_mv(packed2)) } else { None };
         let depth = ((packed2 >> 21) & 0xFF) as u8;
-        let score = ((packed2 >> 29) & 0x0FFFFFFF) as i32 - MAXIMUM_SCORE as i32;
+        let score = ((packed2 >> 29) & 0x0FFFFFFF) as i32 - MAXIMUM_SCORE;
         let bound = match (packed2 >> 57) & 0x0F {
             0 => BoundType::Exact,
             1 => BoundType::LowerBound,
             2 => BoundType::UpperBound,
             _ => panic!("Invalid bound"),
         };
-        Some(TTEntry {
-            zobrist,
-            best_move,
-            depth: depth as usize,
-            score: score as isize,
-            bound_type: bound,
-        })
+        Some(TTEntry { zobrist, best_move, depth, score, bound_type: bound })
     }
 }
 

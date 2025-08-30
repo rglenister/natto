@@ -29,6 +29,10 @@ pub fn generate_moves_for_quiescence(position: &Position) -> Vec<Move> {
 }
 
 pub fn has_legal_move(position: &Position) -> bool {
+    get_first_legal_move(position).is_some()
+}
+
+pub fn get_first_legal_move(position: &Position) -> Option<Move> {
     let mut move_generator = MoveGeneratorImpl {
         position: *position,
         move_processor: HasLegalMoveProcessor::new(*position),
@@ -236,7 +240,7 @@ struct MoveListMoveProcessor {
 
 struct HasLegalMoveProcessor {
     position: Position,
-    found_legal_move: bool,
+    legal_move: Option<Move>,
 }
 
 impl MoveProcessor for MoveListMoveProcessor {
@@ -263,19 +267,19 @@ impl MoveProcessor for MoveListMoveProcessor {
     }
 }
 impl MoveProcessor for HasLegalMoveProcessor {
-    type Output = bool;
+    type Output = Option<Move>;
     fn process_move(&mut self, mov: Move) {
-        if !self.found_legal_move {
-            self.found_legal_move = self.position.make_move(&mov).is_some();
+        if self.legal_move.is_none() && self.position.make_move(&mov).is_some() {
+            self.legal_move = Some(mov);
         }
     }
 
     fn continue_processing(&mut self) -> bool {
-        !self.found_legal_move
+        self.legal_move.is_none()
     }
 
-    fn get_result(&self) -> bool {
-        self.found_legal_move
+    fn get_result(&self) -> Option<Move> {
+        self.legal_move
     }
 }
 
@@ -294,7 +298,7 @@ impl MoveListMoveProcessor {
 }
 impl HasLegalMoveProcessor {
     fn new(position: Position) -> Self {
-        HasLegalMoveProcessor { position, found_legal_move: false }
+        HasLegalMoveProcessor { position, legal_move: None }
     }
 }
 

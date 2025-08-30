@@ -2,4 +2,4 @@ pub mod uci_interface;
 
 pub mod config;
 
-pub mod uci;
+pub mod uci_util;

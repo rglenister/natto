@@ -1,16 +1,17 @@
 use crate::book::lichess_book::LiChessOpeningBook;
 use crate::book::opening_book::OpeningBook;
-use crate::core::r#move::convert_move_to_raw;
-use crate::engine::{config, uci};
-use crate::eval::evaluation::GameStatus;
-use crate::search::negamax;
+use crate::core::move_gen;
+use crate::core::r#move;
+use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
+use crate::search::{move_ordering, negamax};
+use crate::uci::{config, uci_util};
 use crate::utils::fen;
 use log::{debug, error, info};
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
@@ -53,7 +54,7 @@ struct Engine {
     search_stop_flag: Arc<AtomicBool>,
     main_loop_quit_flag: Arc<AtomicBool>,
     opening_book: Option<LiChessOpeningBook>,
-    transposition_table: Arc<Mutex<TranspositionTable>>,
+    transposition_table: Arc<TranspositionTable>,
 }
 
 impl Engine {
@@ -63,7 +64,7 @@ impl Engine {
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
             opening_book: Self::create_opening_book(),
-            transposition_table: Arc::new(Mutex::new(TranspositionTable::new_using_config())),
+            transposition_table: Arc::new(TranspositionTable::new_using_config()),
         }
     }
 
@@ -73,8 +74,8 @@ impl Engine {
         let _input_thread = self.start_input_thread(tx.clone());
 
         let mut search_handle: Option<JoinHandle<()>> = None;
-        let mut uci_position: Option<uci::UciPosition> = None;
-        info!("Chess engine started");
+        let mut uci_position: Option<uci_util::UciPosition> = None;
+        info!("UCI started - awaiting commands");
         self.main_loop(rx, &mut search_handle, &mut uci_position, uci_commands);
         if let Some(handle) = search_handle {
             handle.join().unwrap();
@@ -88,7 +89,7 @@ impl Engine {
         &self,
         rx: &Receiver<String>,
         search_handle: &mut Option<JoinHandle<()>>,
-        uci_position: &mut Option<uci::UciPosition>,
+        uci_position: &mut Option<uci_util::UciPosition>,
         uci_commands: &Option<Vec<String>>,
     ) {
         if let Some(uci_commands) = uci_commands {
@@ -109,13 +110,13 @@ impl Engine {
                 }
             }
         }
-        debug!("main loop quit flag is set");
+        debug!("the main loop quit flag is set");
     }
 
     fn run_uci_command(
         &self,
         search_handle: &mut Option<JoinHandle<()>>,
-        uci_position: &mut Option<uci::UciPosition>,
+        uci_position: &mut Option<uci_util::UciPosition>,
         input: &String,
         command: UciCommand,
     ) {
@@ -137,8 +138,8 @@ impl Engine {
         }
     }
 
-    fn uci_set_position(&self, input: &String, uci_position: &mut Option<uci::UciPosition>) {
-        let uci_pos = uci::parse_position(input);
+    fn uci_set_position(&self, input: &String, uci_position: &mut Option<uci_util::UciPosition>) {
+        let uci_pos = uci_util::parse_position(input);
         if let Some(uci_pos) = uci_pos {
             *uci_position = Some(uci_pos.clone());
             info!(
@@ -152,10 +153,10 @@ impl Engine {
         }
     }
 
-    fn uci_new_game(&self, uci_position: &mut Option<uci::UciPosition>) {
+    fn uci_new_game(&self, uci_position: &mut Option<uci_util::UciPosition>) {
         info!("UCI new game command received");
         *uci_position = None;
-        self.transposition_table.lock().unwrap().clear();
+        self.transposition_table.clear();
     }
 
     fn uci_go(
@@ -163,49 +164,58 @@ impl Engine {
         search_stop_flag: &&Arc<AtomicBool>,
         search_handle: &mut Option<JoinHandle<()>>,
         input: String,
-        uci_position: &Option<uci::UciPosition>,
+        uci_position: &Option<uci_util::UciPosition>,
     ) {
         self.uci_stop(search_stop_flag, search_handle);
         if let Some(uci_pos) = uci_position {
             if search_handle.is_none() {
                 if !self.play_move_from_opening_book(uci_pos) {
-                    let uci_go_options: uci::UciGoOptions =
-                        uci::parse_uci_go_options(Some(input.clone()));
+                    let uci_go_options: uci_util::UciGoOptions =
+                        uci_util::parse_uci_go_options(Some(input.clone()));
                     debug!("go options = {uci_go_options:?}");
 
-                    let search_params = uci::create_search_params(&uci_go_options, uci_pos);
+                    let search_params = uci_util::create_search_params(&uci_go_options, uci_pos);
 
-                    debug!("search params = {search_params}");
+                    debug!("search params = {search_params:?}");
                     debug!("Starting search...");
                     search_stop_flag.store(false, Ordering::Relaxed); // Reset stop flag
 
                     let stop_flag = Arc::clone(search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
-                    let tt_clone = Arc::clone(&self.transposition_table);
+                    let mut position = uci_pos_clone.end_position;
+                    let transposition_table = Arc::clone(&self.transposition_table);
                     *search_handle = Some(thread::spawn(move || {
-                        let search_results = negamax::iterative_deepening(
-                            &mut tt_clone.lock().unwrap(),
-                            &mut uci_pos_clone.end_position.clone(),
-                            &search_params,
+                        let mut search = Search::new(
+                            &mut position,
+                            &transposition_table,
+                            search_params,
                             stop_flag,
-                            &uci_pos_clone.repetition_keys,
+                            uci_pos_clone.repetition_keys.clone(),
+                            move_ordering::MoveOrderer::new(),
+                            0,
                         );
+                        let search_results = search.go();
                         debug!("score: {} depth {}", search_results.score, search_results.depth);
-                        let best_move = search_results.pv.first().map(convert_move_to_raw);
-                        if let Some(best_move) = best_move {
-                            uci::send_to_gui(format!("bestmove {best_move}").as_str());
-                        } else {
-                            match search_results.game_status {
-                                GameStatus::Checkmate => {
-                                    uci::send_to_gui("info score mate 0");
-                                }
-                                GameStatus::Stalemate => {
-                                    uci::send_to_gui("info score 0");
-                                }
-                                _ => (),
-                            }
-                        }
-                    }));
+
+                        let best_move = search_results
+                            .pv
+                            .first()
+                            .copied()
+                            .or(uci_pos_clone.previous_move_from_position())
+                            .or(move_gen::get_first_legal_move(&position));
+
+                        if search_results.score == negamax::MAXIMUM_SCORE.abs() {
+                            uci_util::send_to_gui("info score mate 0");
+                        } else if search_results.score == negamax::DRAW_SCORE {
+                            uci_util::send_to_gui("info score cp 0");
+                        };
+
+                        let best_move_str = best_move
+                            .map(r#move::convert_move_to_raw)
+                            .map(|rm| rm.to_string())
+                            .unwrap_or_else(|| "none".to_string());
+                        uci_util::send_to_gui(format!("bestmove {best_move_str}").as_str());
+                    }))
                 }
             } else {
                 error!("Cannot initiate search because the position is already being searched");
@@ -219,17 +229,17 @@ impl Engine {
         error!("invalid UCI command: {input:?}");
     }
     fn uci_is_ready(&self) {
-        uci::send_to_gui("readyok");
+        uci_util::send_to_gui("readyok");
     }
 
     fn uci_options() {
-        uci::send_to_gui("id name natto");
-        uci::send_to_gui("id author Richard Glenister");
-        uci::send_to_gui("option name UseBook type check default true");
-        uci::send_to_gui("option name MaxBookDepth type spin default 10 min 1 max 50");
-        uci::send_to_gui("option name Hash type spin default 128 min 1 max 2048");
-        uci::send_to_gui("option name Contempt type spin default 0 min -500 max 500");
-        uci::send_to_gui("uciok");
+        uci_util::send_to_gui("id name natto");
+        uci_util::send_to_gui("id author Richard Glenister");
+        uci_util::send_to_gui("option name UseBook type check default true");
+        uci_util::send_to_gui("option name MaxBookDepth type spin default 10 min 1 max 50");
+        uci_util::send_to_gui("option name Hash type spin default 128 min 1 max 2048");
+        uci_util::send_to_gui("option name Contempt type spin default 0 min -500 max 500");
+        uci_util::send_to_gui("uciok");
     }
 
     fn parse_uci_option(input: &str) -> Option<(String, String)> {
@@ -252,7 +262,7 @@ impl Engine {
                     }
                 }
                 "contempt" => {
-                    if let Ok(v) = value.parse::<isize>() {
+                    if let Ok(v) = value.parse::<i32>() {
                         config::set_contempt(v);
                     }
                 }
@@ -267,7 +277,7 @@ impl Engine {
                     }
                 }
                 _ => {
-                    uci::send_to_gui(&format!("info string Unknown option: {name}"));
+                    uci_util::send_to_gui(&format!("info string Unknown option: {name}"));
                 }
             }
         }
@@ -310,7 +320,7 @@ impl Engine {
         })
     }
 
-    fn play_move_from_opening_book(&self, uci_pos: &uci::UciPosition) -> bool {
+    fn play_move_from_opening_book(&self, uci_pos: &uci_util::UciPosition) -> bool {
         if let Some(opening_book) = self.opening_book.as_ref() {
             if uci_pos.end_position.full_move_number() <= config::get_max_book_depth() {
                 info!(
@@ -320,13 +330,13 @@ impl Engine {
                 let opening_move = opening_book.get_opening_move(&uci_pos.end_position);
                 if let Ok(opening_move) = opening_move {
                     debug!("got move {opening_move} from opening book");
-                    uci::send_to_gui(format!("bestmove {opening_move}").as_str());
+                    uci_util::send_to_gui(format!("bestmove {opening_move}").as_str());
                     return true;
                 } else {
                     info!("Failed to retrieve opening book move: {}", opening_move.err().unwrap());
                 }
             } else {
-                info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}", 
+                info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}",
                     uci_pos.end_position.full_move_number(), config::get_max_book_depth());
             }
         }

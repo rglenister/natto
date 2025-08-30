@@ -8,7 +8,7 @@ pub struct NodeCountStats {
     pub nodes_per_second: usize,
     pub elapsed_time: Duration,
 }
-pub(crate) struct NodeCounter {
+pub struct NodeCounter {
     node_counter: AtomicUsize,
     start_time: Instant,
 }
