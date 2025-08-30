@@ -16,7 +16,7 @@ use log::info;
 use crate::uci::config;
 
 fn main() {
-    println!(
+    eprintln!(
         "Debug assertions are {}",
         if cfg!(debug_assertions) { "enabled" } else { "disabled" }
     );
