@@ -53,7 +53,7 @@ struct Engine {
     channel: (Sender<String>, Receiver<String>),
     search_stop_flag: Arc<AtomicBool>,
     main_loop_quit_flag: Arc<AtomicBool>,
-    opening_book: Option<LiChessOpeningBook>,
+    opening_book: LiChessOpeningBook,
     transposition_table: Arc<TranspositionTable>,
 }
 
@@ -63,7 +63,7 @@ impl Engine {
             channel: mpsc::channel(),
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
-            opening_book: Self::create_opening_book(),
+            opening_book: LiChessOpeningBook::new(),
             transposition_table: Arc::new(TranspositionTable::new_using_config()),
         }
     }
@@ -235,8 +235,8 @@ impl Engine {
     fn uci_options() {
         uci_util::send_to_gui("id name natto");
         uci_util::send_to_gui("id author Richard Glenister");
-        uci_util::send_to_gui("option name UseBook type check default true");
-        uci_util::send_to_gui("option name MaxBookDepth type spin default 10 min 1 max 50");
+        uci_util::send_to_gui("option name OwnBook type check default true");
+        uci_util::send_to_gui("option name BookDepth type spin default 10 min 1 max 50");
         uci_util::send_to_gui("option name Hash type spin default 128 min 1 max 2048");
         uci_util::send_to_gui("option name Contempt type spin default 0 min -500 max 500");
         uci_util::send_to_gui("uciok");
@@ -266,14 +266,14 @@ impl Engine {
                         config::set_contempt(v);
                     }
                 }
-                "usebook" => {
+                "ownbook" => {
                     if let Ok(v) = value.parse::<bool>() {
-                        config::set_use_book(v);
+                        config::set_own_book(v);
                     }
                 }
-                "maxbookdepth" => {
+                "bookdepth" => {
                     if let Ok(v) = value.parse::<usize>() {
-                        config::set_max_book_depth(v);
+                        config::set_book_depth(v);
                     }
                 }
                 _ => {
@@ -321,13 +321,13 @@ impl Engine {
     }
 
     fn play_move_from_opening_book(&self, uci_pos: &uci_util::UciPosition) -> bool {
-        if let Some(opening_book) = self.opening_book.as_ref() {
-            if uci_pos.end_position.full_move_number() <= config::get_max_book_depth() {
+        if config::get_own_book() {
+            if uci_pos.end_position.full_move_number() <= config::get_book_depth() {
                 info!(
                     "getting opening book move for position: {}",
                     fen::write(&uci_pos.end_position)
                 );
-                let opening_move = opening_book.get_opening_move(&uci_pos.end_position);
+                let opening_move = self.opening_book.get_opening_move(&uci_pos.end_position);
                 if let Ok(opening_move) = opening_move {
                     debug!("got move {opening_move} from opening book");
                     uci_util::send_to_gui(format!("bestmove {opening_move}").as_str());
@@ -337,20 +337,10 @@ impl Engine {
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}",
-                    uci_pos.end_position.full_move_number(), config::get_max_book_depth());
+                    uci_pos.end_position.full_move_number(), config::get_book_depth());
             }
         }
         false
-    }
-
-    fn create_opening_book() -> Option<LiChessOpeningBook> {
-        if config::get_use_book() {
-            info!("Using opening book");
-            Some(LiChessOpeningBook::new())
-        } else {
-            info!("Not using opening book");
-            None
-        }
     }
 }
 #[cfg(test)]
