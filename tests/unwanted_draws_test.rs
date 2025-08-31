@@ -44,5 +44,12 @@ fn test_engine_does_not_play_drawing_move() {
 #[test]
 fn test_opponent_is_unable_to_play_drawing_move() {
     let base_moves = "e2e4 e7e6 d2d3 d7d5 d1e2 g8e7 g1f3 c7c5 g2g3 g7g6 h2h4 h7h6 b1c3 d5d4 c3d1 f8g7 h4h5 g6g5 f1h3 e8g8 c1d2 e6e5 h3c8 d8c8 c2c4 b8c6 a1c1 b7b6 a2a3 g7f6 b2b4 g8g7 b4b5 c6d8 a3a4 a7a6 f3h2 a6b5 a4b5 a8a2 h2g4 e7g8 c1b1 d8e6 e2f3 c8a8 b1b2 a2a1 h1f1 a8a3 b2c2 a3b3 c2c1 a1a2 f1h1 f8a8 h1h3 a2c2 c1c2 b3c2 f3e2 a8a2 f2f3 c2b1 h3h1 a2c2 e1f2 b1a2 f2e1";
-    run_test(10, base_moves, vec!["", "a2b1 e1f2", "a2b1 e1f2 b1a2 f2e1"], "a2-b1", "a2-a1");
+    run_test(10, base_moves, vec!["", "a2b1 e1f2", "a2b1 e1f2 b1a2 f2e1"], "a2-b1", "a2-a3");
+}
+
+/// https://lichess.org/dDSI6SqQ/white#52
+#[test]
+fn test_loss_of_mating_sequence() {
+    let base_moves = "d2d4 e7e6 c2c4 b8c6 g1f3 f8b4 c1d2 d7d5 d2b4 c6b4 a2a3 b4c6 e2e3 d5c4 f1c4 g8f6 e1g1 e8g8 b1c3 d8d6 e3e4 c8d7 e4e5 d6e7 e5f6 e7f6 a1c1 f6f4 g2g3 f4d6 c3b5 d6e7 b5c7 a8c8 d4d5 c8c7 d5d6 e7d8 d6c7 d8c7 d1d3 f7f5 f1e1 c7c8 c1d1 c6b8 f3g5 f8f6";
+    run_test(8, base_moves, vec!["", "e1e6 f6e6", "e1e6 f6e6 d3f5 c8c4"], "g3-h3", "f5-f7");
 }
