@@ -108,6 +108,12 @@ static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(No
 
 fn load_config() -> Config {
     dotenv().ok();
+    const DEFAULT_LOGFILE_PATH: &'static str = "./natto.log";
+    const DEFAULT_LOG_LEVEL: &'static str = "info";
+    const DEFAULT_OWN_BOOK: &'static str = "true";
+    const DEFAULT_BOOK_DEPTH: &'static str = "10";
+    const DEFAULT_HASH_SIZE: &'static str = "256";
+
     CONFIG_OVERRIDE
         .lock()
         .unwrap()
@@ -126,20 +132,20 @@ fn load_config() -> Config {
                 )
                 .arg(Arg::new("log-file").short('f').long("log-file").action(ArgAction::Set)
                     .required(false)
-                    .default_value("./natto.log")
+                    .default_value(DEFAULT_LOGFILE_PATH)
                     .help("The full path to the log file")
                     .env("ENGINE_LOG_FILE")
                 )
                 .arg(Arg::new("log-level").short('l').long("log-level").action(ArgAction::Set)
                     .required(false)
-                    .default_value("info")
+                    .default_value(DEFAULT_LOG_LEVEL)
                     .value_parser(["trace", "debug", "info", "warn", "error"])
                     .help("The log level")
                     .env("ENGINE_LOG_LEVEL")
                 )
                 .arg(Arg::new("own-book").short('b').long("own-book").action(ArgAction::Set)
                     .required(false)
-                    .default_value("true")
+                    .default_value(DEFAULT_OWN_BOOK)
                     .value_parser(["true", "false"])
                     .action(ArgAction::Set)
                     .help("Set to true to use the opening book otherwise false")
@@ -147,16 +153,16 @@ fn load_config() -> Config {
                 )
                 .arg(Arg::new("book-depth").short('d').long("book-depth").action(ArgAction::Set)
                     .required(false)
-                    .default_value("10")
+                    .default_value(DEFAULT_BOOK_DEPTH)
                     .value_parser(value_parser!(u16).range(1..))
                     .help("The maximum full move number of a position that will be considered for the opening book")
                     .env("ENGINE_BOOK_DEPTH")
                 )
                 .arg(Arg::new("hash-size").short('s').long("hash-size").action(ArgAction::Set)
                     .required(false)
-                    .default_value("1048576")
+                    .default_value(DEFAULT_HASH_SIZE)
                     .value_parser(is_power_of_two)
-                    .help("the maximum number of items that the hash table can hold - must be a power of two")
+                    .help("the size of the hash table in megabytes - must be a power of two")
                     .env("ENGINE_HASH_SIZE")
                 )
                 .arg(Arg::new("perft").short('p').long("perft").action(ArgAction::SetTrue)
@@ -187,7 +193,7 @@ fn load_config() -> Config {
                     "error" => LevelFilter::Error,
                     _ => LevelFilter::Error,
                 },
-                own_book: matches.get_one::<String>("own-book").is_none_or(|v| v == "true"),
+                own_book: matches.get_one::<String>("own-book").is_none_or(|v| v == DEFAULT_OWN_BOOK),
                 book_depth: matches.get_one::<u16>("book-depth").copied().unwrap() as usize,
                 hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
                 perft: *matches.get_one::<bool>("perft").unwrap_or(&false),
