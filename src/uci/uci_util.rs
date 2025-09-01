@@ -6,6 +6,7 @@ use crate::search::negamax::{
     RepetitionKey, Search, SearchParams, SearchResults, MAXIMUM_SEARCH_DEPTH,
 };
 use crate::search::transposition_table::TranspositionTable;
+use crate::uci::config;
 use crate::utils::util;
 use log::{error, info};
 use once_cell::sync::Lazy;

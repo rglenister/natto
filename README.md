@@ -8,6 +8,8 @@
 - Configurable thread usage for parallelism of the perft performance test
 - Supports the Lichess opening database
 
+Play the bot on Lichess: https://lichess.org/@/natto-bot
+
 ## **Requirements**
 Ensure you have the following installed:
 1. **Rust Toolchain**: [Install Rust](https://www.rust-lang.org/tools/install)

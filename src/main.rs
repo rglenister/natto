@@ -7,21 +7,16 @@ pub mod uci;
 
 mod book;
 mod search;
+use crate::uci::config;
 use chrono::Local;
 use dotenv::dotenv;
 use fern::Dispatch;
 use log::error;
 use log::info;
 
-use crate::uci::config;
-
 fn main() {
-    eprintln!(
-        "Debug assertions are {}",
-        if cfg!(debug_assertions) { "enabled" } else { "disabled" }
-    );
+    info!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
     dotenv().ok();
-    eprintln!("{}", config::get_config_as_string());
     setup_logging()
         .map_err(|err| {
             eprintln!("Failed to initialize logging: {err:?}");
@@ -30,10 +25,12 @@ fn main() {
         })
         .ok();
     info!("{}", config::get_config_as_string());
-    //let _ = *TRANSPOSITION_TABLE;
+
     if config::get_perft() {
         println!("Running perft test");
         utils::perf_t::perf_t();
+    } else if config::get_version() {
+        println!("{}", config::full_version_string());
     } else {
         info!("Starting uci");
         uci::uci_interface::run(&config::get_uci_commands());

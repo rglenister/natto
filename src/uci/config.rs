@@ -4,12 +4,26 @@ use log::LevelFilter;
 use once_cell::sync::Lazy;
 use std::sync::{Mutex, RwLock};
 
+pub const NAME: &str = env!("CARGO_PKG_NAME");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
+pub const BUILD_DATE: &str = env!("BUILD_DATE");
+pub const GIT_HASH: &str = env!("GIT_HASH");
+
+pub fn full_version_string() -> String {
+    format!("{NAME} {VERSION} (git {GIT_HASH}, {BUILD_DATE}) by {AUTHORS}")
+}
+
 pub fn get_log_file() -> String {
     CONFIG.log_file.clone()
 }
 
 pub fn get_log_level() -> LevelFilter {
     CONFIG.log_level
+}
+
+pub fn get_version() -> bool {
+    CONFIG.version
 }
 
 pub fn get_perft() -> bool {
@@ -81,6 +95,7 @@ pub struct Config {
     pub own_book: bool,
     pub book_depth: usize,
     pub hash_size: usize,
+    pub version: bool,
     pub perft: bool,
     pub uci_commands: Option<Vec<String>>,
 }
@@ -108,11 +123,11 @@ static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(No
 
 fn load_config() -> Config {
     dotenv().ok();
-    const DEFAULT_LOGFILE_PATH: &'static str = "./natto.log";
-    const DEFAULT_LOG_LEVEL: &'static str = "info";
-    const DEFAULT_OWN_BOOK: &'static str = "true";
-    const DEFAULT_BOOK_DEPTH: &'static str = "10";
-    const DEFAULT_HASH_SIZE: &'static str = "256";
+    const DEFAULT_LOGFILE_PATH: &str = "./natto.log";
+    const DEFAULT_LOG_LEVEL: &str = "info";
+    const DEFAULT_OWN_BOOK: &str = "false";
+    const DEFAULT_BOOK_DEPTH: &str = "10";
+    const DEFAULT_HASH_SIZE: &str = "256";
 
     CONFIG_OVERRIDE
         .lock()
@@ -120,9 +135,9 @@ fn load_config() -> Config {
         .clone()
         .unwrap_or_else(|| {
             let matches = Command::new("Chess Engine")
-                .version(env!("CARGO_PKG_VERSION"))
-                .author(env!("CARGO_PKG_AUTHORS"))
-                .about("A UCI chess uci")
+                .version(VERSION)
+                .author(AUTHORS)
+                .about("A UCI chess engine")
                 .help_template(
                     "{bin} {version}\n\
                     {author}\n\n\
@@ -130,6 +145,7 @@ fn load_config() -> Config {
                     USAGE:\n    {usage}\n\n\
                     OPTIONS:\n{all-args}",
                 )
+                .disable_version_flag(true)
                 .arg(Arg::new("log-file").short('f').long("log-file").action(ArgAction::Set)
                     .required(false)
                     .default_value(DEFAULT_LOGFILE_PATH)
@@ -165,6 +181,11 @@ fn load_config() -> Config {
                     .help("the size of the hash table in megabytes - must be a power of two")
                     .env("ENGINE_HASH_SIZE")
                 )
+                .arg(Arg::new("version").short('v').long("version").action(ArgAction::SetTrue)
+                    .required(false)
+                    .default_value("false")
+                    .help("Display the application version information and exit")
+                )
                 .arg(Arg::new("perft").short('p').long("perft").action(ArgAction::SetTrue)
                     .required(false)
                     .default_value("false")
@@ -196,6 +217,7 @@ fn load_config() -> Config {
                 own_book: matches.get_one::<String>("own-book").is_none_or(|v| v == DEFAULT_OWN_BOOK),
                 book_depth: matches.get_one::<u16>("book-depth").copied().unwrap() as usize,
                 hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
+                version: *matches.get_one::<bool>("version").unwrap_or(&false),
                 perft: *matches.get_one::<bool>("perft").unwrap_or(&false),
                 uci_commands: matches.get_many::<String>("uci").map(|values| values.cloned().collect()),
             }
@@ -234,6 +256,7 @@ pub mod tests {
             own_book: true,
             book_depth: 10,
             hash_size: 100,
+            version: false,
             perft: false,
             uci_commands: None,
         }

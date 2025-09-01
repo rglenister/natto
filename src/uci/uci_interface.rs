@@ -233,12 +233,20 @@ impl Engine {
     }
 
     fn uci_options() {
-        uci_util::send_to_gui("id name natto");
-        uci_util::send_to_gui("id author Richard Glenister");
-        uci_util::send_to_gui("option name OwnBook type check default true");
-        uci_util::send_to_gui("option name BookDepth type spin default 10 min 1 max 50");
-        uci_util::send_to_gui("option name Hash type spin default 128 min 1 max 2048");
-        uci_util::send_to_gui("option name Contempt type spin default 0 min -500 max 500");
+        uci_util::send_to_gui(
+            format!(
+                "id name {} {} (git {}, {})",
+                config::NAME,
+                config::VERSION,
+                config::GIT_HASH,
+                config::BUILD_DATE
+            )
+            .as_str(),
+        );
+        uci_util::send_to_gui(format!("id author {}", config::AUTHORS).as_str());
+        uci_util::send_to_gui("option name ownbook type check default true");
+        uci_util::send_to_gui("option name bookdepth type spin default 10 min 1 max 50");
+        uci_util::send_to_gui("option name hash type spin default 256 min 1 max 2048");
         uci_util::send_to_gui("uciok");
     }
 
