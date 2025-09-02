@@ -10,9 +10,8 @@ pub const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 pub const BUILD_DATE: &str = env!("BUILD_DATE");
 pub const GIT_HASH: &str = env!("GIT_HASH");
 
-pub fn full_version_string() -> String {
-    format!("{NAME} {VERSION} (git {GIT_HASH}, {BUILD_DATE}) by {AUTHORS}")
-}
+pub static FULL_VERSION: Lazy<String> =
+    Lazy::new(|| format!("{NAME} {VERSION} (git {GIT_HASH}, {BUILD_DATE})"));
 
 pub fn get_log_file() -> String {
     CONFIG.log_file.clone()
@@ -134,8 +133,8 @@ fn load_config() -> Config {
         .unwrap()
         .clone()
         .unwrap_or_else(|| {
-            let matches = Command::new("Chess Engine")
-                .version(VERSION)
+            let matches = Command::new("natto")
+                .version(FULL_VERSION.as_str()) // Use a custom version string
                 .author(AUTHORS)
                 .about("A UCI chess engine")
                 .help_template(
@@ -145,7 +144,6 @@ fn load_config() -> Config {
                     USAGE:\n    {usage}\n\n\
                     OPTIONS:\n{all-args}",
                 )
-                .disable_version_flag(true)
                 .arg(Arg::new("log-file").short('f').long("log-file").action(ArgAction::Set)
                     .required(false)
                     .default_value(DEFAULT_LOGFILE_PATH)
@@ -180,11 +178,6 @@ fn load_config() -> Config {
                     .value_parser(is_power_of_two)
                     .help("the size of the hash table in megabytes - must be a power of two")
                     .env("ENGINE_HASH_SIZE")
-                )
-                .arg(Arg::new("version").short('v').long("version").action(ArgAction::SetTrue)
-                    .required(false)
-                    .default_value("false")
-                    .help("Display the application version information and exit")
                 )
                 .arg(Arg::new("perft").short('p').long("perft").action(ArgAction::SetTrue)
                     .required(false)

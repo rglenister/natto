@@ -5,8 +5,12 @@ use crate::core::r#move;
 use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
 use crate::search::{move_ordering, negamax};
+use crate::uci::logger_controller::LoggerController;
 use crate::uci::{config, uci_util};
+use crate::utils;
 use crate::utils::fen;
+use chrono::Local;
+use dotenv::dotenv;
 use log::{debug, error, info};
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,8 +19,20 @@ use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
-pub fn run(uci_commands: &Option<Vec<String>>) {
-    Engine::new().run(uci_commands);
+pub fn run() {
+    dotenv().ok();
+    let logger_controller = configure_logging();
+    info!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
+    info!("{}", config::get_config_as_string());
+
+    if config::get_perft() {
+        println!("Running perft test");
+        utils::perf_t::perf_t();
+    } else {
+        info!("Starting uci");
+        Engine::new(logger_controller.ok()).run();
+        info!("Engine exited cleanly");
+    }
 }
 
 enum UciCommand {
@@ -55,28 +71,31 @@ struct Engine {
     main_loop_quit_flag: Arc<AtomicBool>,
     opening_book: LiChessOpeningBook,
     transposition_table: Arc<TranspositionTable>,
+    logger_controller: Option<LoggerController>,
 }
 
 impl Engine {
-    fn new() -> Self {
+    fn new(logger_controller: Option<LoggerController>) -> Self {
         Engine {
             channel: mpsc::channel(),
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
             opening_book: LiChessOpeningBook::new(),
             transposition_table: Arc::new(TranspositionTable::new_using_config()),
+            logger_controller,
         }
     }
 
-    fn run(&self, uci_commands: &Option<Vec<String>>) {
+    fn run(&self) {
         // Spawn input-handling thread
         let (tx, rx) = &self.channel;
         let _input_thread = self.start_input_thread(tx.clone());
 
         let mut search_handle: Option<JoinHandle<()>> = None;
         let mut uci_position: Option<uci_util::UciPosition> = None;
+        let uci_commands = config::get_uci_commands();
         info!("UCI started - awaiting commands");
-        self.main_loop(rx, &mut search_handle, &mut uci_position, uci_commands);
+        self.main_loop(rx, &mut search_handle, &mut uci_position, &uci_commands);
         if let Some(handle) = search_handle {
             handle.join().unwrap();
             info!("Search thread has stopped");
@@ -233,29 +252,21 @@ impl Engine {
     }
 
     fn uci_options() {
-        uci_util::send_to_gui(
-            format!(
-                "id name {} {} (git {}, {})",
-                config::NAME,
-                config::VERSION,
-                config::GIT_HASH,
-                config::BUILD_DATE
-            )
-            .as_str(),
-        );
+        uci_util::send_to_gui(format!("id name {}", config::FULL_VERSION.as_str()).as_str());
         uci_util::send_to_gui(format!("id author {}", config::AUTHORS).as_str());
+        uci_util::send_to_gui("option name Debug Log File type string default");
         uci_util::send_to_gui("option name ownbook type check default true");
         uci_util::send_to_gui("option name bookdepth type spin default 10 min 1 max 50");
-        uci_util::send_to_gui("option name hash type spin default 256 min 1 max 2048");
+        uci_util::send_to_gui("option name hash type combo default 256 var 1 var 2 var 4 var 8 var 16 var 32 var 64 var 128 var 256 var 512 var 1024 var 2048");
         uci_util::send_to_gui("uciok");
     }
 
     fn parse_uci_option(input: &str) -> Option<(String, String)> {
-        let re = regex::Regex::new(r"setoption name ([^\s]+) value ([^\s]+)").unwrap();
+        let re = regex::Regex::new(r"^setoption name (.+?) value (.+)$").unwrap();
         if let Some(captures) = re.captures(input) {
             let name = captures.get(1).unwrap().as_str();
             let value = captures.get(2).unwrap().as_str();
-            Some((name.to_string(), value.to_string()))
+            Some((name.trim().to_string(), value.trim().to_string()))
         } else {
             error!("Failed to parse UCI option: {input}");
             None
@@ -264,6 +275,11 @@ impl Engine {
     fn uci_set_option(&self, input: &str) {
         if let Some((name, value)) = Self::parse_uci_option(input) {
             match name.to_lowercase().as_str() {
+                "debug log file" => {
+                    if let Some(logger_controller) = &self.logger_controller {
+                        logger_controller.set_debug_file(value.as_str());
+                    }
+                }
                 "hash" => {
                     if let Ok(v) = value.parse::<usize>() {
                         config::set_hash_size(v);
@@ -350,6 +366,35 @@ impl Engine {
         }
         false
     }
+}
+
+fn configure_logging() -> Result<LoggerController, fern::InitError> {
+    let logger_controller = LoggerController::new();
+    setup_logging(&logger_controller)
+        .map_err(|err| {
+            eprintln!("Failed to initialize logging: {err:?}");
+            err
+        })
+        .ok();
+    Ok(logger_controller)
+}
+
+fn setup_logging(logger_controller: &LoggerController) -> Result<(), fern::InitError> {
+    let base = fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}] [{}] {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                message
+            ))
+        })
+        .level(config::get_log_level())
+        .chain(io::stderr())
+        .chain(fern::log_file(config::get_log_file().clone())?);
+
+    logger_controller.chain_debug_file(base).apply()?;
+    Ok(())
 }
 #[cfg(test)]
 mod tests {
