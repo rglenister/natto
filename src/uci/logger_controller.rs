@@ -25,7 +25,7 @@ impl LoggerController {
         let slot = self.debug_file.clone();
         dispatch.chain(fern::Output::call(move |record| {
             if let Some(ref mut file) = *slot.lock().unwrap() {
-                let _ = writeln!(file, "{} - {}", record.level(), record.args());
+                let _ = writeln!(file, "{}", record.args());
             }
         }))
     }
