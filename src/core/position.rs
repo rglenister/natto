@@ -121,14 +121,9 @@ impl PartialEq for Position {
         self.board == other.board
             && self.side_to_move == other.side_to_move
             && self.castling_rights == other.castling_rights
-            && match (
-                move_gen::is_en_passant_capture_possible(self),
-                move_gen::is_en_passant_capture_possible(other),
-            ) {
-                (true, true) => self.en_passant_capture_square == other.en_passant_capture_square,
-                (false, false) => true,
-                _ => false,
-            }
+            && self.en_passant_capture_square == other.en_passant_capture_square
+            && move_gen::is_en_passant_capture_possible(self)
+                == move_gen::is_en_passant_capture_possible(other)
     }
 }
 
@@ -283,36 +278,21 @@ impl Position {
             undo_move_info: &mut UndoMoveInfo,
             base_move: &BaseMove,
             board_side: &BoardSide,
-        ) -> bool {
+        ) {
             undo_move_info.captured_piece_type = None;
-            let castling_metadata =
+            make_basic_move(
+                position,
+                undo_move_info,
+                base_move.from as usize,
+                base_move.to as usize,
+                false,
+            );
+            let castling_meta_data =
                 &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
-            if move_gen::king_attacks_finder(position, position.side_to_move) == 0
-                && move_gen::square_attacks_finder(
-                    position,
-                    position.opposing_side(),
-                    castling_metadata.king_through_square,
-                ) == 0
-            {
-                make_basic_move(
-                    position,
-                    undo_move_info,
-                    base_move.from as usize,
-                    base_move.to as usize,
-                    false,
-                );
-                let castling_meta_data =
-                    &board::CASTLING_METADATA[position.side_to_move as usize][*board_side as usize];
-                position.move_piece(
-                    castling_meta_data.rook_from_square,
-                    castling_meta_data.rook_to_square,
-                );
-                position.castling_rights[position.side_to_move as usize] = [false, false];
-                position.castled[position.side_to_move as usize] = true;
-                true
-            } else {
-                false
-            }
+            position
+                .move_piece(castling_meta_data.rook_from_square, castling_meta_data.rook_to_square);
+            position.castling_rights[position.side_to_move as usize] = [false, false];
+            position.castled[position.side_to_move as usize] = true;
         }
 
         fn make_promotion_move(
@@ -397,9 +377,7 @@ impl Position {
                 make_en_passant_move(self, &mut undo_move_info, base_move);
             }
             Move::Castling { base_move, board_side } => {
-                if !make_castling_move(self, &mut undo_move_info, base_move, board_side) {
-                    return None;
-                }
+                make_castling_move(self, &mut undo_move_info, base_move, board_side);
             }
             Move::Promotion { base_move, promote_to } => {
                 make_promotion_move(self, &mut undo_move_info, base_move, promote_to);
@@ -515,8 +493,19 @@ impl Position {
     }
 
     pub fn can_castle(&self, piece_color: PieceColor, board_side: &BoardSide) -> bool {
-        self.castling_rights[piece_color as usize][*board_side as usize]
+        if self.castling_rights[piece_color as usize][*board_side as usize]
             && self.board.can_castle(piece_color, board_side)
+        {
+            let castling_metadata =
+                &board::CASTLING_METADATA[piece_color as usize][*board_side as usize];
+            return move_gen::king_attacks_finder(self, self.side_to_move) == 0
+                && move_gen::square_attacks_finder(
+                    self,
+                    self.opposing_side(),
+                    castling_metadata.king_through_square,
+                ) == 0;
+        }
+        false
     }
 
     fn create_castling_rights(castling_rights: String) -> [[bool; 2]; 2] {
@@ -634,7 +623,7 @@ mod tests {
         let moves = generate_moves(&position);
         let castling_moves: Vec<&Move> =
             moves.iter().filter(|chess_move| matches!(chess_move, Move::Castling { .. })).collect();
-        assert_eq!(castling_moves.len(), 2);
+        assert_eq!(castling_moves.len(), 0);
         assert_eq!(
             castling_moves
                 .iter()
@@ -651,7 +640,7 @@ mod tests {
         let moves = generate_moves(&position);
         let castling_moves: Vec<_> =
             moves.iter().filter(|chess_move| matches!(chess_move, Move::Castling { .. })).collect();
-        assert_eq!(castling_moves.len(), 1);
+        assert_eq!(castling_moves.len(), 0);
         assert_eq!(
             castling_moves
                 .iter()
@@ -892,6 +881,22 @@ mod tests {
         let undo_move_info =
             position.make_raw_move(&RawMove::new(sq!("b7"), sq!("c8"), Some(Queen)));
         assert!(undo_move_info.is_none());
+        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+    }
+
+    #[test]
+    fn test_castling_through_check_does_not_mutate_position() {
+        let fen = "4k3/8/b7/8/8/8/8/4K2R w K - 0 1";
+        let mut original_position = Position::from(fen);
+        let mut position = original_position.clone();
+        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("e1"), sq!("g1"), None));
+        assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
+
+        // now set the enpassant square
+        let fen = "4k3/8/b7/2pP4/8/8/8/4K2R w K c6 0 1";
+        let mut original_position = Position::from(fen);
+        let mut position = original_position.clone();
+        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("e1"), sq!("g1"), None));
         assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
     }
 }
