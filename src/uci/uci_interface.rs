@@ -423,8 +423,8 @@ mod tests {
     #[test]
     fn test_parse_uci_option() {
         assert_eq!(
-            Engine::parse_uci_option("setoption name contempt value -50"),
-            Some(("contempt".to_string(), "-50".to_string()))
+            Engine::parse_uci_option("setoption name Debug Log File value /users/me/logfile.log"),
+            Some(("Debug Log File".to_string(), "/users/me/logfile.log".to_string()))
         );
     }
 }
