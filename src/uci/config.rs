@@ -207,11 +207,11 @@ fn load_config() -> Config {
                     "error" => LevelFilter::Error,
                     _ => LevelFilter::Error,
                 },
-                own_book: matches.get_one::<String>("own-book").is_none_or(|v| v == DEFAULT_OWN_BOOK),
+                own_book: matches.get_one::<String>("own-book").unwrap().parse::<bool>().unwrap(),
                 book_depth: matches.get_one::<u16>("book-depth").copied().unwrap() as usize,
                 hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
                 version: *matches.get_one::<bool>("version").unwrap_or(&false),
-                perft: *matches.get_one::<bool>("perft").unwrap_or(&false),
+                perft: matches.get_flag("perft"),
                 uci_commands: matches.get_many::<String>("uci").map(|values| values.cloned().collect()),
             }
         })
