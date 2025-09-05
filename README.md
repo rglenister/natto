@@ -17,44 +17,47 @@ Ensure you have the following installed:
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 1. **Chess GUI**: Any UCI-compatible interface (e.g., Arena, ChessBase, CuteChess).
-2. **Environment Configuration**: file or command-line arguments. `.env`
+2. **Environment Configuration**: file or command-line arguments.
 
 ## **Setup**
 Clone the repository and install dependencies:
 ``` bash
-git clone https://github.com/your-username/natto.git
+git clone https://github.com/rglenister/natto
 cd natto
 cargo build --release
 ```
-Please note that the --release flag is required for optimal performance.
+Please note that the --release flag is required for building because the executable file it produces is
+then fully optimized for speed. 
 ## **Configuration**
-Natto can be configured using a file or via command-line arguments. Here’s a list of key configuration options: `.env`
+Natto can be configured using a file or via command-line arguments. All configuration items are optional. 
+Here’s a list of key configuration options:
 ### **1. Environment Variables**
-Create a file in the project root to customize settings: `.env`
+Create a file named `.env` in the project root to customize settings: 
 ``` env
 # Logging Configuration
-ENGINE_LOG_FILE=/absolute/path/to/natto.log # Path to the log file
-ENGINE_LOG_LEVEL=debug                      # Log levels: trace, debug, info, warn, error
+NATTO_LOG_FILE=/absolute/path/to/natto.log # Path to the log file
+NATTO_LOG_LEVEL=debug                      # Log levels: trace, debug, info, warn, error
 
 # Search Configuration
-ENGINE_HASH_SIZE=512                        # Transposition table size (must be power-of-two, in MB)
-RAYON_NUM_THREADS=10                        # Number of threads to use for parallelism in the perft performance test 
+NATTO_HASH_SIZE=512                        # Transposition table size (must be power-of-two, in MB)
+RAYON_NUM_THREADS=4                        # Number of threads to use for parallelism in the perft performance test 
 
 # Opening Book
-ENGINE_OWN_BOOK=true                        # Enable or disable internal opening book
-ENGINE_BOOK_DEPTH=10                        # Depth of moves to consider from the opening book
+NATTO_OWN_BOOK=true                        # Enable or disable internal opening book
+NATTO_BOOK_DEPTH=10                        # Depth of moves to consider from the opening book
 ```
 ### **2. Command-Line Arguments**
-You can override settings using the following command-line flags: `.env`
+You can override settings using the following command-line flags:
 
-| Flag          | Description                            | Default Value |
-|---------------|----------------------------------------| --- |
-| `--hash-size` | Size of the transposition table        | `256` |
-| `--log-level` | Log verbosity                          | `info` |
-| `--log-file`  | Path to your log file                  | `natto.log` |
-| `--own-book`  | Use the engine's internal opening book | `true` |
-
-To run the performance test, use the `--perft` flag.
+| Flag           | Description                                        | Default Value |
+|----------------|----------------------------------------------------|---------------|
+| `--log-file`   | Path to your log file                              | `./natto.log` |
+| `--log-level`  | Log verbosity                                      | `info`        |
+| `--own-book`   | Use the engine's internal opening book             | `false`       |
+| `--book-depth` | The maximum move number that uses the opening book | `10`          |
+| `--hash-size`  | Size of the transposition table in megabytes       | `256`         |
+| `--perft`      | Flag that runs the performance test                | `false`       |
+| `--version`    | Flag that displays the application version         | `false`       |
 
 Example:
 ``` bash
@@ -66,11 +69,12 @@ cargo run --release -- --perft
 ```
 ## **Running the Engine**
 ### **1. Directly from Command Line**
-To start the chess engine directly:
+To start the chess engine directly without cargo:
 ``` bash
-cargo run --release
+./natto
 ```
-This will initialize the engine in UCI mode, which can be used by any UCI-compatible GUI.
+This will initialize the engine in UCI mode, which can be used by any UCI-compatible GUI. Note that the --release flag
+is not required when running the application directly.
 ### **2. Integrate with a Chess GUI**
 1. **Arena GUI**:
     - Open Arena, navigate to `Engines > Install New Engine`.
@@ -84,16 +88,32 @@ This will initialize the engine in UCI mode, which can be used by any UCI-compat
 3. **ChessBase**:
     - Add Natto as a UCI engine in `Engine > Create UCI Engine`.
 
+Further configuration options are available within these GUIs:
+
+| Option           | Description                                        |
+|------------------|----------------------------------------------------|
+| `debug log file` | The path to a further log file                     |
+| `hash`           | Hash table size in megabytes                       |
+| `ownbook`        | Use the engine's internal opening book             |
+| `bookdepth`      | The maximum move number that uses the opening book |
+
+All of these except for the debug log file option simply override the corresponding command line options / environment variables.
+
 ## **Logging**
 Logs provide helpful details about engine behavior, moves searched, and debugging information. By default, logs are stored in the processes current working directory. You can customize the path and verbosity using:
 ``` env
-ENGINE_LOG_FILE=/path/to/natto.log
-ENGINE_LOG_LEVEL=debug
+NATTO_LOG_FILE=/path/to/natto.log
+NATTO_LOG_LEVEL=debug
 ```
 Or override at runtime:
 ``` bash
 RUST_LOG=trace cargo run --release
 ```
+The logging is also sent to the console. The standard error stream is used due to the standard output stream being
+used by the UCI protocol. To see the UCI protocol in action without the logging this output can be
+prevented by redirecting the error stream to a null file e.g for UNIX add `2> /dev/null` to the command line
+or `2>nul` for Windows.
+Alternatively setting the logging level to `error` will cause only errors to be logged.
 ## **Tests**
 The project includes a series of tests to verify engine correctness:
 1. Run all tests:
@@ -102,7 +122,7 @@ The project includes a series of tests to verify engine correctness:
 ```
 1. Run specific tests:
 ``` bash
-   cargo test test_mate_in_three
+   cargo test --release test_mate_in_three
 ```
 
 ## **License**
