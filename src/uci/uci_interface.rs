@@ -12,6 +12,7 @@ use crate::utils::fen;
 use chrono::Local;
 use dotenv::dotenv;
 use log::{debug, error, info};
+use std::cell::RefCell;
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
@@ -70,7 +71,7 @@ struct Engine {
     search_stop_flag: Arc<AtomicBool>,
     main_loop_quit_flag: Arc<AtomicBool>,
     opening_book: LiChessOpeningBook,
-    transposition_table: Arc<TranspositionTable>,
+    transposition_table: RefCell<Arc<TranspositionTable>>,
     logger_controller: Option<LoggerController>,
 }
 
@@ -81,7 +82,7 @@ impl Engine {
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
             opening_book: LiChessOpeningBook::new(),
-            transposition_table: Arc::new(TranspositionTable::new_using_config()),
+            transposition_table: RefCell::new(Arc::new(TranspositionTable::new_using_config())),
             logger_controller,
         }
     }
@@ -146,7 +147,7 @@ impl Engine {
             UciCommand::IsReady => self.uci_is_ready(),
             UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
             UciCommand::Quit => self.uci_quit(&self.search_stop_flag, &self.main_loop_quit_flag),
-            UciCommand::UciNewGame => self.uci_new_game(uci_position),
+            UciCommand::UciNewGame => self.uci_new_game(uci_position, search_handle),
             UciCommand::Position(_position_str) => {
                 self.uci_set_position(&input.to_string(), uci_position)
             }
@@ -172,10 +173,30 @@ impl Engine {
         }
     }
 
-    fn uci_new_game(&self, uci_position: &mut Option<uci_util::UciPosition>) {
+    fn uci_new_game(
+        &self,
+        uci_position: &mut Option<uci_util::UciPosition>,
+        search_handle: &mut Option<JoinHandle<()>>,
+    ) {
         info!("UCI new game command received");
-        *uci_position = None;
-        self.transposition_table.clear();
+        if search_handle.is_none() {
+            *uci_position = None;
+            if self.transposition_table.borrow().size_in_mb() == config::get_hash_size() {
+                self.transposition_table.borrow_mut().clear();
+                info!("Transposition table and current position cleared");
+            } else {
+                let current_size_in_mb = self.transposition_table.borrow().size_in_mb();
+                self.transposition_table
+                    .swap(&RefCell::new(Arc::new(TranspositionTable::new_using_config())));
+                info!(
+                    "Transposition table resized from {} MiB to {} MiB",
+                    current_size_in_mb,
+                    self.transposition_table.borrow().size_in_mb()
+                );
+            }
+        } else {
+            info!("UCI new game command ignored because a search is already in progress");
+        }
     }
 
     fn uci_go(
@@ -202,7 +223,7 @@ impl Engine {
                     let stop_flag = Arc::clone(search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
                     let mut position = uci_pos_clone.end_position;
-                    let transposition_table = Arc::clone(&self.transposition_table);
+                    let transposition_table = Arc::clone(&self.transposition_table.borrow());
                     *search_handle = Some(thread::spawn(move || {
                         let mut search = Search::new(
                             &mut position,
@@ -257,7 +278,7 @@ impl Engine {
         uci_util::send_to_gui("option name Debug Log File type string default");
         uci_util::send_to_gui("option name ownbook type check default true");
         uci_util::send_to_gui("option name bookdepth type spin default 10 min 1 max 50");
-        uci_util::send_to_gui("option name hash type combo default 256 var 1 var 2 var 4 var 8 var 16 var 32 var 64 var 128 var 256 var 512 var 1024 var 2048");
+        uci_util::send_to_gui(&format!("option name hash type combo default {} var 64 var 128 var 256 var 512 var 1024 var 2048", config::get_hash_size()));
         uci_util::send_to_gui("uciok");
     }
 
@@ -277,26 +298,25 @@ impl Engine {
             match name.to_lowercase().as_str() {
                 "debug log file" => {
                     if let Some(logger_controller) = &self.logger_controller {
+                        info!("Setting debug log file to {value}");
                         logger_controller.set_debug_file(value.as_str());
                     }
                 }
                 "hash" => {
                     if let Ok(v) = value.parse::<usize>() {
+                        info!("Setting hash size to {value}");
                         config::set_hash_size(v);
-                    }
-                }
-                "contempt" => {
-                    if let Ok(v) = value.parse::<i32>() {
-                        config::set_contempt(v);
                     }
                 }
                 "ownbook" => {
                     if let Ok(v) = value.parse::<bool>() {
+                        info!("Setting own book to {v}");
                         config::set_own_book(v);
                     }
                 }
                 "bookdepth" => {
                     if let Ok(v) = value.parse::<usize>() {
+                        info!("Setting book depth to {value}");
                         config::set_book_depth(v);
                     }
                 }
