@@ -1,6 +1,6 @@
 [package]
 name = "natto"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Richard Glenister <rglenister@gmail.com>"]
 edition = "2021"
 

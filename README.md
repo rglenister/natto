@@ -57,6 +57,8 @@ You can override settings using the following command-line flags:
 | `--book-depth` | The maximum move number that uses the opening book | `10`          |
 | `--hash-size`  | Size of the transposition table in megabytes       | `256`         |
 | `--perft`      | Flag that runs the performance test                | `false`       |
+| `--uci`        | Run comma separated UCI protocol commands      | N/A           |
+| `--help`       | Show help                                      | `false`       |
 | `--version`    | Flag that displays the application version         | `false`       |
 
 Example:
