@@ -4,12 +4,25 @@ use log::LevelFilter;
 use once_cell::sync::Lazy;
 use std::sync::{Mutex, RwLock};
 
+pub const NAME: &str = env!("CARGO_PKG_NAME");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
+pub const BUILD_DATE: &str = env!("BUILD_DATE");
+pub const GIT_HASH: &str = env!("GIT_HASH");
+
+pub static FULL_VERSION: Lazy<String> =
+    Lazy::new(|| format!("{NAME} {VERSION} (git {GIT_HASH}, {BUILD_DATE})"));
+
 pub fn get_log_file() -> String {
     CONFIG.log_file.clone()
 }
 
 pub fn get_log_level() -> LevelFilter {
     CONFIG.log_level
+}
+
+pub fn get_version() -> bool {
+    CONFIG.version
 }
 
 pub fn get_perft() -> bool {
@@ -20,20 +33,20 @@ pub fn get_uci_commands() -> Option<Vec<String>> {
     CONFIG.uci_commands.clone()
 }
 
-pub fn get_use_book() -> bool {
-    RUNTIME_CONFIG.use_book.read().unwrap().unwrap_or(CONFIG.use_book)
+pub fn get_own_book() -> bool {
+    RUNTIME_CONFIG.own_book.read().unwrap().unwrap_or(CONFIG.own_book)
 }
 
-pub fn set_use_book(use_book: bool) {
-    *RUNTIME_CONFIG.use_book.write().unwrap() = Some(use_book);
+pub fn set_own_book(use_book: bool) {
+    *RUNTIME_CONFIG.own_book.write().unwrap() = Some(use_book);
 }
 
-pub fn get_max_book_depth() -> usize {
-    RUNTIME_CONFIG.max_book_depth.read().unwrap().unwrap_or(CONFIG.max_book_depth)
+pub fn get_book_depth() -> usize {
+    RUNTIME_CONFIG.book_depth.read().unwrap().unwrap_or(CONFIG.book_depth)
 }
 
-pub fn set_max_book_depth(max_book_depth: usize) {
-    *RUNTIME_CONFIG.max_book_depth.write().unwrap() = Some(max_book_depth);
+pub fn set_book_depth(max_book_depth: usize) {
+    *RUNTIME_CONFIG.book_depth.write().unwrap() = Some(max_book_depth);
 }
 
 pub fn get_contempt() -> i32 {
@@ -58,16 +71,16 @@ pub fn get_config_as_string() -> String {
     struct DynamicConfig {
         log_file: String,
         log_level: LevelFilter,
-        use_book: bool,
-        max_book_depth: usize,
+        own_book: bool,
+        book_depth: usize,
         hash_size: usize,
         contempt: i32,
     }
     let configuration = DynamicConfig {
         log_file: get_log_file(),
         log_level: get_log_level(),
-        use_book: get_use_book(),
-        max_book_depth: get_max_book_depth(),
+        own_book: get_own_book(),
+        book_depth: get_book_depth(),
         hash_size: get_hash_size(),
         contempt: get_contempt(),
     };
@@ -78,25 +91,26 @@ pub fn get_config_as_string() -> String {
 pub struct Config {
     pub log_file: String,
     pub log_level: LevelFilter,
-    pub use_book: bool,
-    pub max_book_depth: usize,
+    pub own_book: bool,
+    pub book_depth: usize,
     pub hash_size: usize,
+    pub version: bool,
     pub perft: bool,
     pub uci_commands: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default)]
 struct RuntimeConfig {
-    pub use_book: RwLock<Option<bool>>,
-    pub max_book_depth: RwLock<Option<usize>>,
+    pub own_book: RwLock<Option<bool>>,
+    pub book_depth: RwLock<Option<usize>>,
     pub hash_size: RwLock<Option<usize>>,
     pub contempt: RwLock<Option<i32>>,
 }
 
 impl RuntimeConfig {
     pub fn reset(&self) {
-        *self.use_book.write().unwrap() = None;
-        *self.max_book_depth.write().unwrap() = None;
+        *self.own_book.write().unwrap() = None;
+        *self.book_depth.write().unwrap() = None;
         *self.hash_size.write().unwrap() = None;
         *self.contempt.write().unwrap() = None;
     }
@@ -108,15 +122,21 @@ static CONFIG_OVERRIDE: Lazy<Mutex<Option<Config>>> = Lazy::new(|| Mutex::new(No
 
 fn load_config() -> Config {
     dotenv().ok();
+    const DEFAULT_LOGFILE_PATH: &str = "./natto.log";
+    const DEFAULT_LOG_LEVEL: &str = "info";
+    const DEFAULT_OWN_BOOK: &str = "false";
+    const DEFAULT_BOOK_DEPTH: &str = "10";
+    const DEFAULT_HASH_SIZE: &str = "256";
+
     CONFIG_OVERRIDE
         .lock()
         .unwrap()
         .clone()
         .unwrap_or_else(|| {
-            let matches = Command::new("Chess Engine")
-                .version(env!("CARGO_PKG_VERSION"))
-                .author(env!("CARGO_PKG_AUTHORS"))
-                .about("A UCI chess uci")
+            let matches = Command::new("natto")
+                .version(FULL_VERSION.as_str()) // Use a custom version string
+                .author(AUTHORS)
+                .about("A UCI chess engine")
                 .help_template(
                     "{bin} {version}\n\
                     {author}\n\n\
@@ -126,38 +146,38 @@ fn load_config() -> Config {
                 )
                 .arg(Arg::new("log-file").short('f').long("log-file").action(ArgAction::Set)
                     .required(false)
-                    .default_value("./natto.log")
+                    .default_value(DEFAULT_LOGFILE_PATH)
                     .help("The full path to the log file")
-                    .env("ENGINE_LOG_FILE")
+                    .env("NATTO_LOG_FILE")
                 )
                 .arg(Arg::new("log-level").short('l').long("log-level").action(ArgAction::Set)
                     .required(false)
-                    .default_value("info")
+                    .default_value(DEFAULT_LOG_LEVEL)
                     .value_parser(["trace", "debug", "info", "warn", "error"])
                     .help("The log level")
-                    .env("ENGINE_LOG_LEVEL")
+                    .env("NATTO_LOG_LEVEL")
                 )
-                .arg(Arg::new("use-book").short('b').long("use-book").action(ArgAction::Set)
+                .arg(Arg::new("own-book").short('b').long("own-book").action(ArgAction::Set)
                     .required(false)
-                    .default_value("true")
+                    .default_value(DEFAULT_OWN_BOOK)
                     .value_parser(["true", "false"])
                     .action(ArgAction::Set)
                     .help("Set to true to use the opening book otherwise false")
-                    .env("ENGINE_USE_BOOK")
+                    .env("NATTO_OWN_BOOK")
                 )
-                .arg(Arg::new("max-book-depth").short('d').long("max-book-depth").action(ArgAction::Set)
+                .arg(Arg::new("book-depth").short('d').long("book-depth").action(ArgAction::Set)
                     .required(false)
-                    .default_value("10")
+                    .default_value(DEFAULT_BOOK_DEPTH)
                     .value_parser(value_parser!(u16).range(1..))
                     .help("The maximum full move number of a position that will be considered for the opening book")
-                    .env("ENGINE_MAX_BOOK_DEPTH")
+                    .env("NATTO_BOOK_DEPTH")
                 )
                 .arg(Arg::new("hash-size").short('s').long("hash-size").action(ArgAction::Set)
                     .required(false)
-                    .default_value("1048576")
+                    .default_value(DEFAULT_HASH_SIZE)
                     .value_parser(is_power_of_two)
-                    .help("the maximum number of items that the hash table can hold - must be a power of two")
-                    .env("ENGINE_HASH_SIZE")
+                    .help("the size of the hash table in megabytes - must be a power of two")
+                    .env("NATTO_HASH_SIZE")
                 )
                 .arg(Arg::new("perft").short('p').long("perft").action(ArgAction::SetTrue)
                     .required(false)
@@ -187,10 +207,11 @@ fn load_config() -> Config {
                     "error" => LevelFilter::Error,
                     _ => LevelFilter::Error,
                 },
-                use_book: matches.get_one::<String>("use-book").is_none_or(|v| v == "true"),
-                max_book_depth: matches.get_one::<u16>("max-book-depth").copied().unwrap() as usize,
+                own_book: matches.get_one::<String>("own-book").unwrap().parse::<bool>().unwrap(),
+                book_depth: matches.get_one::<u16>("book-depth").copied().unwrap() as usize,
                 hash_size: matches.get_one::<String>("hash-size").map(|v| v.parse::<usize>().unwrap()).unwrap(),
-                perft: *matches.get_one::<bool>("perft").unwrap_or(&false),
+                version: *matches.get_one::<bool>("version").unwrap_or(&false),
+                perft: matches.get_flag("perft"),
                 uci_commands: matches.get_many::<String>("uci").map(|values| values.cloned().collect()),
             }
         })
@@ -225,9 +246,10 @@ pub mod tests {
         Config {
             log_file: "./test.log".to_string(),
             log_level: LevelFilter::Info,
-            use_book: true,
-            max_book_depth: 10,
+            own_book: true,
+            book_depth: 10,
             hash_size: 100,
+            version: false,
             perft: false,
             uci_commands: None,
         }
@@ -255,18 +277,18 @@ pub mod tests {
 
     #[test]
     fn test_read_write_use_book() {
-        assert_eq!(get_use_book(), true);
-        set_use_book(false);
-        assert_eq!(get_use_book(), false);
-        set_use_book(true);
-        assert_eq!(get_use_book(), true);
+        assert_eq!(get_own_book(), true);
+        set_own_book(false);
+        assert_eq!(get_own_book(), false);
+        set_own_book(true);
+        assert_eq!(get_own_book(), true);
     }
 
     #[test]
     fn test_read_write_max_book_depth() {
-        assert_eq!(get_max_book_depth(), 10);
-        set_max_book_depth(20);
-        assert_eq!(get_max_book_depth(), 20);
+        assert_eq!(get_book_depth(), 10);
+        set_book_depth(20);
+        assert_eq!(get_book_depth(), 20);
     }
 
     #[test]
