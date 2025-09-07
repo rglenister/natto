@@ -136,7 +136,7 @@ static PAWN_ATTACKS_TABLE: Lazy<[[u64; 64]; 2]> = Lazy::new(|| {
     fn generate_move_table(increments: [isize; 2]) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
         for square_index in 0..64 {
-            let move_squares: u64 = move_generation_tables::generate_non_sliding_move_bitboard(
+            let move_squares: u64 = move_bitboard_generator::generate_non_sliding_move_bitboard(
                 square_index,
                 (increments).to_vec(),
             );
@@ -170,7 +170,7 @@ static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<[[u64; 64]; 6]> = Lazy::new(|| {
         let mut squares: [u64; 64] = [0; 64];
         let increments = PIECE_INCREMENTS_TABLE.get(piece_type as usize).unwrap();
         for square_index in 0..64 {
-            let move_squares: u64 = move_generation_tables::generate_non_sliding_move_bitboard(
+            let move_squares: u64 = move_bitboard_generator::generate_non_sliding_move_bitboard(
                 square_index,
                 increments.to_vec(),
             );
@@ -198,7 +198,7 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<[Vec<TableEntry>; 6]> = Lazy::new(|| {
         let mut squares: Vec<TableEntry> = Vec::new();
         for square_index in 0..64 {
             let blocking_squares_bitboard: u64 =
-                move_generation_tables::generate_blocking_squares_mask(
+                move_bitboard_generator::generate_blocking_squares_mask(
                     square_index,
                     PIECE_INCREMENTS_TABLE[piece_type as usize].clone(),
                     0,
@@ -208,7 +208,7 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<[Vec<TableEntry>; 6]> = Lazy::new(|| {
             let mut moves_bitboard: Vec<u64> = Vec::new();
             for table_index in 0..table_size {
                 let blocking_pieces_bitboard: u64 = table_index.pdep(blocking_squares_bitboard);
-                let sliding_move_bitboard = move_generation_tables::generate_sliding_move_bitboard(
+                let sliding_move_bitboard = move_bitboard_generator::generate_sliding_move_bitboard(
                     square_index,
                     PIECE_INCREMENTS_TABLE.get(piece_type as usize).unwrap().clone(),
                     blocking_pieces_bitboard,
@@ -592,7 +592,7 @@ fn square_attacks_finder_internal(
     attacking_squares
 }
 
-mod move_generation_tables {
+mod move_bitboard_generator {
     use crate::utils::util;
 
     pub fn generate_non_sliding_move_bitboard(
@@ -626,7 +626,7 @@ mod move_generation_tables {
         generating_blocking_square_mask: bool,
         sliding: bool,
     ) -> u64 {
-        let bitboards: Vec<_> = increments
+        return increments
             .into_iter()
             .map(|increment| {
                 generate_move_bitboard_for_increment(
@@ -637,8 +637,9 @@ mod move_generation_tables {
                     sliding,
                 )
             })
-            .collect();
-        return bitboards.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard);
+            .collect::<Vec<u64>>()
+            .iter()
+            .fold(0, |acc: u64, bitboard: &u64| acc | bitboard);
 
         fn generate_move_bitboard_for_increment(
             source_square: isize,
