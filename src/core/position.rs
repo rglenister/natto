@@ -887,16 +887,16 @@ mod tests {
     #[test]
     fn test_castling_through_check_does_not_mutate_position() {
         let fen = "4k3/8/b7/8/8/8/8/4K2R w K - 0 1";
-        let mut original_position = Position::from(fen);
+        let original_position = Position::from(fen);
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("e1"), sq!("g1"), None));
+        position.make_raw_move(&RawMove::new(sq!("e1"), sq!("g1"), None));
         assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
 
         // now set the enpassant square
         let fen = "4k3/8/b7/2pP4/8/8/8/4K2R w K c6 0 1";
-        let mut original_position = Position::from(fen);
+        let original_position = Position::from(fen);
         let mut position = original_position.clone();
-        let undo_move_info = position.make_raw_move(&RawMove::new(sq!("e1"), sq!("g1"), None));
+        position.make_raw_move(&RawMove::new(sq!("e1"), sq!("g1"), None));
         assert_eq!(format!("{:?}", original_position), format!("{:?}", position));
     }
 }

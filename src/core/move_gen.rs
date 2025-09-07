@@ -5,7 +5,7 @@ use crate::core::position::Position;
 use crate::core::r#move::BaseMove;
 use crate::core::r#move::Move;
 use crate::utils::bitboard_iterator::BitboardIterator;
-use crate::utils::util;
+//use crate::utils::util;
 use arrayvec::ArrayVec;
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
@@ -136,8 +136,10 @@ static PAWN_ATTACKS_TABLE: Lazy<[[u64; 64]; 2]> = Lazy::new(|| {
     fn generate_move_table(increments: [isize; 2]) -> [u64; 64] {
         let mut squares: [u64; 64] = [0; 64];
         for square_index in 0..64 {
-            let move_squares: u64 =
-                generate_move_bitboard(square_index, (increments).to_vec(), 0, false, false);
+            let move_squares: u64 = move_generation_tables::generate_non_sliding_move_bitboard(
+                square_index,
+                (increments).to_vec(),
+            );
             squares[square_index as usize] = move_squares;
         }
         squares
@@ -168,8 +170,10 @@ static NON_SLIDING_PIECE_MOVE_TABLE: Lazy<[[u64; 64]; 6]> = Lazy::new(|| {
         let mut squares: [u64; 64] = [0; 64];
         let increments = PIECE_INCREMENTS_TABLE.get(piece_type as usize).unwrap();
         for square_index in 0..64 {
-            let move_squares: u64 =
-                generate_move_bitboard(square_index, increments.to_vec(), 0, false, false);
+            let move_squares: u64 = move_generation_tables::generate_non_sliding_move_bitboard(
+                square_index,
+                increments.to_vec(),
+            );
             squares[square_index as usize] = move_squares;
         }
         squares
@@ -193,24 +197,21 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<[Vec<TableEntry>; 6]> = Lazy::new(|| {
     fn generate_move_table(piece_type: PieceType) -> Vec<TableEntry> {
         let mut squares: Vec<TableEntry> = Vec::new();
         for square_index in 0..64 {
-            let blocking_squares_bitboard: u64 = generate_move_bitboard(
-                square_index,
-                PIECE_INCREMENTS_TABLE[piece_type as usize].clone(),
-                0,
-                true,
-                true,
-            );
+            let blocking_squares_bitboard: u64 =
+                move_generation_tables::generate_blocking_squares_mask(
+                    square_index,
+                    PIECE_INCREMENTS_TABLE[piece_type as usize].clone(),
+                    0,
+                );
             let n_ones = blocking_squares_bitboard.count_ones() as u64;
             let table_size: u64 = 2_i32.pow((n_ones as i32).try_into().unwrap()) as u64;
             let mut moves_bitboard: Vec<u64> = Vec::new();
             for table_index in 0..table_size {
                 let blocking_pieces_bitboard: u64 = table_index.pdep(blocking_squares_bitboard);
-                let sliding_move_bitboard = generate_move_bitboard(
+                let sliding_move_bitboard = move_generation_tables::generate_sliding_move_bitboard(
                     square_index,
                     PIECE_INCREMENTS_TABLE.get(piece_type as usize).unwrap().clone(),
                     blocking_pieces_bitboard,
-                    false,
-                    true,
                 );
                 moves_bitboard.push(sliding_move_bitboard);
             }
@@ -448,59 +449,6 @@ fn generate_moves_for_destinations<T>(
     }
 }
 
-/// Pre-calculates the bitmaps
-fn generate_move_bitboard(
-    source_square: isize,
-    increments: Vec<isize>,
-    blocking_pieces_bitboard: u64,
-    generating_blocking_square_mask: bool,
-    sliding: bool,
-) -> u64 {
-    let bitboards: Vec<_> = increments
-        .into_iter()
-        .map(|increment| {
-            generate_move_bitboard_for_increment(
-                source_square,
-                blocking_pieces_bitboard,
-                increment,
-                generating_blocking_square_mask,
-                sliding,
-            )
-        })
-        .collect();
-    return bitboards.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard);
-
-    fn generate_move_bitboard_for_increment(
-        source_square: isize,
-        blocking_pieces_bitboard: u64,
-        increment: isize,
-        generating_blocking_square_mask: bool,
-        sliding: bool,
-    ) -> u64 {
-        let destination_square: isize = source_square + increment;
-        if util::on_board(source_square, destination_square)
-            && (!generating_blocking_square_mask
-                || util::on_board(destination_square, destination_square + increment))
-        {
-            let result = 1 << destination_square;
-            if sliding && blocking_pieces_bitboard & (1 << destination_square) == 0 {
-                result
-                    | generate_move_bitboard_for_increment(
-                        destination_square,
-                        blocking_pieces_bitboard,
-                        increment,
-                        generating_blocking_square_mask,
-                        sliding,
-                    )
-            } else {
-                result
-            }
-        } else {
-            0
-        }
-    }
-}
-
 fn generate_king_moves<U>(
     position: &Position,
     square_indexes: u64,
@@ -644,11 +592,91 @@ fn square_attacks_finder_internal(
     attacking_squares
 }
 
+mod move_generation_tables {
+    use crate::utils::util;
+
+    pub fn generate_non_sliding_move_bitboard(
+        source_square: isize,
+        increments: Vec<isize>,
+    ) -> u64 {
+        generate_move_bitboard(source_square, increments, 0, false, false)
+    }
+
+    pub fn generate_sliding_move_bitboard(
+        source_square: isize,
+        increments: Vec<isize>,
+        blocking_pieces_bitboard: u64,
+    ) -> u64 {
+        generate_move_bitboard(source_square, increments, blocking_pieces_bitboard, false, true)
+    }
+
+    pub fn generate_blocking_squares_mask(
+        source_square: isize,
+        increments: Vec<isize>,
+        blocking_pieces_bitboard: u64,
+    ) -> u64 {
+        generate_move_bitboard(source_square, increments, blocking_pieces_bitboard, true, true)
+    }
+
+    /// Pre-calculates the bitmaps
+    fn generate_move_bitboard(
+        source_square: isize,
+        increments: Vec<isize>,
+        blocking_pieces_bitboard: u64,
+        generating_blocking_square_mask: bool,
+        sliding: bool,
+    ) -> u64 {
+        let bitboards: Vec<_> = increments
+            .into_iter()
+            .map(|increment| {
+                generate_move_bitboard_for_increment(
+                    source_square,
+                    blocking_pieces_bitboard,
+                    increment,
+                    generating_blocking_square_mask,
+                    sliding,
+                )
+            })
+            .collect();
+        return bitboards.iter().fold(0, |acc: u64, bitboard: &u64| acc | bitboard);
+
+        fn generate_move_bitboard_for_increment(
+            source_square: isize,
+            blocking_pieces_bitboard: u64,
+            increment: isize,
+            generating_blocking_square_mask: bool,
+            sliding: bool,
+        ) -> u64 {
+            let destination_square: isize = source_square + increment;
+            if util::on_board(source_square, destination_square)
+                && (!generating_blocking_square_mask
+                    || util::on_board(destination_square, destination_square + increment))
+            {
+                let result = 1 << destination_square;
+                if sliding && blocking_pieces_bitboard & (1 << destination_square) == 0 {
+                    result
+                        | generate_move_bitboard_for_increment(
+                            destination_square,
+                            blocking_pieces_bitboard,
+                            increment,
+                            generating_blocking_square_mask,
+                            sliding,
+                        )
+                } else {
+                    result
+                }
+            } else {
+                0
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::move_gen::generate_moves;
     use crate::core::r#move::BaseMove;
+    use crate::utils::util;
 
     /// 20 moves are generated from the initial position
     #[test]
