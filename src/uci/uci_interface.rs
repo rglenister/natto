@@ -5,11 +5,10 @@ use crate::core::r#move;
 use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
 use crate::search::{move_ordering, negamax};
-use crate::uci::logger_controller::LoggerController;
-use crate::uci::{config, uci_util};
+use crate::uci::logging::LoggerController;
+use crate::uci::{config, logging, uci_util};
 use crate::utils;
 use crate::utils::fen;
-use chrono::Local;
 use dotenv::dotenv;
 use log::{debug, error, info};
 use std::cell::RefCell;
@@ -22,7 +21,7 @@ use std::{io, thread};
 
 pub fn run() {
     dotenv().ok();
-    let logger_controller = configure_logging();
+    let logger_controller = logging::configure_logging();
     info!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
     info!("{}", config::get_config_as_string());
 
@@ -183,13 +182,13 @@ impl Engine {
             *uci_position = None;
             if self.transposition_table.borrow().size_in_mb() == config::get_hash_size() {
                 self.transposition_table.borrow_mut().clear();
-                info!("Transposition table and current position cleared");
+                info!("Position and transposition table cleared");
             } else {
                 let current_size_in_mb = self.transposition_table.borrow().size_in_mb();
                 self.transposition_table
                     .swap(&RefCell::new(Arc::new(TranspositionTable::new_using_config())));
                 info!(
-                    "Transposition table resized from {} MiB to {} MiB",
+                    "Position cleared and transposition table resized from {} MiB to {} MiB",
                     current_size_in_mb,
                     self.transposition_table.borrow().size_in_mb()
                 );
@@ -388,34 +387,6 @@ impl Engine {
     }
 }
 
-fn configure_logging() -> Result<LoggerController, fern::InitError> {
-    let logger_controller = LoggerController::new();
-    setup_logging(&logger_controller)
-        .map_err(|err| {
-            eprintln!("Failed to initialize logging: {err:?}");
-            err
-        })
-        .ok();
-    Ok(logger_controller)
-}
-
-fn setup_logging(logger_controller: &LoggerController) -> Result<(), fern::InitError> {
-    let base = fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{}] [{}] {}",
-                Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                message
-            ))
-        })
-        .level(config::get_log_level())
-        .chain(io::stderr())
-        .chain(fern::log_file(config::get_log_file().clone())?);
-
-    logger_controller.chain_debug_file(base).apply()?;
-    Ok(())
-}
 #[cfg(test)]
 mod tests {
     use super::*;

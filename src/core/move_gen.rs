@@ -5,7 +5,6 @@ use crate::core::position::Position;
 use crate::core::r#move::BaseMove;
 use crate::core::r#move::Move;
 use crate::utils::bitboard_iterator::BitboardIterator;
-//use crate::utils::util;
 use arrayvec::ArrayVec;
 use bitintr::{Pdep, Pext};
 use once_cell::sync::Lazy;
@@ -201,7 +200,6 @@ static SLIDING_PIECE_MOVE_TABLE: Lazy<[Vec<TableEntry>; 6]> = Lazy::new(|| {
                 move_bitboard_generator::generate_blocking_squares_mask(
                     square_index,
                     PIECE_INCREMENTS_TABLE[piece_type as usize].clone(),
-                    0,
                 );
             let n_ones = blocking_squares_bitboard.count_ones() as u64;
             let table_size: u64 = 2_i32.pow((n_ones as i32).try_into().unwrap()) as u64;
@@ -595,10 +593,7 @@ fn square_attacks_finder_internal(
 mod move_bitboard_generator {
     use crate::utils::util;
 
-    pub fn generate_non_sliding_move_bitboard(
-        source_square: isize,
-        increments: Vec<isize>,
-    ) -> u64 {
+    pub fn generate_non_sliding_move_bitboard(source_square: isize, increments: Vec<isize>) -> u64 {
         generate_move_bitboard(source_square, increments, 0, false, false)
     }
 
@@ -610,12 +605,8 @@ mod move_bitboard_generator {
         generate_move_bitboard(source_square, increments, blocking_pieces_bitboard, false, true)
     }
 
-    pub fn generate_blocking_squares_mask(
-        source_square: isize,
-        increments: Vec<isize>,
-        blocking_pieces_bitboard: u64,
-    ) -> u64 {
-        generate_move_bitboard(source_square, increments, blocking_pieces_bitboard, true, true)
+    pub fn generate_blocking_squares_mask(source_square: isize, increments: Vec<isize>) -> u64 {
+        generate_move_bitboard(source_square, increments, 0, true, true)
     }
 
     /// Pre-calculates the bitmaps

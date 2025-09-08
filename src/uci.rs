@@ -2,6 +2,6 @@ pub mod uci_interface;
 
 pub mod config;
 
-mod logger_controller;
+mod logging;
 
 pub mod uci_util;
