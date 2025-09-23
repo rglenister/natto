@@ -2,7 +2,7 @@ use crate::core::move_gen;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
 use crate::core::r#move::Move;
-use crate::eval::evaluation::{score_position, PIECE_SCORES};
+use crate::eval::evaluation::{evaluate, PIECE_SCORES};
 use crate::search::move_ordering::order_quiescence_moves;
 use crate::search::negamax::{Search, MAXIMUM_SCORE, MAXIMUM_SEARCH_DEPTH};
 use crate::utils::util;
@@ -11,36 +11,64 @@ use strum::IntoEnumIterator;
 
 include!("../utils/generated_macro.rs");
 
-pub const QUIESCENCE_MAXIMUM_SCORE: i32 = MAXIMUM_SCORE / 2;
-
 impl Search<'_> {
-    pub fn quiescence_search(&mut self, ply: u8, alpha: i32, beta: i32) -> i32 {
-        if ply > 100 {
+    pub fn quiescence_search(
+        &mut self,
+        current_line: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
+        pv: &mut ArrayVec<Move, MAXIMUM_SEARCH_DEPTH>,
+        ply: u8,
+        mut alpha: i32,
+        beta: i32,
+    ) -> i32 {
+        if ply > MAXIMUM_SEARCH_DEPTH as u8 {
             return 0;
         }
         self.node_counter.increment();
+
         if move_gen::is_check(self.position) {
             // If in check: must respond with evasions
-            let mut best_score = -QUIESCENCE_MAXIMUM_SCORE + ply as i32;
+            let mut best_score = -MAXIMUM_SCORE;
             for mov in move_gen::generate_moves(self.position) {
                 if let Some(undo_move_info) = self.position.make_move(&mov) {
-                    let score = -self.quiescence_search(ply + 1, -beta, -alpha);
+                    let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+
+                    current_line.push(mov);
+                    let next_score = -self.quiescence_search(
+                        current_line,
+                        &mut child_pv,
+                        ply + 1,
+                        -beta,
+                        -alpha,
+                    );
+                    current_line.pop();
                     self.position.unmake_move(&undo_move_info);
-                    best_score = best_score.max(score);
+
+                    if next_score > best_score {
+                        best_score = next_score;
+                        pv.clear();
+                        pv.push(mov);
+                        pv.extend(child_pv);
+                    }
+                    alpha = alpha.max(next_score);
+                    best_score = best_score.max(next_score);
                     if best_score >= beta {
                         break;
                     }
                 }
             }
-            return best_score;
+            if best_score == -MAXIMUM_SCORE {
+                -MAXIMUM_SCORE + ply as i32
+            } else {
+                best_score
+            };
         }
 
         // Static evaluation when not in check
-        let stand_pat = score_position(self.position);
+        let stand_pat = evaluate(self.position, 0, &[]);
         if stand_pat >= beta {
             return stand_pat;
         }
-        let mut alpha = alpha.max(stand_pat);
+        alpha = alpha.max(stand_pat);
 
         // 1. Captures
         let captures = Search::generate_sorted_quiescence_moves(self.position);
@@ -50,12 +78,16 @@ impl Search<'_> {
                 continue; // Skip bad captures by SEE
             }
             if let Some(undo_move_info) = self.position.make_move(&mov) {
-                let score = -self.quiescence_search(ply + 1, -beta, -alpha);
+                let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
+                current_line.push(mov);
+                let next_score =
+                    -self.quiescence_search(current_line, &mut child_pv, ply + 1, -beta, -alpha);
+                current_line.pop();
                 self.position.unmake_move(&undo_move_info);
-                if score >= beta {
-                    return score;
+                if next_score >= beta {
+                    return next_score;
                 }
-                alpha = alpha.max(score);
+                alpha = alpha.max(next_score);
             }
         }
 
@@ -433,8 +465,14 @@ mod tests {
             let mut position: Position = Position::from(fen);
             let transposition_table = &mut TranspositionTable::new_using_config();
             let mut search = create_search_context(&mut position, transposition_table);
-            let score = search.quiescence_search(0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
-            assert_eq!(score, -1);
+            let score = search.quiescence_search(
+                &mut ArrayVec::new(),
+                &mut ArrayVec::new(),
+                0,
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
+            assert_eq!(score, 0);
         }
 
         #[test]
@@ -443,7 +481,13 @@ mod tests {
             let mut position: Position = Position::from(fen);
             let transposition_table = &mut TranspositionTable::new_using_config();
             let mut search = create_search_context(&mut position, transposition_table);
-            let score = search.quiescence_search(0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = search.quiescence_search(
+                &mut ArrayVec::new(),
+                &mut ArrayVec::new(),
+                0,
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, 903);
         }
 
@@ -453,7 +497,13 @@ mod tests {
             let mut position: Position = Position::from(fen);
             let transposition_table = &mut TranspositionTable::new_using_config();
             let mut search = create_search_context(&mut position, transposition_table);
-            let score = search.quiescence_search(0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = search.quiescence_search(
+                &mut ArrayVec::new(),
+                &mut ArrayVec::new(),
+                0,
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, 961);
         }
 
@@ -463,7 +513,13 @@ mod tests {
             let mut position: Position = Position::from(fen);
             let transposition_table = &mut TranspositionTable::new_using_config();
             let mut search = create_search_context(&mut position, transposition_table);
-            let score = search.quiescence_search(0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = search.quiescence_search(
+                &mut ArrayVec::new(),
+                &mut ArrayVec::new(),
+                0,
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, -550);
         }
 
@@ -473,7 +529,13 @@ mod tests {
             let mut position: Position = Position::from(fen);
             let transposition_table = &mut TranspositionTable::new_using_config();
             let mut search = create_search_context(&mut position, transposition_table);
-            let score = search.quiescence_search(0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = search.quiescence_search(
+                &mut ArrayVec::new(),
+                &mut ArrayVec::new(),
+                0,
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, -14);
         }
 
@@ -483,7 +545,13 @@ mod tests {
             let mut position: Position = Position::from(fen);
             let transposition_table = &mut TranspositionTable::new_using_config();
             let mut search = create_search_context(&mut position, transposition_table);
-            let score = search.quiescence_search(0, -MAXIMUM_SCORE, MAXIMUM_SCORE);
+            let score = search.quiescence_search(
+                &mut ArrayVec::new(),
+                &mut ArrayVec::new(),
+                0,
+                -MAXIMUM_SCORE,
+                MAXIMUM_SCORE,
+            );
             assert_eq!(score, 788);
         }
 

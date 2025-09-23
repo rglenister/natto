@@ -277,7 +277,7 @@ impl Engine {
         uci_util::send_to_gui("option name Debug Log File type string default");
         uci_util::send_to_gui("option name ownbook type check default true");
         uci_util::send_to_gui("option name bookdepth type spin default 10 min 1 max 50");
-        uci_util::send_to_gui(&format!("option name hash type combo default {} var 64 var 128 var 256 var 512 var 1024 var 2048", config::get_hash_size()));
+        uci_util::send_to_gui(&format!("option name hash type combo default {} var 0 var 64 var 128 var 256 var 512 var 1024 var 2048", config::get_hash_size()));
         uci_util::send_to_gui("uciok");
     }
 

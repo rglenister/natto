@@ -1,5 +1,6 @@
 use crate::core::board;
 use crate::core::board::BoardSide;
+use crate::core::move_gen::move_proc::MoveProcessor;
 use crate::core::piece::{PieceColor, PieceType};
 use crate::core::position::Position;
 use crate::core::r#move::BaseMove;
@@ -7,12 +8,12 @@ use crate::core::r#move::Move;
 use crate::utils::bitboard_iterator::BitboardIterator;
 use bitintr::Pext;
 use strum::IntoEnumIterator;
-use crate::core::move_gen::move_proc::MoveProcessor;
 
 include!("../utils/generated_macro.rs");
 
 pub fn generate_moves(position: &Position) -> Vec<Move> {
-    let mut move_generator = move_proc::MoveGeneratorImpl::new(*position, move_proc::MoveListMoveProcessor::new());
+    let mut move_generator =
+        move_proc::MoveGeneratorImpl::new(*position, move_proc::MoveListMoveProcessor::new());
     move_generator.generate();
     move_generator.move_processor.get_result()
 }
@@ -330,12 +331,15 @@ fn square_attacks_finder_internal(
 }
 
 mod move_proc {
-    use arrayvec::ArrayVec;
     use crate::core::board;
-    use crate::core::move_gen::{generate_king_moves, generate_pawn_moves, get_non_sliding_moves_by_piece_type, get_sliding_moves_by_piece_type};
+    use crate::core::move_gen::{
+        generate_king_moves, generate_pawn_moves, get_non_sliding_moves_by_piece_type,
+        get_sliding_moves_by_piece_type,
+    };
     use crate::core::piece::PieceType;
     use crate::core::position::Position;
     use crate::core::r#move::Move;
+    use arrayvec::ArrayVec;
 
     pub trait MoveProcessor {
         type Output;
@@ -501,8 +505,8 @@ mod move_proc {
             }
         }
     }
-
 }
+
 mod tables {
     use crate::core::move_gen::move_bitboard_generator;
     use crate::core::piece::PieceType;
