@@ -5,9 +5,13 @@ use crate::core::r#move;
 use crate::search::negamax::Search;
 use crate::search::transposition_table::TranspositionTable;
 use crate::search::{move_ordering, negamax};
-use crate::uci::{config, uci_util};
+use crate::uci::logging::LoggerController;
+use crate::uci::{config, logging, uci_util};
+use crate::utils;
 use crate::utils::fen;
+use dotenv::dotenv;
 use log::{debug, error, info};
+use std::cell::RefCell;
 use std::io::BufRead;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
@@ -15,8 +19,20 @@ use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
-pub fn run(uci_commands: &Option<Vec<String>>) {
-    Engine::new().run(uci_commands);
+pub fn run() {
+    dotenv().ok();
+    let logger_controller = logging::configure_logging();
+    info!("Debug assertions are {}", if cfg!(debug_assertions) { "enabled" } else { "disabled" });
+    info!("{}", config::get_config_as_string());
+
+    if config::get_perft() {
+        println!("Running perft test");
+        utils::perf_t::perf_t();
+    } else {
+        info!("Starting uci");
+        Engine::new(logger_controller.ok()).run();
+        info!("Engine exited cleanly");
+    }
 }
 
 enum UciCommand {
@@ -53,30 +69,33 @@ struct Engine {
     channel: (Sender<String>, Receiver<String>),
     search_stop_flag: Arc<AtomicBool>,
     main_loop_quit_flag: Arc<AtomicBool>,
-    opening_book: Option<LiChessOpeningBook>,
-    transposition_table: Arc<TranspositionTable>,
+    opening_book: LiChessOpeningBook,
+    transposition_table: RefCell<Arc<TranspositionTable>>,
+    logger_controller: Option<LoggerController>,
 }
 
 impl Engine {
-    fn new() -> Self {
+    fn new(logger_controller: Option<LoggerController>) -> Self {
         Engine {
             channel: mpsc::channel(),
             search_stop_flag: Arc::new(AtomicBool::new(false)),
             main_loop_quit_flag: Arc::new(AtomicBool::new(false)),
-            opening_book: Self::create_opening_book(),
-            transposition_table: Arc::new(TranspositionTable::new_using_config()),
+            opening_book: LiChessOpeningBook::new(),
+            transposition_table: RefCell::new(Arc::new(TranspositionTable::new_using_config())),
+            logger_controller,
         }
     }
 
-    fn run(&self, uci_commands: &Option<Vec<String>>) {
+    fn run(&self) {
         // Spawn input-handling thread
         let (tx, rx) = &self.channel;
         let _input_thread = self.start_input_thread(tx.clone());
 
         let mut search_handle: Option<JoinHandle<()>> = None;
         let mut uci_position: Option<uci_util::UciPosition> = None;
+        let uci_commands = config::get_uci_commands();
         info!("UCI started - awaiting commands");
-        self.main_loop(rx, &mut search_handle, &mut uci_position, uci_commands);
+        self.main_loop(rx, &mut search_handle, &mut uci_position, &uci_commands);
         if let Some(handle) = search_handle {
             handle.join().unwrap();
             info!("Search thread has stopped");
@@ -127,7 +146,7 @@ impl Engine {
             UciCommand::IsReady => self.uci_is_ready(),
             UciCommand::Stop => self.uci_stop(&self.search_stop_flag, search_handle),
             UciCommand::Quit => self.uci_quit(&self.search_stop_flag, &self.main_loop_quit_flag),
-            UciCommand::UciNewGame => self.uci_new_game(uci_position),
+            UciCommand::UciNewGame => self.uci_new_game(uci_position, search_handle),
             UciCommand::Position(_position_str) => {
                 self.uci_set_position(&input.to_string(), uci_position)
             }
@@ -153,10 +172,30 @@ impl Engine {
         }
     }
 
-    fn uci_new_game(&self, uci_position: &mut Option<uci_util::UciPosition>) {
+    fn uci_new_game(
+        &self,
+        uci_position: &mut Option<uci_util::UciPosition>,
+        search_handle: &mut Option<JoinHandle<()>>,
+    ) {
         info!("UCI new game command received");
-        *uci_position = None;
-        self.transposition_table.clear();
+        if search_handle.is_none() {
+            *uci_position = None;
+            if self.transposition_table.borrow().size_in_mb() == config::get_hash_size() {
+                self.transposition_table.borrow_mut().clear();
+                info!("Position and transposition table cleared");
+            } else {
+                let current_size_in_mb = self.transposition_table.borrow().size_in_mb();
+                self.transposition_table
+                    .swap(&RefCell::new(Arc::new(TranspositionTable::new_using_config())));
+                info!(
+                    "Position cleared and transposition table resized from {} MiB to {} MiB",
+                    current_size_in_mb,
+                    self.transposition_table.borrow().size_in_mb()
+                );
+            }
+        } else {
+            info!("UCI new game command ignored because a search is already in progress");
+        }
     }
 
     fn uci_go(
@@ -183,7 +222,7 @@ impl Engine {
                     let stop_flag = Arc::clone(search_stop_flag);
                     let uci_pos_clone = uci_pos.clone();
                     let mut position = uci_pos_clone.end_position;
-                    let transposition_table = Arc::clone(&self.transposition_table);
+                    let transposition_table = Arc::clone(&self.transposition_table.borrow());
                     *search_handle = Some(thread::spawn(move || {
                         let mut search = Search::new(
                             &mut position,
@@ -233,21 +272,21 @@ impl Engine {
     }
 
     fn uci_options() {
-        uci_util::send_to_gui("id name natto");
-        uci_util::send_to_gui("id author Richard Glenister");
-        uci_util::send_to_gui("option name UseBook type check default true");
-        uci_util::send_to_gui("option name MaxBookDepth type spin default 10 min 1 max 50");
-        uci_util::send_to_gui("option name Hash type spin default 128 min 1 max 2048");
-        uci_util::send_to_gui("option name Contempt type spin default 0 min -500 max 500");
+        uci_util::send_to_gui(format!("id name {}", config::FULL_VERSION.as_str()).as_str());
+        uci_util::send_to_gui(format!("id author {}", config::AUTHORS).as_str());
+        uci_util::send_to_gui("option name Debug Log File type string default");
+        uci_util::send_to_gui("option name ownbook type check default true");
+        uci_util::send_to_gui("option name bookdepth type spin default 10 min 1 max 50");
+        uci_util::send_to_gui(&format!("option name hash type combo default {} var 64 var 128 var 256 var 512 var 1024 var 2048", config::get_hash_size()));
         uci_util::send_to_gui("uciok");
     }
 
     fn parse_uci_option(input: &str) -> Option<(String, String)> {
-        let re = regex::Regex::new(r"setoption name ([^\s]+) value ([^\s]+)").unwrap();
+        let re = regex::Regex::new(r"^setoption name (.+?) value (.+)$").unwrap();
         if let Some(captures) = re.captures(input) {
             let name = captures.get(1).unwrap().as_str();
             let value = captures.get(2).unwrap().as_str();
-            Some((name.to_string(), value.to_string()))
+            Some((name.trim().to_string(), value.trim().to_string()))
         } else {
             error!("Failed to parse UCI option: {input}");
             None
@@ -256,24 +295,28 @@ impl Engine {
     fn uci_set_option(&self, input: &str) {
         if let Some((name, value)) = Self::parse_uci_option(input) {
             match name.to_lowercase().as_str() {
+                "debug log file" => {
+                    if let Some(logger_controller) = &self.logger_controller {
+                        info!("Setting debug log file to {value}");
+                        logger_controller.set_debug_file(value.as_str());
+                    }
+                }
                 "hash" => {
                     if let Ok(v) = value.parse::<usize>() {
+                        info!("Setting hash size to {value}");
                         config::set_hash_size(v);
                     }
                 }
-                "contempt" => {
-                    if let Ok(v) = value.parse::<i32>() {
-                        config::set_contempt(v);
-                    }
-                }
-                "usebook" => {
+                "ownbook" => {
                     if let Ok(v) = value.parse::<bool>() {
-                        config::set_use_book(v);
+                        info!("Setting own book to {v}");
+                        config::set_own_book(v);
                     }
                 }
-                "maxbookdepth" => {
+                "bookdepth" => {
                     if let Ok(v) = value.parse::<usize>() {
-                        config::set_max_book_depth(v);
+                        info!("Setting book depth to {value}");
+                        config::set_book_depth(v);
                     }
                 }
                 _ => {
@@ -321,13 +364,13 @@ impl Engine {
     }
 
     fn play_move_from_opening_book(&self, uci_pos: &uci_util::UciPosition) -> bool {
-        if let Some(opening_book) = self.opening_book.as_ref() {
-            if uci_pos.end_position.full_move_number() <= config::get_max_book_depth() {
+        if config::get_own_book() {
+            if uci_pos.end_position.full_move_number() <= config::get_book_depth() {
                 info!(
                     "getting opening book move for position: {}",
                     fen::write(&uci_pos.end_position)
                 );
-                let opening_move = opening_book.get_opening_move(&uci_pos.end_position);
+                let opening_move = self.opening_book.get_opening_move(&uci_pos.end_position);
                 if let Ok(opening_move) = opening_move {
                     debug!("got move {opening_move} from opening book");
                     uci_util::send_to_gui(format!("bestmove {opening_move}").as_str());
@@ -337,22 +380,13 @@ impl Engine {
                 }
             } else {
                 info!("Not playing move from opening book because the full move number {} exceeds the maximum allowed {}",
-                    uci_pos.end_position.full_move_number(), config::get_max_book_depth());
+                    uci_pos.end_position.full_move_number(), config::get_book_depth());
             }
         }
         false
     }
-
-    fn create_opening_book() -> Option<LiChessOpeningBook> {
-        if config::get_use_book() {
-            info!("Using opening book");
-            Some(LiChessOpeningBook::new())
-        } else {
-            info!("Not using opening book");
-            None
-        }
-    }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,8 +394,8 @@ mod tests {
     #[test]
     fn test_parse_uci_option() {
         assert_eq!(
-            Engine::parse_uci_option("setoption name contempt value -50"),
-            Some(("contempt".to_string(), "-50".to_string()))
+            Engine::parse_uci_option("setoption name Debug Log File value /users/me/logfile.log"),
+            Some(("Debug Log File".to_string(), "/users/me/logfile.log".to_string()))
         );
     }
 }

@@ -25,6 +25,7 @@ pub struct TTEntry {
 pub struct TranspositionTable {
     table: Vec<AtomicU64>,
     size: usize,
+    size_in_mb: usize,
 }
 
 impl TranspositionTable {
@@ -40,7 +41,7 @@ impl TranspositionTable {
             Self::bytes_to_gib(table_size_in_bytes)
         );
         let table = (0..actual_num_entries * 2).map(|_| AtomicU64::new(0)).collect(); // Using 2 u64 per entry
-        Self { table, size: actual_num_entries }
+        Self { table, size: actual_num_entries, size_in_mb }
     }
 
     pub fn new_using_config() -> Self {
@@ -87,6 +88,13 @@ impl TranspositionTable {
                 assert_eq!(entry.bound_type, bound_type);
             }
         }
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+    pub fn size_in_mb(&self) -> usize {
+        self.size_in_mb
     }
 
     fn store(

@@ -1,11 +1,12 @@
 [package]
 name = "natto"
-version = "0.1.8"
-authors = ["Richard Glenister <rglenister@yahoo.com>"]
+version = "0.1.9"
+authors = ["Richard Glenister <rglenister@gmail.com>"]
 edition = "2021"
 
 [profile.release]
 debug = true
+debug-assertions = false
 
 [dependencies]
 phf = { version="0.11.3", features = ["macros"] }
@@ -21,7 +22,7 @@ serial_test = "3.2.0"
 itertools = "0.14.0"
 log = "0.4.25"
 fern = "0.7.1"
-chrono = "0.4.39"  # For timestamps in logs
+chrono = "0.4.41"  # For timestamps in logs
 dotenv = "0.15.0"
 rand = "0.9.0"
 rand_xoshiro = "0.7.0"
@@ -32,3 +33,6 @@ arrayvec = "0.7.6"
 clap = { version = "4.5.35", features = ["env", "derive"] }
 rayon = "1.10.0"
 ctor = "0.4.2"
+
+[build-dependencies]
+chrono = "0.4"
