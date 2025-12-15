@@ -3,7 +3,10 @@ use chrono::Local;
 use std::fs::File;
 use std::io;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+
+pub static LOG_ENABLED: AtomicBool = AtomicBool::new(true);
 
 pub fn configure_logging() -> Result<LoggerController, fern::InitError> {
     let logger_controller = LoggerController::new();
@@ -28,7 +31,8 @@ fn setup_logging(logger_controller: &LoggerController) -> Result<(), fern::InitE
         })
         .level(config::get_log_level())
         .chain(io::stderr())
-        .chain(fern::log_file(config::get_log_file().clone())?);
+        .chain(fern::log_file(config::get_log_file().clone())?)
+        .filter(|_| LOG_ENABLED.load(Ordering::Relaxed)); // runtime switch
 
     logger_controller.chain_debug_file(base).apply()?;
     Ok(())
