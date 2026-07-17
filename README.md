@@ -92,14 +92,15 @@ is not required when running the application directly.
 
 Further configuration options are available within these GUIs:
 
-| Option           | Description                                        |
-|------------------|----------------------------------------------------|
-| `debug log file` | The path to a further log file                     |
-| `hash`           | Hash table size in megabytes                       |
-| `ownbook`        | Use the engine's internal opening book             |
+| Option           | Description                                  |
+|------------------|----------------------------------------------|
+| `debug log file` | The path to the debug log file               |
+| `hash`           | Hash table size in megabytes                 |
+| `ownbook`        | Use the engine's internal opening book       |
 | `bookdepth`      | The maximum move number that uses the opening book |
+| `enablelog`      | Enable or disable logging                    |
 
-All of these except for the debug log file option simply override the corresponding command line options / environment variables.
+All of these except for the debug log file and enablelog options simply override the corresponding command line options / environment variables.
 
 ## **Logging**
 Logs provide helpful details about engine behavior, moves searched, and debugging information. By default, logs are stored in the processes current working directory. You can customize the path and verbosity using:
@@ -112,9 +113,7 @@ Or override at runtime:
 RUST_LOG=trace cargo run --release
 ```
 The logging is also sent to the console. The standard error stream is used due to the standard output stream being
-used by the UCI protocol. To see the UCI protocol in action without the logging this output can be
-prevented by redirecting the error stream to a null file e.g for UNIX add `2> /dev/null` to the command line
-or `2>nul` for Windows.
+used by the UCI protocol. To disable logging use the enablelog option in the GUI configuration.
 Alternatively setting the logging level to `error` will cause only errors to be logged.
 ## **Tests**
 The project includes a series of tests to verify engine correctness:
