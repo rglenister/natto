@@ -1,6 +1,5 @@
 use crate::core::board::BoardSide;
 use crate::core::piece::PieceType;
-use crate::core::position::Position;
 use crate::core::r#move::{BaseMove, Move};
 pub use crate::search::negamax::MAXIMUM_SCORE;
 use crate::uci::config;
@@ -50,13 +49,16 @@ impl TranspositionTable {
 
     pub fn insert(
         &self,
-        position: &Position,
+        hash_code: u64,
         depth: u8,
         alpha: i32,
         beta: i32,
         score: i32,
         mov: Option<Move>,
     ) {
+        if self.size == 0 {
+            return;
+        }
         let bound_type = if score <= alpha {
             BoundType::UpperBound
         } else if score >= beta {
@@ -65,7 +67,7 @@ impl TranspositionTable {
             BoundType::Exact
         };
         let do_store = {
-            if let Some(current_entry) = self.probe(position.hash_code()) {
+            if let Some(current_entry) = self.probe(hash_code) {
                 depth > current_entry.depth
                     || (depth == current_entry.depth
                         && ((bound_type == BoundType::Exact
@@ -77,16 +79,46 @@ impl TranspositionTable {
             }
         };
         if do_store {
-            self.store(position.hash_code(), mov, depth, score, bound_type);
+            self.store(hash_code, mov, depth, score, bound_type);
             //#[cfg(debug_assertions)]
             if cfg!(debug_assertions) {
-                let entry = self.probe(position.hash_code()).unwrap();
-                assert_eq!(entry.zobrist, position.hash_code());
+                let entry = self.probe(hash_code).unwrap();
+                assert_eq!(entry.zobrist, hash_code);
                 assert_eq!(entry.best_move, mov);
                 assert_eq!(entry.depth, depth);
                 assert_eq!(entry.score, score);
                 assert_eq!(entry.bound_type, bound_type);
             }
+        }
+    }
+
+    pub fn probe(&self, zobrist: u64) -> Option<TTEntry> {
+        if self.size == 0 {
+            return None;
+        }
+        let index = (zobrist as usize) % self.size;
+        let packed1 = self.table[index * 2].load(Ordering::Relaxed);
+        if packed1 == zobrist {
+            let packed2 = self.table[index * 2 + 1].load(Ordering::Relaxed);
+            Self::unpack_entry(packed1, packed2)
+        } else {
+            None
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn item_count(&self) -> usize {
+        let mut count = 0;
+        for i in 0..self.size {
+            if self.table[i * 2].load(Ordering::Relaxed) != 0 {
+                count += 1;
+            }
+        }
+        count
+    }
+    pub fn clear(&self) {
+        for atomic in &self.table {
+            atomic.store(0, Ordering::Relaxed);
         }
     }
 
@@ -111,17 +143,6 @@ impl TranspositionTable {
         self.table[index * 2 + 1].store(packed.1, Ordering::Relaxed);
     }
 
-    pub fn probe(&self, zobrist: u64) -> Option<TTEntry> {
-        let index = (zobrist as usize) % self.size;
-        let packed1 = self.table[index * 2].load(Ordering::Relaxed);
-        if packed1 == zobrist {
-            let packed2 = self.table[index * 2 + 1].load(Ordering::Relaxed);
-            Self::unpack_entry(packed1, packed2)
-        } else {
-            None
-        }
-    }
-
     fn prev_power_of_two(configured_hash_size: usize) -> usize {
         if configured_hash_size == 0 {
             return 0;
@@ -132,22 +153,6 @@ impl TranspositionTable {
 
     fn bytes_to_gib(bytes: usize) -> f64 {
         bytes as f64 / (1024 * 1024 * 1024) as f64
-    }
-
-    #[allow(dead_code)]
-    pub fn item_count(&self) -> usize {
-        let mut count = 0;
-        for i in 0..self.size {
-            if self.table[i * 2].load(Ordering::Relaxed) != 0 {
-                count += 1;
-            }
-        }
-        count
-    }
-    pub fn clear(&self) {
-        for atomic in &self.table {
-            atomic.store(0, Ordering::Relaxed);
-        }
     }
 
     fn pack_move(best_move: Move) -> u64 {
@@ -221,7 +226,7 @@ impl TranspositionTable {
         let packed1 = zobrist;
         let packed2 = if let Some(best_move) = best_move { Self::pack_move(best_move) } else { 0 }
             | ((depth as u64) << 21)
-            | (((score + MAXIMUM_SCORE) as u64 & 0x0FFFFFFF) << 29)
+            | (((score + MAXIMUM_SCORE * 10) as u64 & 0x0FFFFFFF) << 29)
             | ((bound as u64) << 57);
         (packed1, packed2)
     }
@@ -231,7 +236,7 @@ impl TranspositionTable {
         let has_move = (packed2 & 0x1fffff) != 0;
         let best_move = if has_move { Some(Self::unpack_mv(packed2)) } else { None };
         let depth = ((packed2 >> 21) & 0xFF) as u8;
-        let score = ((packed2 >> 29) & 0x0FFFFFFF) as i32 - MAXIMUM_SCORE;
+        let score = ((packed2 >> 29) & 0x0FFFFFFF) as i32 - MAXIMUM_SCORE * 10;
         let bound = match (packed2 >> 57) & 0x0F {
             0 => BoundType::Exact,
             1 => BoundType::LowerBound,
@@ -264,17 +269,16 @@ mod tests {
     #[test]
     fn test_do_stuff_with_table() {
         let t_table = TranspositionTable::new(1 << 1);
-
-        let position = Position::new_game();
+        let zobrist = 123456u64;
         t_table.store(
-            position.hash_code(),
+            zobrist,
             Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }),
             8,
             -100,
             LowerBound,
         );
-        let entry = t_table.probe(position.hash_code()).unwrap();
-        assert_eq!(entry.zobrist, position.hash_code());
+        let entry = t_table.probe(zobrist).unwrap();
+        assert_eq!(entry.zobrist, zobrist);
         assert_eq!(
             entry.best_move,
             Some(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } })
@@ -287,9 +291,9 @@ mod tests {
     #[test]
     fn test_item_count() {
         let t_table = TranspositionTable::new(1);
-        let position = Position::new_game();
+        let zobrist = 123456u64;
         t_table.store(
-            position.hash_code(),
+            zobrist,
             Option::from(Move::Basic { base_move: BaseMove { from: 63, to: 0, capture: true } }),
             8,
             -100,
@@ -319,8 +323,17 @@ mod tests {
         assert_eq!(format!("{:.2}", TranspositionTable::bytes_to_gib(10_000_000_000)), "9.31");
     }
 
+    #[test]
+    fn test_zero_size_table() {
+        let t_table = TranspositionTable::new(0);
+        let zobrist: u64 = 123456;
+        t_table.insert(zobrist, 1, 0, 0, 0, None);
+        assert!(t_table.probe(123456).is_none());
+    }
+
     mod entry_packing {
         use super::*;
+        use crate::core::position::Position;
         use crate::search::transposition_table::BoundType::Exact;
 
         #[test]
@@ -333,7 +346,7 @@ mod tests {
                     base_move: BaseMove { from: 12, to: 16, capture: true },
                 }),
                 2,
-                21,
+                -100001,
                 Exact,
             );
             let unpacked = TranspositionTable::unpack_entry(packed.0, packed.1).unwrap();
@@ -343,7 +356,7 @@ mod tests {
                 Some(Move::Basic { base_move: BaseMove { from: 12, to: 16, capture: true } })
             );
             assert_eq!(unpacked.depth, 2);
-            assert_eq!(unpacked.score, 21);
+            assert_eq!(unpacked.score, -100001);
             assert_eq!(unpacked.bound_type, Exact);
         }
 
