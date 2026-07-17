@@ -278,6 +278,7 @@ impl Engine {
         uci_util::send_to_gui("option name ownbook type check default true");
         uci_util::send_to_gui("option name bookdepth type spin default 10 min 1 max 50");
         uci_util::send_to_gui(&format!("option name hash type combo default {} var 64 var 128 var 256 var 512 var 1024 var 2048", config::get_hash_size()));
+        uci_util::send_to_gui("option name enablelog type check default true");
         uci_util::send_to_gui("uciok");
     }
 
@@ -317,6 +318,12 @@ impl Engine {
                     if let Ok(v) = value.parse::<usize>() {
                         info!("Setting book depth to {value}");
                         config::set_book_depth(v);
+                    }
+                }
+                "enablelog" => {
+                    if let Ok(v) = value.parse::<bool>() {
+                        info!("Setting enable logging to {value}");
+                        logging::LOG_ENABLED.store(v, Ordering::Relaxed);
                     }
                 }
                 _ => {
