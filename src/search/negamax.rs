@@ -225,23 +225,15 @@ impl Search<'_> {
                 let skip_tt_for_repetition = position_occurrence_count >= 2
                     && evaluation::score_position(self.position) > -100;
 
-                if !skip_tt_for_repetition && entry.depth >= depth {
+                if !skip_tt_for_repetition {
                     match entry.bound_type {
                         BoundType::Exact => {
                             return entry.score;
                         }
                         BoundType::LowerBound => {
-                            // Score is at least entry.score
-                            if entry.score >= beta {
-                                return entry.score; // Beta cutoff
-                            }
                             alpha = alpha.max(entry.score);
                         }
                         BoundType::UpperBound => {
-                            // Score is at most entry.score
-                            if entry.score <= alpha {
-                                return entry.score; // Alpha cutoff
-                            }
                             beta = beta.min(entry.score);
                         }
                     }
@@ -283,7 +275,7 @@ impl Search<'_> {
             for mv in moves {
                 if let Some(undo_move_info) = self.position.make_move(&mv) {
                     self.repetition_key_stack.push(RepetitionKey::new(self.position));
-                    if self.search_tree_position_occurance_count() <= 3 {
+                    if self.search_tree_position_occurrence_count() <= 3 {
                         let mut child_pv: ArrayVec<Move, MAXIMUM_SEARCH_DEPTH> = ArrayVec::new();
                         current_line.push(mv);
                         let next_score =
@@ -431,7 +423,7 @@ impl Search<'_> {
         )
     }
 
-    pub fn search_tree_position_occurance_count(&self) -> usize {
+    pub fn search_tree_position_occurrence_count(&self) -> usize {
         Search::position_occurrence_count_static(
             &self.repetition_key_stack[self.number_of_game_positions..],
         )
